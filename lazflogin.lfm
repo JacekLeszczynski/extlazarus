@@ -1,0 +1,209 @@
+object LazFormLogin: TLazFormLogin
+  Left = 398
+  Height = 220
+  Top = 653
+  Width = 494
+  BorderIcons = []
+  BorderStyle = bsDialog
+  Caption = 'Logowanie do systemu'
+  ClientHeight = 220
+  ClientWidth = 494
+  Constraints.MaxHeight = 220
+  Constraints.MaxWidth = 494
+  Constraints.MinHeight = 193
+  Constraints.MinWidth = 494
+  Font.Height = -11
+  OnCreate = FormCreate
+  OnShow = FormShow
+  Position = poOwnerFormCenter
+  LCLVersion = '1.7'
+  object Panel1: TPanel
+    Left = 0
+    Height = 64
+    Top = 0
+    Width = 494
+    Align = alTop
+    ClientHeight = 64
+    ClientWidth = 494
+    Font.Height = -11
+    ParentColor = False
+    ParentFont = False
+    TabOrder = 0
+    object Image1: TImage
+      Left = 1
+      Height = 62
+      Top = 0
+      Width = 492
+      Transparent = True
+      Visible = False
+    end
+    object Label1: TLabel
+      Left = 1
+      Height = 62
+      Top = 1
+      Width = 492
+      Align = alClient
+      Alignment = taCenter
+      AutoSize = False
+      Layout = tlCenter
+      ParentColor = False
+      Visible = False
+      WordWrap = True
+    end
+  end
+  object Panel3: TPanel
+    Left = 0
+    Height = 58
+    Top = 162
+    Width = 494
+    Align = alBottom
+    ClientHeight = 58
+    ClientWidth = 494
+    Font.Height = -11
+    ParentFont = False
+    TabOrder = 2
+    object Label2: TLabel
+      Left = 360
+      Height = 14
+      Top = 2
+      Width = 34
+      Anchors = [akRight, akBottom]
+      Caption = 'Enter'
+      Font.Color = clSilver
+      ParentColor = False
+      ParentFont = False
+    end
+    object ok: TBitBtn
+      Left = 313
+      Height = 30
+      Top = 18
+      Width = 83
+      Anchors = [akRight, akBottom]
+      Caption = 'Zatwierdź'
+      Default = True
+      OnClick = okClick
+      TabOrder = 0
+    end
+    object Label3: TLabel
+      Left = 438
+      Height = 14
+      Top = 2
+      Width = 46
+      Anchors = [akRight, akBottom]
+      Caption = 'Escape'
+      Font.Color = clSilver
+      ParentColor = False
+      ParentFont = False
+    end
+    object anuluj: TBitBtn
+      Left = 403
+      Height = 30
+      Top = 18
+      Width = 83
+      Anchors = [akRight, akBottom]
+      Cancel = True
+      Caption = 'Rezygnuj'
+      OnClick = anulujClick
+      TabOrder = 1
+    end
+  end
+  object Panel2: TPanel
+    Left = 0
+    Height = 98
+    Top = 64
+    Width = 494
+    Align = alClient
+    ClientHeight = 98
+    ClientWidth = 494
+    Font.Height = -11
+    ParentFont = False
+    TabOrder = 1
+    object Grad: TLazGradient
+      Left = 1
+      Height = 96
+      Top = 1
+      Width = 492
+      Align = alClient
+      BeginColor = clWindow
+      EndColor = clWindow
+      Orientation = foLeftToRight
+      Rounded = False
+      Visible = False
+    end
+    object haslo: TLabeledEdit
+      Left = 171
+      Height = 22
+      Top = 37
+      Width = 152
+      EchoMode = emPassword
+      EditLabel.AnchorSideTop.Control = haslo
+      EditLabel.AnchorSideTop.Side = asrCenter
+      EditLabel.AnchorSideRight.Control = haslo
+      EditLabel.AnchorSideBottom.Control = haslo
+      EditLabel.AnchorSideBottom.Side = asrBottom
+      EditLabel.Left = 124
+      EditLabel.Height = 13
+      EditLabel.Top = 42
+      EditLabel.Width = 44
+      EditLabel.Caption = 'Hasło:  '
+      EditLabel.ParentColor = False
+      Font.CharSet = EASTEUROPE_CHARSET
+      Font.Height = -12
+      Font.Name = 'Arial'
+      Font.Pitch = fpVariable
+      Font.Quality = fqDraft
+      LabelPosition = lpLeft
+      ParentFont = False
+      PasswordChar = '*'
+      TabOrder = 1
+    end
+    object uzytkownik: TLabeledEdit
+      Left = 171
+      Height = 21
+      Top = 10
+      Width = 152
+      EditLabel.AnchorSideTop.Control = uzytkownik
+      EditLabel.AnchorSideTop.Side = asrCenter
+      EditLabel.AnchorSideRight.Control = uzytkownik
+      EditLabel.AnchorSideBottom.Control = uzytkownik
+      EditLabel.AnchorSideBottom.Side = asrBottom
+      EditLabel.Left = 95
+      EditLabel.Height = 13
+      EditLabel.Top = 14
+      EditLabel.Width = 73
+      EditLabel.Caption = 'Użytkownik:  '
+      EditLabel.ParentColor = False
+      LabelPosition = lpLeft
+      TabOrder = 0
+    end
+    object c2: TComboBox
+      Left = 171
+      Height = 26
+      Top = 66
+      Width = 152
+      ItemHeight = 0
+      Style = csDropDownList
+      TabOrder = 2
+      Visible = False
+    end
+    object c1: TLabel
+      Left = 24
+      Height = 14
+      Top = 68
+      Width = 136
+      Alignment = taRightJustify
+      AutoSize = False
+      Caption = 'Coś:'
+      ParentColor = False
+      Visible = False
+    end
+  end
+  object message: TExtMessage
+    Caption = '<Auto>'
+    HelpContext = 0
+    PosTop = 0
+    PosLeft = 0
+    left = 81
+    top = 163
+  end
+end

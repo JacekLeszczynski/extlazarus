@@ -1,0 +1,64 @@
+#   File generated automatically by Lazarus Package Manager
+#
+#   Makefile.fpc for ExtLazarus 0.0
+#
+#   This file was generated on 14.06.2018
+
+[package]
+name=extlazarus
+version=0.0
+
+[compiler]
+unittargetdir=lib/$(CPU_TARGET)-$(OS_TARGET)
+unitdir=../../lib ../../../bin/lazarus/packager/units/$(CPU_TARGET)-$(OS_TARGET) ../../../.lazarus/onlinepackagemanager/packages/dcpcrypt-2.0.4.1/lib/$(CPU_TARGET)-$(OS_TARGET) ../../../bin/lazarus/components/lazutils/lib/$(CPU_TARGET)-$(OS_TARGET) ../../../bin/lazarus/lcl/units/$(CPU_TARGET)-$(OS_TARGET) ../../../bin/lazarus/lcl/units/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../.lazarus/onlinepackagemanager/packages/bgrabitmap-master/bgrabitmap/lib/$(CPU_TARGET)-$(OS_TARGET)/3.0.4 ../../../bin/lazarus/components/cairocanvas/lib/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../bin/lazarus/components/lazcontrols/lib/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../bin/lazarus/components/opengl/lib/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../bin/lazarus/components/synedit/units/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../.lazarus/onlinepackagemanager/packages/zeosdbo-7.1.4/packages/lazarus/lib/$(CPU_TARGET)-$(OS_TARGET) ../../../bin/lazarus/components/ideintf/units/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../bin/lazarus/components/printers/lib/$(CPU_TARGET)-$(OS_TARGET)/$(LCL_PLATFORM) ../../../bin/lazarus/components/lazreport/source/lib/$(CPU_TARGET)-$(OS_TARGET) .
+options= -MObjFPC -Scghi -O1 -g -gl -l -vewnhibq -dLCL -dLCL$(LCL_PLATFORM) $(DBG_OPTIONS)
+
+[target]
+units=extlazarus.pas
+
+[clean]
+files=$(wildcard $(COMPILER_UNITTARGETDIR)/*$(OEXT)) \
+      $(wildcard $(COMPILER_UNITTARGETDIR)/*$(PPUEXT)) \
+      $(wildcard $(COMPILER_UNITTARGETDIR)/*$(RSTEXT)) \
+      $(wildcard $(COMPILER_UNITTARGETDIR)/*.lfm) \
+      $(wildcard $(COMPILER_UNITTARGETDIR)/*.res) \
+      $(wildcard $(COMPILER_UNITTARGETDIR)/*.compiled) \
+      $(wildcard *$(OEXT)) $(wildcard *$(PPUEXT)) $(wildcard *$(RSTEXT))
+
+[prerules]
+# LCL Platform
+ifndef LCL_PLATFORM
+ifeq ($(OS_TARGET),win32)
+LCL_PLATFORM=win32
+else
+ifeq ($(OS_TARGET),win64)
+LCL_PLATFORM=win32
+else
+ifeq ($(OS_TARGET),darwin)
+LCL_PLATFORM=carbon
+else
+LCL_PLATFORM=gtk2
+endif
+endif
+endif
+endif
+export LCL_PLATFORM
+
+DBG_OPTIONS=
+ifeq ($(OS_TARGET),darwin)
+DBG_OPTIONS=-gw
+endif
+
+[rules]
+.PHONY: cleartarget compiled all
+
+cleartarget:
+        -$(DEL) $(COMPILER_UNITTARGETDIR)/extlazarus$(PPUEXT)
+
+compiled:
+        $(CPPROG) -f Makefile.compiled $(COMPILER_UNITTARGETDIR)/ExtLazarus.compiled
+
+all: cleartarget $(COMPILER_UNITTARGETDIR) extlazarus$(PPUEXT) compiled
+
+distclean: clean
+        ${DELTREE} lib/*

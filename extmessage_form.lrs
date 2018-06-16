@@ -1,0 +1,16 @@
+{ This is an automatically generated lazarus resource file }
+
+LazarusResources.Add('TFExtMessageForm','FORMDATA',[
+  'TPF0'#16'TFExtMessageForm'#15'FExtMessageForm'#4'Left'#3'L'#1#6'Height'#2'd'
+  +#3'Top'#3#138#1#5'Width'#3'^'#1#11'BorderStyle'#7#6'bsNone'#7'Caption'#6#15
+  +'FExtMessageForm'#12'ClientHeight'#2'd'#11'ClientWidth'#3'^'#1#5'Color'#7#9
+  +'clBtnFace'#10'Font.Color'#7#12'clWindowText'#11'Font.Height'#2#245#9'Font.N'
+  +'ame'#6#6'Tahoma'#6'OnShow'#7#8'FormShow'#10'LCLVersion'#6#3'1.7'#0#6'TPanel'
+  +#6'Panel1'#4'Left'#2#0#6'Height'#2'd'#3'Top'#2#0#5'Width'#3'^'#1#5'Align'#7#8
+  +'alClient'#12'ClientHeight'#2'd'#11'ClientWidth'#3'^'#1#8'TabOrder'#2#0#0#6
+  +'TLabel'#6'Label1'#4'Left'#2#1#6'Height'#2'b'#3'Top'#2#1#5'Width'#3'\'#1#5'A'
+  +'lign'#7#8'alClient'#9'Alignment'#7#8'taCenter'#7'Caption'#6#7'Text :)'#5'Co'
+  +'lor'#7#9'clBtnFace'#10'Font.Color'#7#12'clWindowText'#11'Font.Height'#2#243
+  +#9'Font.Name'#6#6'Tahoma'#6'Layout'#7#8'tlCenter'#11'ParentColor'#8#10'Paren'
+  +'tFont'#8#11'Transparent'#8#0#0#0#0
+]);

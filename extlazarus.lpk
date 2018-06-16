@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="4">
+    <Name Value="ExtLazarus"/>
+    <Type Value="RunAndDesignTime"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <SearchPaths>
+        <OtherUnitFiles Value="../../lib"/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Files Count="33">
+      <Item1>
+        <Filename Value="xmlparser.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="XmlParser"/>
+      </Item1>
+      <Item2>
+        <Filename Value="csvparser.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="CsvParser"/>
+      </Item2>
+      <Item3>
+        <Filename Value="symfoniaparser.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="SymfoniaParser"/>
+      </Item3>
+      <Item4>
+        <Filename Value="exteventlog.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtEventLog"/>
+      </Item4>
+      <Item5>
+        <Filename Value="logstringgrid.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="LogStringGrid"/>
+      </Item5>
+      <Item6>
+        <Filename Value="extmessage.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtMessage"/>
+      </Item6>
+      <Item7>
+        <Filename Value="extparams.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtParams"/>
+      </Item7>
+      <Item8>
+        <Filename Value="pointertab.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="PointerTab"/>
+      </Item8>
+      <Item9>
+        <Filename Value="extlazarustypes.pas"/>
+        <UnitName Value="ExtLazarusTypes"/>
+      </Item9>
+      <Item10>
+        <Filename Value="extmessage_form.pas"/>
+        <UnitName Value="extmessage_form"/>
+      </Item10>
+      <Item11>
+        <Filename Value="frreportplus.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="frReportPlus"/>
+      </Item11>
+      <Item12>
+        <Filename Value="dbschemasync.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="DBSchemaSync"/>
+      </Item12>
+      <Item13>
+        <Filename Value="zencodeddbconf.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ZEncodedDBConf"/>
+      </Item13>
+      <Item14>
+        <Filename Value="zmasterversiondb.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ZMasterVersionDB"/>
+      </Item14>
+      <Item15>
+        <Filename Value="zqueryrelative.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ZQueryRelative"/>
+      </Item15>
+      <Item16>
+        <Filename Value="lazgradient.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="lazgradient"/>
+      </Item16>
+      <Item17>
+        <Filename Value="lazflogin.pas"/>
+        <UnitName Value="lazflogin"/>
+      </Item17>
+      <Item18>
+        <Filename Value="lazlogin.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="LazLogin"/>
+      </Item18>
+      <Item19>
+        <Filename Value="colorprogress.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ColorProgress"/>
+      </Item19>
+      <Item20>
+        <Filename Value="dbschemasync_postgres.pas"/>
+        <HasRegisterProc Value="True"/>
+        <AddToUsesPkgSection Value="False"/>
+        <UnitName Value="DBSchemaSync_postgres"/>
+      </Item20>
+      <Item21>
+        <Filename Value="dbsourcecopytoexcel.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="DBSourceCopyToExcel"/>
+      </Item21>
+      <Item22>
+        <Filename Value="gradpan.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="Gradpan"/>
+      </Item22>
+      <Item23>
+        <Filename Value="extsharedmemory.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtSharedMemory"/>
+      </Item23>
+      <Item24>
+        <Filename Value="openglcenter.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="OpenGLCenter"/>
+      </Item24>
+      <Item25>
+        <Filename Value="ztransaction.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ZTransaction"/>
+      </Item25>
+      <Item26>
+        <Filename Value="dbconftable.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="DBConfTable"/>
+      </Item26>
+      <Item27>
+        <Filename Value="uosengine.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="UOSEngine"/>
+      </Item27>
+      <Item28>
+        <Filename Value="uosplayer.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="UOSPlayer"/>
+      </Item28>
+      <Item29>
+        <Filename Value="soundplayer.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="SoundPlayer"/>
+      </Item29>
+      <Item30>
+        <Filename Value="consmixer.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ConsMixer"/>
+      </Item30>
+      <Item31>
+        <Filename Value="extshutdown.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtShutdown"/>
+      </Item31>
+      <Item32>
+        <Filename Value="netsynhttp.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="NetSynHTTP"/>
+      </Item32>
+      <Item33>
+        <Filename Value="asn1util.pas"/>
+        <UnitName Value="asn1util"/>
+      </Item33>
+    </Files>
+    <RequiredPkgs Count="7">
+      <Item1>
+        <PackageName Value="LazOpenGLContext"/>
+      </Item1>
+      <Item2>
+        <PackageName Value="BGRABitmapPack"/>
+      </Item2>
+      <Item3>
+        <PackageName Value="zcomponent"/>
+      </Item3>
+      <Item4>
+        <PackageName Value="lazreport"/>
+      </Item4>
+      <Item5>
+        <PackageName Value="dcpcrypt"/>
+      </Item5>
+      <Item6>
+        <PackageName Value="LCL"/>
+      </Item6>
+      <Item7>
+        <PackageName Value="FCL"/>
+      </Item7>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+    </PublishOptions>
+    <CustomOptions Items="ExternHelp" Version="2">
+      <_ExternHelp Items="Count"/>
+    </CustomOptions>
+  </Package>
+</CONFIG>
