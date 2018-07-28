@@ -5,7 +5,7 @@ unit ExtParams;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;//, Forms, Controls, Graphics, Dialogs;
 
 type
 
