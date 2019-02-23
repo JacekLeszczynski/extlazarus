@@ -14,7 +14,7 @@ uses
   ZQueryRelative, lazgradient, lazflogin, LazLogin, ColorProgress, 
   DBSchemaSync_postgres, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
-  ConsMixer, ExtShutdown, NetSynHTTP, asn1util, LazarusPackageIntf;
+  ConsMixer, ExtShutdown, NetSynHTTP, asn1util, LiveTimer, LazarusPackageIntf;
 
 implementation
 
@@ -49,6 +49,7 @@ begin
   RegisterUnit('ConsMixer', @ConsMixer.Register);
   RegisterUnit('ExtShutdown', @ExtShutdown.Register);
   RegisterUnit('NetSynHTTP', @NetSynHTTP.Register);
+  RegisterUnit('LiveTimer', @LiveTimer.Register);
 end;
 
 initialization

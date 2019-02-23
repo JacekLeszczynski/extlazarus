@@ -115,7 +115,7 @@ procedure TPointerTab.na_stos;
 var
   w: t_wskaznik;
 begin
-  if (not Assigned(FOnCreateElement)) or (not Assigned(FOnCreateElement)) then exit;
+  if (not Assigned(FOnCreateElement)) or (not Assigned(FOnWriteElement)) then exit;
   new(w);
   FOnCreateElement(self,w^.body);
   FOnWriteElement(self,w^.body);
@@ -128,12 +128,13 @@ function TPointerTab.ze_stosu: boolean;
 var
   w: t_wskaznik;
 begin
+  //if (FCount=0) or (ww=nil) then
   if ww=nil then
   begin
     result:=false;
     exit;
   end;
-  if (not Assigned(FOnDestroyElement)) or (not Assigned(FOnWriteElement)) then exit;
+  if (not Assigned(FOnDestroyElement)) or (not Assigned(FOnReadElement)) then exit;
   FOnReadElement(self,ww^.body);
   FOnDestroyElement(self,ww^.body);
   w:=ww;
@@ -153,7 +154,7 @@ begin
     result:=false;
     exit;
   end;
-  if (not Assigned(FOnDestroyElement)) or (not Assigned(FOnWriteElement)) then exit;
+  if not Assigned(FOnDestroyElement) then exit;
   FOnDestroyElement(self,ww^.body);
   w:=ww;
   ww:=w^.wsk;
@@ -169,7 +170,7 @@ var
 begin
   (* tworzę stos, z tą różnicą, że nowe elementy dodaję na sam koniec tego stosu *)
   (* w tej sposób tworzy się kolejka, a czytanie jest dokładnie takie jak ze stosu *)
-  if (not Assigned(FOnCreateElement)) or (not Assigned(FOnCreateElement)) then exit;
+  if (not Assigned(FOnCreateElement)) or (not Assigned(FOnWriteElement)) then exit;
   new(w);
   FOnCreateElement(self,w^.body);
   FOnWriteElement(self,w^.body);

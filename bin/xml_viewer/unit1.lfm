@@ -1,0 +1,309 @@
+object Form1: TForm1
+  Left = 355
+  Height = 527
+  Top = 233
+  Width = 700
+  Caption = 'XML Viewer'
+  ClientHeight = 527
+  ClientWidth = 700
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  Position = poDesktopCenter
+  SessionProperties = 'CheckBox1.Checked;ComboBox1.ItemIndex;ComboBox2.ItemIndex;FileNameEdit1.InitialDir;Height;Left;sg.Columns;Top;Width;CheckBox2.Checked'
+  LCLVersion = '1.3'
+  object FileNameEdit1: TFileNameEdit
+    Left = 8
+    Height = 22
+    Top = 64
+    Width = 658
+    DialogOptions = []
+    FilterIndex = 0
+    HideDirectories = False
+    ButtonWidth = 23
+    NumGlyphs = 1
+    Anchors = [akTop, akLeft, akRight]
+    MaxLength = 0
+    TabOrder = 0
+    OnChange = FileNameEdit1Change
+  end
+  object Label1: TLabel
+    AnchorSideLeft.Control = FileNameEdit1
+    AnchorSideBottom.Control = FileNameEdit1
+    Left = 8
+    Height = 14
+    Top = 48
+    Width = 163
+    Anchors = [akLeft, akBottom]
+    BorderSpacing.Bottom = 2
+    Caption = 'Plik XML/CSV do wczytania:'
+    ParentColor = False
+  end
+  object sg: TStringGrid
+    Left = 8
+    Height = 355
+    Top = 112
+    Width = 682
+    Anchors = [akTop, akLeft, akRight, akBottom]
+    Columns = <    
+      item
+        Title.Caption = 'Poziom'
+        Width = 40
+      end    
+      item
+        Title.Caption = 'Adres'
+        Width = 100
+      end    
+      item
+        Title.Caption = 'Klucz'
+        Width = 80
+      end    
+      item
+        Title.Caption = 'Zmienna'
+        Width = 70
+      end    
+      item
+        Title.Caption = 'Wartość'
+        Width = 200
+      end>
+    FixedCols = 0
+    Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goColSizing, goEditing, goSmoothScroll]
+    RowCount = 1
+    TabOrder = 1
+    Cells = (
+      1
+      0
+      0
+      'Poziom'
+    )
+  end
+  object Label2: TLabel
+    AnchorSideLeft.Control = sg
+    AnchorSideTop.Control = sg
+    AnchorSideBottom.Control = sg
+    Left = 8
+    Height = 14
+    Top = 98
+    Width = 39
+    Anchors = [akLeft, akBottom]
+    Caption = 'Wynik:'
+    ParentColor = False
+  end
+  object BitBtn1: TBitBtn
+    AnchorSideTop.Control = sg
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = sg
+    AnchorSideRight.Side = asrBottom
+    Left = 615
+    Height = 30
+    Top = 473
+    Width = 75
+    Anchors = [akTop, akRight]
+    BorderSpacing.Top = 6
+    Caption = 'Wyjście'
+    OnClick = BitBtn1Click
+    TabOrder = 2
+  end
+  object not_filter: TCheckBox
+    AnchorSideTop.Control = FileNameEdit1
+    AnchorSideRight.Control = FileNameEdit1
+    AnchorSideRight.Side = asrBottom
+    AnchorSideBottom.Control = FileNameEdit1
+    Left = 471
+    Height = 21
+    Top = 43
+    Width = 195
+    Anchors = [akRight, akBottom]
+    Caption = 'Nie filtruj MSSQL TraceData!'
+    Enabled = False
+    OnChange = FileNameEdit1Change
+    TabOrder = 3
+  end
+  object Edit1: TEdit
+    AnchorSideLeft.Control = sg
+    AnchorSideTop.Control = BitBtn2
+    AnchorSideTop.Side = asrCenter
+    AnchorSideBottom.Control = sg
+    Left = 8
+    Height = 22
+    Top = 477
+    Width = 402
+    Alignment = taCenter
+    Font.CharSet = EASTEUROPE_CHARSET
+    Font.Color = clBlack
+    Font.Height = -12
+    Font.Name = 'Arial'
+    Font.Pitch = fpVariable
+    Font.Quality = fqDraft
+    Font.Style = [fsItalic]
+    ParentFont = False
+    ReadOnly = True
+    TabOrder = 4
+    Text = '$Path($make())\local_precompile.exe "$(ConfDir)" "$(ProjPath)"'
+  end
+  object cc: TProgressBar
+    AnchorSideLeft.Control = FileNameEdit1
+    AnchorSideTop.Control = FileNameEdit1
+    AnchorSideTop.Side = asrBottom
+    AnchorSideRight.Control = SpeedButton1
+    AnchorSideRight.Side = asrBottom
+    Left = 8
+    Height = 10
+    Top = 86
+    Width = 681
+    Anchors = [akTop, akLeft, akRight]
+    Smooth = True
+    TabOrder = 5
+  end
+  object BitBtn2: TBitBtn
+    AnchorSideTop.Control = BitBtn1
+    AnchorSideRight.Control = BitBtn1
+    Left = 529
+    Height = 30
+    Top = 473
+    Width = 80
+    Anchors = [akTop, akRight]
+    BorderSpacing.Right = 6
+    Caption = 'Stop'
+    Enabled = False
+    OnClick = BitBtn2Click
+    TabOrder = 6
+  end
+  object StatusBar1: TStatusBar
+    Left = 0
+    Height = 18
+    Top = 509
+    Width = 700
+    Panels = <>
+  end
+  object ComboBox1: TComboBox
+    Left = 240
+    Height = 23
+    Top = 16
+    Width = 218
+    ItemHeight = 0
+    ItemIndex = 0
+    Items.Strings = (
+      'Automatyczne'
+      'UTF-8'
+      'Windows-1250'
+      'ISO-8859-2'
+    )
+    Style = csDropDownList
+    TabOrder = 9
+    Text = 'Automatyczne'
+  end
+  object Label3: TLabel
+    AnchorSideLeft.Control = ComboBox1
+    AnchorSideBottom.Control = ComboBox1
+    Left = 240
+    Height = 14
+    Top = 2
+    Width = 140
+    Anchors = [akLeft, akBottom]
+    Caption = 'Kodowanie (tylko XML):'
+    ParentColor = False
+  end
+  object Label4: TLabel
+    AnchorSideLeft.Control = ComboBox2
+    AnchorSideBottom.Control = ComboBox2
+    Left = 8
+    Height = 14
+    Top = 2
+    Width = 93
+    Anchors = [akLeft, akBottom]
+    Caption = 'Kontener pliku:'
+    ParentColor = False
+  end
+  object ComboBox2: TComboBox
+    Left = 8
+    Height = 23
+    Top = 16
+    Width = 218
+    ItemHeight = 0
+    ItemIndex = 0
+    Items.Strings = (
+      'XML'
+      'ZIP'
+      'DES'
+    )
+    Style = csDropDownList
+    TabOrder = 8
+    Text = 'XML'
+  end
+  object CheckBox1: TCheckBox
+    AnchorSideLeft.Control = CheckBox2
+    AnchorSideBottom.Control = CheckBox2
+    Left = 471
+    Height = 21
+    Top = 1
+    Width = 113
+    Anchors = [akLeft, akBottom]
+    Caption = 'Stary algorytm'
+    TabOrder = 10
+  end
+  object SpeedButton1: TSpeedButton
+    AnchorSideLeft.Control = FileNameEdit1
+    AnchorSideLeft.Side = asrBottom
+    AnchorSideTop.Control = FileNameEdit1
+    Left = 666
+    Height = 22
+    Top = 64
+    Width = 23
+    Caption = 'RO'
+    OnClick = FileNameEdit1Change
+  end
+  object CheckBox2: TCheckBox
+    AnchorSideLeft.Control = not_filter
+    AnchorSideBottom.Control = not_filter
+    Left = 471
+    Height = 21
+    Top = 22
+    Width = 214
+    Anchors = [akLeft, akBottom]
+    Caption = 'Ogranicz liczbę pozycji do 2000'
+    TabOrder = 11
+  end
+  object xml: TXmlParser
+    OnRead = xmlRead
+    OnError = xmlError
+    OnProgress = xmlProgress
+    OnBranchIn = xmlBranchIn
+    OnBranchBlock = xmlBranchBlock
+    OnBranchOut = xmlBranchOut
+    left = 32
+    top = 384
+  end
+  object XMLPropStorage1: TXMLPropStorage
+    StoredValues = <    
+      item
+        Name = 'sciezka'
+        KeyString = 'sciezka'
+      end>
+    FileName = 'local_xml_viewer.xml'
+    RootNodePath = 'root'
+    left = 104
+    top = 384
+  end
+  object csv: TCsvParser
+    Separator = ';'
+    OnRead = csvRead
+    OnProgress = xmlProgress
+    left = 32
+    top = 312
+  end
+  object sparser: TSymfoniaParser
+    OnRead = sparserRead
+    OnProgress = xmlProgress
+    left = 32
+    top = 240
+  end
+  object message: TExtMessage
+    Caption = '<Auto>'
+    HelpContext = 0
+    Position = psMainFormCenter
+    PosTop = 0
+    PosLeft = 0
+    left = 104
+    top = 240
+  end
+end

@@ -10,6 +10,15 @@ uses
 
 type
 
+  TAmixerSget = record
+    playback: boolean;
+    capture: boolean;
+    min,max: integer;
+    value: integer;
+    percent: integer;
+    active: boolean;
+  end;
+
   { TConsMixer }
 
   TConsMixer = class(TComponent)
@@ -43,6 +52,9 @@ type
     procedure PlayUnmute;
     procedure RecMute;
     procedure RecUnmute;
+    procedure ExecuteMixer(komenda: string; parametry: string; var wyniki: TStringList);
+    procedure ExecuteMixer(komenda: string; parametry: string);
+    function ReadSGet(wyniki: TStringList): TAmixerSget;
   published
     property PlayMuted: boolean read FPlayMuted default false;
     property RecMuted: boolean read FRecMuted default false;
@@ -185,6 +197,110 @@ begin
   Execute(FRecUnmuteCmd);
   FRecMuted:=false;
   if Assigned(FAfterRecUnmute) then FAfterRecUnmute(self);
+end;
+
+procedure TConsMixer.ExecuteMixer(komenda: string; parametry: string;
+  var wyniki: TStringList);
+var
+  L: TStrings;
+  i: Integer;
+begin
+  run2:=TProcess.Create(nil);
+  L:=TStringList.Create;
+  try
+    L.Delimiter:=' ';
+    L.DelimitedText:=parametry;
+    run2.Executable:='amixer';
+    run2.Options:=run2.Options+[poWaitOnExit,poUsePipes];
+    run2.Parameters.Clear;
+    run2.Parameters.Add(komenda);
+    for i:=0 to L.Count-1 do run2.Parameters.Add(L[i]);
+    try
+      run2.Execute;
+      wyniki.Clear;
+      wyniki.LoadFromStream(run2.Output);
+    except
+      on E: Exception do E.CreateFmt('Unable to execute command %s Message: %s',['amixer',E.Message]);
+    end;
+  finally
+    L.Free;
+    run2.Free;
+  end;
+end;
+
+procedure TConsMixer.ExecuteMixer(komenda: string; parametry: string);
+var
+  L: TStrings;
+  i: Integer;
+begin
+  run2:=TProcess.Create(nil);
+  L:=TStringList.Create;
+  try
+    L.Delimiter:=' ';
+    L.DelimitedText:=parametry;
+    run2.Executable:='amixer';
+    run2.Parameters.Clear;
+    run2.Parameters.Add(komenda);
+    for i:=0 to L.Count-1 do run2.Parameters.Add(L[i]);
+    try
+      run2.Execute;
+    except
+      on E: Exception do E.CreateFmt('Unable to execute command %s Message: %s',['amixer',E.Message]);
+    end;
+  finally
+    L.Free;
+    run2.Free;
+  end;
+end;
+
+function TConsMixer.ReadSGet(wyniki: TStringList): TAmixerSget;
+var
+  ss: TStrings;
+  s: string;
+  i,j,a,b: integer;
+begin
+  ss:=TStringList.Create;
+  try
+    s:=wyniki.Text;
+    result.capture:=pos('cvolume',s)>0;
+    result.playback:=pos('pvolume',s)>0;
+    for i:=0 to wyniki.Count-1 do
+    begin
+      s:=wyniki[i];
+      if pos('Limits:',s)>0 then
+      begin
+        s:=StringReplace(s,'Limits:','',[rfReplaceAll,rfIgnoreCase]);
+        s:=StringReplace(s,'Playback','',[rfReplaceAll,rfIgnoreCase]);
+        s:=StringReplace(s,'Capture','',[rfReplaceAll,rfIgnoreCase]);
+        s:=StringReplace(s,' ','',[rfReplaceAll]);
+        s:=trim(s);
+        ss.Delimiter:='-';
+        ss.DelimitedText:=s;
+        result.min:=StrToInt(ss[0]);
+        result.max:=StrToInt(ss[1]);
+        ss.Clear;
+      end;
+      if pos('Front Left:',s)>0 then
+      begin
+        s:=StringReplace(s,'Front Left:','',[rfReplaceAll,rfIgnoreCase]);
+        s:=StringReplace(s,'Playback','',[rfReplaceAll,rfIgnoreCase]);
+        s:=StringReplace(s,'Capture','',[rfReplaceAll,rfIgnoreCase]);
+        s:=trim(s);
+        ss.Delimiter:=' ';
+        ss.DelimitedText:=s;
+        result.value:=StrToInt(ss[0]);
+        s:=ss[1];
+        s:=StringReplace(s,'%','',[]);
+        s:=StringReplace(s,'[','',[]);
+        s:=StringReplace(s,']','',[]);
+        result.percent:=StrToInt(s);
+        result.active:=ss[2]='[on]';
+        ss.Clear;
+      end;
+    end;
+  finally
+    ss.Free;
+  end;
 end;
 
 end.

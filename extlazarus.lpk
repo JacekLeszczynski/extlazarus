@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="33">
+    <Files Count="34">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -173,6 +173,11 @@
         <Filename Value="asn1util.pas"/>
         <UnitName Value="asn1util"/>
       </Item33>
+      <Item34>
+        <Filename Value="livetimer.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="LiveTimer"/>
+      </Item34>
     </Files>
     <RequiredPkgs Count="7">
       <Item1>
