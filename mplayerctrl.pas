@@ -240,7 +240,7 @@ type
     property OnMouseDown;
     property OnMouseWheel;
     property Visible;
-    property Volume;     // 0 to 100
+    property Volume;     // 0 to 100 and -1 is deactivated
     property OnFeedback; // Provides standard console output from mplayer
     property OnError;    // Provides stderr console output from mplayer
     property OnPlaying;  // When not paused, an event every 250ms to 500ms with Position
@@ -531,6 +531,7 @@ procedure TCustomMPlayerControl.SetVolume(const AValue: integer);
 begin
   if FVolume=AValue then exit;
   FVolume:=AValue;
+  if FVolume=-1 then exit;
   if Running then
   begin
     SendMPlayerCommand('volume ' + IntToStr(FVolume) + ' 1');
@@ -625,9 +626,9 @@ begin
   If not result then
   begin
     MPlayerExe:='mpv'+GetExeExt;
-    if FMPlayerPath='' then
-      FMPlayerPath:=MPlayerExe;
-    ExePath:=FMPlayerPath;
+    if FMPVPath='' then
+      FMPVPath:=MPlayerExe;
+    ExePath:=FMPVPath;
     // Is mplayer installed in the environment path?
     if not FilenameIsAbsolute(ExePath) then
       ExePath:=FindDefaultExecutablePath(ExePath);
@@ -638,7 +639,7 @@ begin
     // did we find it?
     if FileExistsUTF8(ExePath) then
     begin
-      FMPlayerPath:=ExePath;
+      FMPVPath:=ExePath;
       result := true;
     end;
   end;
@@ -687,7 +688,7 @@ begin
   end;
 
   {$IFDEF Linux}
-  CurWindowID := GDK_WINDOW_XWINDOW({%H-}PGtkWidget(PtrUInt(Handle))^.window);
+    CurWindowID := GDK_WINDOW_XWINDOW({%H-}PGtkWidget(PtrUInt(Handle))^.window);
   {$else}
     CurWindowID := Handle;
   {$ENDIF}
@@ -710,6 +711,11 @@ begin
     FPlayerProcess.Parameters.Add('-identify');  // Request stats on playing file
     FPlayerProcess.Parameters.Add('-vf');
     FPlayerProcess.Parameters.Add('screenshot'); // (with -vf) Allow frame grab
+  end;
+  if FEngine=meMPV then
+  begin
+    FPlayerProcess.Parameters.Add('--player-operation-mode=pseudo-gui');
+    FPlayerProcess.Parameters.Add('--no-osc');
   end;
   FPlayerProcess.Parameters.Add('-quiet');     // supress most messages
   if FVolume>-1 then
@@ -771,6 +777,7 @@ begin
     exit;
 
   DebugLn(Format('ExitStatus=%d', [fPlayerProcess.ExitStatus]));
+  DebugLn(Format('ExitCode=%d', [fPlayerProcess.ExitCode]));
   FPaused := False;
   FDuration := -1;
   FTimer.Enabled := False;

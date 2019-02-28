@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="34">
+    <Files Count="35">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -178,6 +178,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="LiveTimer"/>
       </Item34>
+      <Item35>
+        <Filename Value="mplayerctrl.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="MPlayerCtrl"/>
+      </Item35>
     </Files>
     <RequiredPkgs Count="7">
       <Item1>
