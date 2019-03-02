@@ -684,7 +684,7 @@ begin
       raise Exception.Create(MPlayerPath+' not found');
   end else begin
     if not FindMPVPath then
-      raise Exception.Create(MPlayerPath+' not found');
+      raise Exception.Create(FMPVPath+' not found');
   end;
 
   {$IFDEF Linux}
@@ -714,8 +714,9 @@ begin
   end;
   if FEngine=meMPV then
   begin
-    FPlayerProcess.Parameters.Add('--player-operation-mode=pseudo-gui');
-    FPlayerProcess.Parameters.Add('--no-osc');
+    FPlayerProcess.Parameters.Add('-player-operation-mode');
+    FPlayerProcess.Parameters.Add('pseudo-gui');
+    FPlayerProcess.Parameters.Add('-no-osc');
   end;
   FPlayerProcess.Parameters.Add('-quiet');     // supress most messages
   if FVolume>-1 then
