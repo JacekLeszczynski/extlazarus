@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="35">
+    <Files Count="34">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -170,42 +170,41 @@
         <UnitName Value="NetSynHTTP"/>
       </Item32>
       <Item33>
-        <Filename Value="asn1util.pas"/>
-        <UnitName Value="asn1util"/>
-      </Item33>
-      <Item34>
         <Filename Value="livetimer.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="LiveTimer"/>
-      </Item34>
-      <Item35>
+      </Item33>
+      <Item34>
         <Filename Value="mplayerctrl.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="MPlayerCtrl"/>
-      </Item35>
+      </Item34>
     </Files>
-    <RequiredPkgs Count="7">
+    <RequiredPkgs Count="8">
       <Item1>
-        <PackageName Value="LazOpenGLContext"/>
+        <PackageName Value="laz_synapse"/>
       </Item1>
       <Item2>
-        <PackageName Value="BGRABitmapPack"/>
+        <PackageName Value="LazOpenGLContext"/>
       </Item2>
       <Item3>
-        <PackageName Value="zcomponent"/>
+        <PackageName Value="BGRABitmapPack"/>
       </Item3>
       <Item4>
-        <PackageName Value="lazreport"/>
+        <PackageName Value="zcomponent"/>
       </Item4>
       <Item5>
-        <PackageName Value="dcpcrypt"/>
+        <PackageName Value="lazreport"/>
       </Item5>
       <Item6>
-        <PackageName Value="LCL"/>
+        <PackageName Value="dcpcrypt"/>
       </Item6>
       <Item7>
-        <PackageName Value="FCL"/>
+        <PackageName Value="LCL"/>
       </Item7>
+      <Item8>
+        <PackageName Value="FCL"/>
+      </Item8>
     </RequiredPkgs>
     <UsageOptions>
       <UnitPath Value="$(PkgOutDir)"/>

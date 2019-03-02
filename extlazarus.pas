@@ -14,7 +14,7 @@ uses
   ZQueryRelative, lazgradient, lazflogin, LazLogin, ColorProgress, 
   DBSchemaSync_postgres, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
-  ConsMixer, ExtShutdown, NetSynHTTP, asn1util, LiveTimer, MPlayerCtrl, 
+  ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   LazarusPackageIntf;
 
 implementation
