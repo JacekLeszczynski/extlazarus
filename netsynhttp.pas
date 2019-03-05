@@ -37,6 +37,9 @@ procedure Register;
 
 implementation
 
+uses
+  ssl_openssl, ssl_openssl_lib;
+
 procedure Register;
 begin
   {$I netsynhttp_icon.lrs}

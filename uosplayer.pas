@@ -26,6 +26,7 @@ type
     FFileName: string;
     FDevIndex: cardinal;
     FListenMic: boolean;
+    FMeter: boolean;
     FMode: TUOSPlayerMode;
     FMute: boolean;
     FOnStop: TNotifyEvent;
@@ -46,6 +47,8 @@ type
     procedure Pause;
     procedure Replay;
     function GetStatus: integer;
+    procedure GetMeter(var ALeft,ARight: double);
+    procedure GetMeter(var ALeft,ARight: integer);
   published
     property DeviceEngine: TUOSEngine read FDevEngine write FDevEngine;
     property Busy: boolean read FBusy default false;
@@ -56,6 +59,7 @@ type
     property DeviceIndex: cardinal read FDevIndex write FDevIndex default 0;
     property Volume: integer read FVolume write SetVolume default 100;
     property Mute: boolean read FMute write SetMute default false; //Nie wycisza głośników, wycisza nagrywanie!
+    property Meter: boolean read FMeter write FMeter default false;
     property BeforeStart: TNotifyEvent read FBeforeStart write FBeforeStart;
     property AfterStart: TNotifyEvent read FAfterStart write FAfterStart;
     property BeforeStop: TNotifyEvent read FBeforeStop write FBeforeStop;
@@ -89,6 +93,7 @@ begin
   FListenMic:=false;
   FVolume:=100;
   FMute:=false;
+  FMeter:=false;
 end;
 
 procedure TUOSPlayer.ClosePlayer;
@@ -157,6 +162,7 @@ begin
     uos_InputAddDSP1ChanTo2Chan(FDevIndex,InIndex);
     uos_InputAddDSPVolume(FDevIndex,InIndex,1,1);
     uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True); /// Set volume
+    if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     uos_EndProc(FDevIndex,@ClosePlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
   end else begin
@@ -167,6 +173,7 @@ begin
     InIndex:=uos_AddFromDevIn(FDevIndex);  /// add Input from mic into IN device with default parameters
     uos_InputAddDSPVolume(FDevIndex,InIndex, 1, 1);
     uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True); /// Set volume
+    if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     uos_Play(FDevIndex);  /////// everything is ready to play...
   end;
   FBusy:=true;
@@ -203,6 +210,18 @@ end;
 function TUOSPlayer.GetStatus: integer;
 begin
   result:=uos_GetStatus(FDevIndex);
+end;
+
+procedure TUOSPlayer.GetMeter(var ALeft, ARight: double);
+begin
+  ALeft:=uos_InputGetLevelLeft(FDevIndex,InIndex);
+  ARight:=uos_InputGetLevelRight(FDevIndex,InIndex);
+end;
+
+procedure TUOSPlayer.GetMeter(var ALeft, ARight: integer);
+begin
+  ALeft:=round(uos_InputGetLevelLeft(FDevIndex,InIndex)*105);
+  ARight:=round(uos_InputGetLevelRight(FDevIndex,InIndex)*105);
 end;
 
 end.
