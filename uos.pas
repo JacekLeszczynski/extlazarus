@@ -74,7 +74,7 @@ uos_cdrom,
 Classes, ctypes, Math, sysutils;
 
 const
-  uos_version : cint32 = 2180324;
+  uos_version : cint32 = 2181218;
   
 {$IF DEFINED(bs2b)}
   BS2B_HIGH_CLEVEL = (CInt32(700)) or ((CInt32(30)) shl 16);
@@ -194,8 +194,8 @@ type
   PDArFloat = ^TDArFloat;
   PDArShort = ^TDArShort;
   PDArLong = ^TDArLong;
-
-{$IF not DEFINED(windows)}
+  
+  {$IF not DEFINED(windows)}
   THandle = pointer;
   TArray = single;
 {$endif}
@@ -324,10 +324,12 @@ type
   Enabled: boolean;
   
   TypePut: integer;
-// -1 : nothing,  for Input  : 0: from audio file, 1: from input device (like mic),
-                          // 2: from internet audio stream, 3: from Synthesizer, 4: from memory buffer, 5: from endless-muted
-             // for Output : 0: into wav file from filestream, 1: into output device Portaudio, 2: into stream server,
-             //              3: into memory buffer, 4: into wav from memorystream
+// -1 : nothing. 
+// for Input  : 0: from audio encoded file, 1: from input device (like mic),
+//              2: from internet audio stream, 3: from Synthesizer, 4: from memory buffer,
+//              5: from endless-muted, 6: from decoded memorystream
+// for Output : 0: into wav file from filestream, 1: into output device Portaudio, 2: into stream server,
+//              3: into memory buffer, 4: into wav file from memorystream, 5: into memorystream
     
   Seekable: boolean;
   Status: integer;
@@ -335,6 +337,7 @@ type
   Buffer: TDArFloat;
   MemoryBuffer: TDArFloat;
   MemoryStream : Tmemorystream;
+  
   posmem : longint;
  
   {$IF DEFINED(opus)}
@@ -346,6 +349,11 @@ type
   DSPNoiseIndex : cint32;
   
   VLeft, VRight: double;
+  
+  hasfilters : boolean;
+  
+  nbfilters : cint32;
+  incfilters : cint32;
   
   levelfilters : string;
   
@@ -488,6 +496,8 @@ type
   Data: Tuos_Data;
   DSP: array of Tuos_DSP;
   
+  MemoryStreamDec : TMemoryStream;
+  
   {$IF DEFINED(neaac)}
   AACI: TAACInfo;
   {$endif}
@@ -531,6 +541,7 @@ type
   public
   Data: Tuos_Data;
   BufferOut: PDArFloat;
+  MemorySteamOut: TMemoryStream;
   DSP: array of Tuos_DSP;
   {$IF DEFINED(portaudio)}
   PAParam: PaStreamParameters;
@@ -541,7 +552,7 @@ type
 // cbits: tbytes;
   {$endif}
   FileBuffer: Tuos_FileBuffer;
- LoopProc: TProc;// External Procedure of object to synchronize after buffer is filled 
+  LoopProc: TProc;// External Procedure of object to synchronize after buffer is filled 
   {$IF DEFINED(Java)}
   procedure LoopProcjava;
   {$endif}
@@ -589,6 +600,7 @@ type
   {$endif}
   procedure ReadEndless(x : integer); 
   procedure ReadMem(x : integer); 
+  procedure ReadMemDec(x : integer); 
   {$IF DEFINED(portaudio)}
   procedure ReadDevice(x : integer); 
   {$endif}
@@ -632,19 +644,15 @@ type
 // External procedure of object to execute at begin of thread
 
   LoopBeginProc: TProc;
- 
 // External procedure of object to execute at each begin of loop
 
   LoopEndProc: TProc;
- 
 // External procedure of object to execute at each end of loop
 
   EndProc: TProc;
- 
 // Procedure of object to execute at end of thread
  
   EndProcOnly: TProcOnly ;
- 
 // Procedure to execute at end of thread (not of object)
 
   StreamIn: array of Tuos_InStream;
@@ -708,7 +716,6 @@ type
 
   function AddIntoFile(Filename: PChar; SampleRate: cint32;
   Channels: cint32; SampleFormat: cint32 ; FramesCount: cint32 ; FileFormat: cint32): cint32;
-
 // Add a Output into audio wav file with custom parameters from TFileStream
 // FileName : filename of saved audio wav file
 // SampleRate : delault : -1 (44100)
@@ -727,6 +734,7 @@ type
 // Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
 // SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
 // FramesCount : default : -1 (= 4096)
+// FileFormat : default : -1 (wav) (0:wav, 1:pcm, 2:custom);
 //  result : Output Index in array     -1 = error
 // example : OutputIndex1 := AddIntoFileFromBuf(edit5.Text,-1,-1, 0, -1);
   
@@ -734,6 +742,24 @@ type
 // Add a Output into memory buffer
 // outmemory : pointer of buffer to use to store memory.
 // example : OutputIndex1 := AddIntoMemoryBuffer(bufmemory);
+
+  function  AddIntoMemoryBuffer(outmemory: PDArFloat; SampleRate: LongInt;  SampleFormat: LongInt;
+      Channels: LongInt; FramesCount: LongInt): LongInt;  
+// Add a Output into TMemoryStream
+// outmemory : pointer of buffer to use to store memory.
+// SampleRate : delault : -1 (44100)
+// SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
+// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
+// FramesCount : default : -1 (= 1024 * 2) 
+
+  function AddIntoMemoryStream(var MemoryStream: TMemoryStream; SampleRate: LongInt; 
+       SampleFormat: LongInt ; Channels: LongInt; FramesCount: LongInt): LongInt;  
+// Add a Output into TMemoryStream
+// MemoryStream : the TMemoryStream to use to store memory.
+// SampleRate : delault : -1 (44100)
+// SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
+// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
+// FramesCount : default : -1 (= 4096)
 
  {$IF DEFINED(shout)}
   function AddIntoIceServer(SampleRate : cint; Channels: cint; SampleFormat: cint;
@@ -822,11 +848,12 @@ function AddFromMemoryBuffer(var MemoryBuffer: TDArFloat; var Bufferinfos: Tuos_
 // MemoryBuffer : the buffer
 // Bufferinfos : infos of the buffer
 // OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)// SampleRate : delault : -1 (44100)// FramesCount : default : -1 (4096)
+// FramesCount : default : -1 (65536 div Channels)
 //  result :  Input Index in array  -1 = error
 // example : InputIndex1 := AddFromMemoryBuffer(mybuffer, buffinfos,-1,1024);
   
-function AddFromMemoryStream(MemoryStream: TMemoryStream; 
-         TypeAudio: cint32; OutputIndex: cint32; SampleFormat: cint32 ; FramesCount: cint32): cint32;
+function AddFromMemoryStream(var MemoryStream: TMemoryStream; 
+         TypeAudio: cint32; OutputIndex: cint32; SampleFormat: cint32 ; FramesCount: cint32): cint32;   
 // MemoryStream : Memory stream of encoded audio.
 // TypeAudio : default : -1 --> 0 (0: flac, ogg, wav; 1: mp3; 2:opus)
 // OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
@@ -834,6 +861,14 @@ function AddFromMemoryStream(MemoryStream: TMemoryStream;
 // FramesCount : default : -1 (4096)
 //  result :  Input Index in array  -1 = error
 // example : InputIndex1 := AddFromMemoryStream(mymemorystream,-1,-1,0,1024);
+
+function AddFromMemoryStreamDec(var MemoryStream: TMemoryStream; var Bufferinfos: Tuos_bufferinfos;
+ OutputIndex: cint32; FramesCount: cint32): cint32;
+// MemoryStream : Memory-stream of decoded audio (like created by AddIntoMemoryStream)
+// Bufferinfos : infos of the Memory-stream
+// OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
+// FramesCount : default : -1 (4096)
+//  result :  Input Index in array  -1 = error
 
 {$IF DEFINED(webstream)}
 function AddFromURL(URL: PChar; OutputIndex: cint32;
@@ -880,7 +915,8 @@ procedure SetPluginBs2b(PluginIndex: cint32; level: CInt32; fcut: CInt32;
 {$endif}
 
 function GetStatus() : cint32 ;
-// Get the status of the player : 0 => has stopped, 1 => is running, 2 => is paused, -1 => error.
+// Get the status of the player : 0 => has stopped, 1 => is running, 2 => is paused, 
+// -1 => error or not yet played, only created.
 
 procedure InputSeek(InputIndex: cint32; pos: Tcount_t);
 // change position in sample
@@ -1141,7 +1177,7 @@ end;
 
 function uos_GetInfoLibraries() : Pansichar ;
 
-  {$IF DEFINED(portaudio)}
+ {$IF DEFINED(portaudio)}
 procedure uos_GetInfoDevice();
 
 function uos_GetInfoDeviceStr() : Pansichar ;
@@ -1222,6 +1258,18 @@ procedure uos_File2File(FilenameIN: Pchar; FilenameOUT: Pchar; SampleFormat: cin
 // typeout : Type of out file (-1:default=wav, 0:wav, 1:pcm, 2:custom)
 // example : InputIndex1 := uos_File2File(edit5.Text,0,buffmem);
 
+procedure uos_MemStream2Wavfile(FileName: UTF8String; Data: TMemoryStream; BitsPerSample, chan, samplerate : integer);
+// Create a audio wav file from a TMemoryStream.
+// FileName : filename of wav saved file
+// data : the memorystream
+// BitsPerSample : 16 or 32 (bit)
+// chan : number of channels
+// samplerate : sample rate
+
+procedure uos_CustBufferInfos(var bufferinfos: Tuos_BufferInfos; SampleRate: longword; SampleFormat : cint32; Channels: cint32 ; Length: cint32);
+// to initialize a custom bufferinfos: needed for AddFromMemoryBuffer() if no bufferinfos was created.
+// all infos refer to the buffer used ---> length = length of the buffer div channels.
+
 const
 // error
   noError = 0;
@@ -1280,6 +1328,7 @@ var
   uosDefaultDeviceIn: cint32 = -1;
   uosDefaultDeviceOut: cint32 = -1;
   uosInit: Tuos_Init = nil;
+  uosisactif : boolean = true;
 
  {$IF DEFINED(windows)}
   old8087cw: word;
@@ -1440,6 +1489,62 @@ begin
   Result := arfl;
 end;
 
+// convert a Tmemory stream into a wav file.
+procedure uos_MemStream2Wavfile(FileName: UTF8String; Data: TMemoryStream; BitsPerSample, chan, samplerate : integer);
+var
+  f: TFileStream;
+  wFileSize: LongInt;
+  wChunkSize: LongInt;
+  ID: array[0..3] of char;
+  Header: Tuos_WaveHeaderChunk;
+begin
+  f := nil;
+  f := TFileStream.Create(FileName, fmCreate);
+  f.Seek(0, soFromBeginning);
+    try
+    ID := 'RIFF';
+    f.WriteBuffer(ID, 4);
+    wFileSize := 0;
+    f.WriteBuffer(wFileSize, 4);
+    ID := 'WAVE';
+    f.WriteBuffer(ID, 4);
+    ID := 'fmt ';
+    f.WriteBuffer(ID, 4);
+    wChunkSize := SizeOf(Header);
+    f.WriteBuffer(wChunkSize, 4);
+    Header.wFormatTag := 1;
+
+    Header.wChannels := chan;
+
+    Header.wSamplesPerSec := samplerate;
+    
+    Header.wBitsPerSample := BitsPerSample;
+
+    Header.wBlockAlign := chan * (BitsPerSample div 8);
+    
+    Header.wAvgBytesPerSec := samplerate * Header.wBlockAlign;
+  
+    Header.wcbSize := 0;
+    f.WriteBuffer(Header, SizeOf(Header));
+  except
+  
+  end;
+  try
+    ID := 'data';
+    f.WriteBuffer(ID, 4);
+    wChunkSize := Data.Size;
+    f.WriteBuffer(wChunkSize, 4);
+  except
+  end;
+  
+  Data.Seek(0, soFromBeginning);
+    f.CopyFrom(Data, Data.Size);
+  f.Seek(SizeOf(ID), soFromBeginning);
+  wFileSize := f.Size - SizeOf(ID) - SizeOf(wFileSize);
+  f.Write(wFileSize, 4);
+  f.Free;
+end;
+
 function WriteWaveFromMem(FileName: UTF8String; Data: Tuos_FileBuffer): word;
 var
   f: TFileStream;
@@ -1514,6 +1619,7 @@ begin
   Data.data.Free;
 end;
 
+{$IF DEFINED(portaudio) or DEFINED(sndfile)}
 function mpg_read_stream(ahandle: Pointer; AData: Pointer; ACount: Integer): Integer; cdecl;
 var
   Stream: TStream absolute ahandle;
@@ -1539,6 +1645,12 @@ begin
  end; 
 end; 
 
+procedure mpg_close_stream(ahandle: Pointer);// not used, uos does it...
+begin
+  TObject(ahandle).Free;
+end;
+{$endif}
+
 {$IF DEFINED(webstream)}
 // should use this for pipes vs memorystream ?
 function mpg_seek_url(ahandle: Pointer; aoffset: Integer): Integer; cdecl; 
@@ -1555,11 +1667,6 @@ begin
   end;
 end;
 {$endif}
-
-procedure mpg_close_stream(ahandle: Pointer);// not used, uos does it...
-begin
-  TObject(ahandle).Free;
-end;
 
 function Filetobuffer(Filename: Pchar; OutputIndex: cint32;
   SampleFormat: cint32 ; FramesCount: cint32; var outmemory: TDArFloat;
@@ -1581,7 +1688,7 @@ function Filetobuffer(Filename: Pchar; OutputIndex: cint32;
   begin
   theplayer := Tuos_Player.Create();
    
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('begin Filetobuffer');
   {$endif}
   
@@ -1589,7 +1696,7 @@ function Filetobuffer(Filename: Pchar; OutputIndex: cint32;
   if in1 > -1 then 
   begin
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('in1 = ' + inttostr(in1));
   writeln('theplayer.InputLength(In1) = ' + inttostr(theplayer.InputLength(In1)));
   {$endif}
@@ -1677,21 +1784,23 @@ function uos_File2Buffer(Filename: Pchar; SampleFormat: cint32 ; var bufferinfos
 // numbuf : number of frames to add to outmemory (default : -1 = all, otherwise number max of frames) 
 //  result :  The memory buffer
 // example : buffmem := uos_File2buffer(edit5.Text,0,buffmem, buffinfos, -1, -1);
+   {$IF DEFINED(debug) and DEFINED(unix)} 
   var
   i : integer;
   st : string;
+   {$endif}
   begin
     
  result :=  Filetobuffer(Filename,-1, SampleFormat, 1024, result, bufferinfos, frompos, numbuf);
  
 // writeln('tempoutmemory = '+ inttostr(length(tempoutmemory)));
  
-  {$IF DEFINED(debug)} 
+  {$IF DEFINED(debug) and DEFINED(unix)} 
   writeln('After Filetobuffer');
-  writeln('length(tempoutmemory) =' +inttostr(length(tempoutmemory)));
+  writeln('length(result) =' +inttostr(length(result)));
   st := '';
-  for i := 0 to length(outmemory) -1 do
-  st := st + '|' + inttostr(i) + '=' + floattostr(tempoutmemory[i]);  
+  for i := 0 to length(result) -1 do
+  st := st + '|' + inttostr(i) + '=' + floattostr(result[i]);  
   WriteLn('OUTPUT DATA into portaudio------------------------------');
   WriteLn(st);
   {$endif}
@@ -1718,7 +1827,7 @@ var outmemory: TDArFloat; var bufferinfos: Tuos_BufferInfos; frompos: cint; numb
      
      begin
    theplayer := Tuos_Player.Create();
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
    writeln('begin Filetobuffer');
    {$endif}
 
@@ -1726,7 +1835,7 @@ var outmemory: TDArFloat; var bufferinfos: Tuos_BufferInfos; frompos: cint; numb
    In1 := theplayer.AddFromMemoryStream( AudioFile,-1, OutputIndex, SampleFormat, FramesCount) ;
 
    if in1 > -1 then begin
-      {$IF DEFINED(debug)}
+      {$IF DEFINED(debug) and DEFINED(unix)}
       writeln('in1 = ' + inttostr(in1));
       writeln('theplayer.InputLength(In1) = ' + inttostr(theplayer.InputLength(In1)));
       {$endif}
@@ -1804,13 +1913,13 @@ var
   
    theplayer := Tuos_Player.Create();
     
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('begin File2file');
   {$endif}
   In1 := theplayer.AddFromFile( pchar(FilenameIN), -1, SampleFormat, -1) ;
   if in1 > -1 then 
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('in1 = ' + inttostr(in1));
   writeln('theplayer.InputLength(In1) = ' + inttostr(theplayer.InputLength(In1)));
   {$endif}
@@ -1840,7 +1949,7 @@ end;
  {$endif}
   
 function Tuos_Player.GetStatus() : cint32 ;
-// Get the status of the player : -1 => error, 0 => has stopped, 1 => is running, 2 => is paused.
+// Get the status of the player : -1 => error or not yet played, 0 => has stopped, 1 => is running, 2 => is paused.
 begin
 result := -1 ;
   if (isAssigned = True) then  result := Status else result := -1 ;
@@ -1959,8 +2068,10 @@ end;
 
 procedure Tuos_Player.Stop();
 begin
-  if (Status > 0) and (isAssigned = True) then
+//writeln(inttostr(Status));
+  if (Status <> 0) and (isAssigned = True) then
   begin
+    if status < 0 then playpaused;
   NLooped:= 0;
   if isGlobalPause = true then
   RTLeventSetEvent(uosInit.evGlobalPause) else   
@@ -2007,7 +2118,7 @@ begin
 
   StreamIn[InputIndex].Data.Poseek := possample;
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('TTime: '+ timetostr(pos));
   WriteLn('SeekTime() : Data.Poseek: '+ inttostr(possample));
  {$endif}
@@ -2039,7 +2150,7 @@ var
   h, m, s, ms: word;
 begin
  Result := sysutils.EncodeTime(0, 0, 0, 0);
-  if (Status > 0) and (isAssigned = True) then tmp := InputLengthSeconds(InputIndex);
+  if (isAssigned = True) then tmp := InputLengthSeconds(InputIndex);
   ms := trunc(frac(tmp) * 1000);
   h := trunc(tmp / 3600);
   m := trunc(tmp / 60 - h * 60);
@@ -2056,7 +2167,7 @@ end;
 
 procedure Tuos_Player.InputSetFrameCount(InputIndex: cint32 ; framecount : cint32);
 begin
-  if (Status > 0) and (isAssigned = True) then
+  if (isAssigned = True) then
 
   case StreamIn[InputIndex].Data.LibOpen of
   0:
@@ -2084,7 +2195,7 @@ procedure Tuos_Player.InputSetLevelArrayEnable(InputIndex: cint32 ; levelcalc : 
 // 1 => calcul before all DSP procedures.
 // 2 => calcul after all DSP procedures.
 begin
- if (Status > 0) and (isAssigned = True) then
+ if (isAssigned = True) then
  begin
  if index + 1 > length(uosLevelArray) then
  setlength(uosLevelArray,index + 1) ;
@@ -2103,7 +2214,7 @@ procedure Tuos_Player.InputSetLevelEnable(InputIndex: cint32 ; levelcalc : cint3
 // 3 => calcul before and after all DSP procedures.
 
 begin
-  if (Status > 0) and (isAssigned = True) then
+  if (isAssigned = True) then
 StreamIn[InputIndex].Data.levelEnable:= levelcalc;
 end;
 
@@ -2112,7 +2223,7 @@ procedure Tuos_Player.InputSetPositionEnable(InputIndex: cint32 ; poscalc : cint
 // 0 => no calcul
 // 1 => calcul position procedures.
 begin
-  if (Status > 0) and (isAssigned = True) then
+  if (isAssigned = True) then
 StreamIn[InputIndex].Data.PositionEnable:= poscalc;
 end;
 
@@ -2121,7 +2232,7 @@ function Tuos_Player.InputGetLevelLeft(InputIndex: cint32): double;
 // result : left level(volume) from 0 to 1
 begin
 Result := 0;
-  if (Status > 0) and (isAssigned = True) then Result := StreamIn[InputIndex].Data.LevelLeft;
+  if (isAssigned = True) then Result := StreamIn[InputIndex].Data.LevelLeft;
 end;
 
 function Tuos_Player.InputGetLevelRight(InputIndex: cint32): double;
@@ -2137,7 +2248,7 @@ function Tuos_Player.InputFiltersGetLevelString(InputIndex: cint32): string;
 // result : list of left|right levels separed by $ character
  begin
 Result := '';
-  if (Status > 0) and (isAssigned = True) then Result := StreamIn[InputIndex].data.Levelfilters;
+  if (isAssigned = True) then Result := StreamIn[InputIndex].data.Levelfilters;
 end;
 
 function Tuos_Player.InputFiltersGetLevelArray(InputIndex: cint32): TDArFloat;
@@ -2145,7 +2256,7 @@ function Tuos_Player.InputFiltersGetLevelArray(InputIndex: cint32): TDArFloat;
 // result : array of float of each filter. 
          //in format levelfilter0left,levelfilter0right,levelfilter1left,levelfilter2right,...
  begin
-  if (Status > 0) and (isAssigned = True) then Result := StreamIn[InputIndex].data.Levelfiltersar;
+  if (isAssigned = True) then Result := StreamIn[InputIndex].data.Levelfiltersar;
 end;
  
 {$IF DEFINED(soundtouch)}
@@ -2164,25 +2275,32 @@ Result := 0;
   if (isAssigned = True) then Result := StreamIn[InputIndex].Data.Position / StreamIn[InputIndex].Data.SampleRate;
 end;
 
-function Tuos_Player.InputPositionTime(InputIndex: cint32): TTime;
-var
-  tmp: float;
-  h, m, s, ms: word;
-begin
-Result := sysutils.EncodeTime(0, 0, 0, 0);
-  if (isAssigned = True) then tmp := InputPositionSeconds(InputIndex);
-  {$IF DEFINED(debug)}
-	WriteLn('InputPositionTime(): InputPositionSeconds: '+ floattostr(tmp));
-  {$endif}
-  ms := trunc(frac(tmp) * 1000);
-  h := trunc(tmp / 3600);
-  m := trunc(tmp / 60 - h * 60);
-  s := trunc(tmp - (h * 3600 + m * 60));
-  Result := sysutils.EncodeTime(h, m, s, ms);
- {$IF DEFINED(debug)}
-	WriteLn('EncodeTime(): '+ timetostr(Result));
-  {$endif}  
-end;
+function Tuos_Player.InputPositionTime(InputIndex: cint32): TTime; 
+var 
+  tmp: float=0.0;                
+  h:word=0;                      
+  m:word=0;    
+  s:word=0;    
+  ms:word=0;  
+  
+  begin 
+  Result := sysutils.EncodeTime(0, 0, 0, 0); 
+  if (isAssigned = True) then 
+  begin 
+     tmp := InputPositionSeconds(InputIndex); 
+     {$IF DEFINED(debug) and DEFINED(unix)} 
+     WriteLn('InputPositionTime(): InputPositionSeconds: '+ floattostr(tmp)); 
+     {$endif} 
+     ms := trunc(frac(tmp) * 1000); 
+     h := trunc(tmp / 3600); 
+     m := trunc(tmp / 60 - h * 60); 
+     s := trunc(tmp - (h * 3600 + m * 60)); 
+     Result := sysutils.EncodeTime(h, m, s, ms);  
+  end; 
+ {$IF DEFINED(debug) and DEFINED(unix)} 
+  WriteLn('EncodeTime(): '+ timetostr(Result)); 
+  {$endif}   
+end;  
 
 
 // for mp3 and opus files only
@@ -2220,6 +2338,7 @@ begin
 // custom code for reading ID3Tag ---> problems with  mpg123_id3() 
 
    AssignFile(F, StreamIn[InputIndex].Data.Filename); 
+   FileMode:=fmOpenRead + fmShareDenyNone;
    Reset(F, 1); 
    Seek(F, FileSize(F) - 128); 
    BlockRead(F, BufferTag, SizeOf(BufferTag)); 
@@ -2517,8 +2636,8 @@ begin
   4://  DSPFFTLowPass
   begin
   StreamIn[InputIndex].DSP[FilterIndex].fftdata.C :=
-  1 / Tan(Pi * (HighFrequency - LowFrequency + 1) /
-  StreamIn[InputIndex].Data.SampleRate);
+  1 / Tan(Pi * HighFrequency / StreamIn[InputIndex].Data.SampleRate);
+  
   StreamIn[InputIndex].DSP[FilterIndex].fftdata.a3[0] :=
   1 / (1 + Sqrt(2) * StreamIn[InputIndex].DSP[FilterIndex].fftdata.C +
   StreamIn[InputIndex].DSP[FilterIndex].fftdata.C *
@@ -2540,9 +2659,9 @@ begin
 
   5://  DSPFFTHighPass
   begin
-  StreamIn[InputIndex].DSP[FilterIndex].fftdata.C :=
-  Tan(Pi * (HighFrequency - LowFrequency + 1) /
-  StreamIn[InputIndex].Data.SampleRate);
+   StreamIn[InputIndex].DSP[FilterIndex].fftdata.C :=
+   Tan(Pi * LowFrequency / StreamIn[InputIndex].Data.SampleRate);
+  
   StreamIn[InputIndex].DSP[FilterIndex].fftdata.a3[0] :=
   1 / (1 + Sqrt(2) * StreamIn[InputIndex].DSP[FilterIndex].fftdata.C +
   StreamIn[InputIndex].DSP[FilterIndex].fftdata.C *
@@ -2770,7 +2889,7 @@ var
   
   if inputData.LibOpen <> 4 then//not working yet for opus files
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln(); 
   writeln('_____Begin Sound touch_____'); 
   writeln('soundtouch_putSamples: Length(bufferin)  = ' + inttostr(length(bufferin))); 
@@ -2783,7 +2902,7 @@ var
   soundtouch_putSamples(plugHandle, pcfloat(bufferin),
   inputData.outframes div cint(inputData.Channels * ratio));
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('inputData.outframes div trunc(inputData.Channels * ratio) = '
   + inttostr(inputData.outframes div inputData.Channels * ratio)); 
   {$endif}
@@ -2791,7 +2910,7 @@ var
   SetLength(BufferplugFL, 0);
   SetLength(BufferplugFLTMP, 0);
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Length(BufferplugFL) = '
   + inttostr(Length(BufferplugFL))); 
    writeln('Length(Bufferin) = '
@@ -2809,7 +2928,7 @@ BufferplugFLTMP[x2] := 0.0 ;
 inc(x2);
 end;
 }  
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('2_Length(BufferplugFLTMP) = '
   + inttostr(Length(BufferplugFLTMP))); 
   {$endif} 
@@ -2822,12 +2941,12 @@ end;
   numoutbuf := soundtouch_receiveSamples(PlugHandle,
   pcfloat(BufferplugFLTMP), inputData.outframes); 
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('numoutbuf = '  + inttostr(numoutbuf)); 
   {$endif}
   
   if numoutbuf > 0 then begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('SetLength(BufferplugFL) = '  + inttostr(length(BufferplugFL) + trunc(numoutbuf * inputData.Channels))); 
   {$endif}
   
@@ -2844,7 +2963,7 @@ end;
   end;
   end;
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('inputData.outframes = Length(BufferplugFL) = ' + inttostr(inputData.outframes)); 
   writeln('_____End Sound touch_____'); 
   {$endif}
@@ -3142,7 +3261,7 @@ end else result := Data.Buffer;// TODO for Array of integer.
 end;
  {$endif}
 
-function uos_DSPVolume(var Data: Tuos_Data;var fft: Tuos_FFT): TDArFloat;
+function uos_DSPVolumeIn(var Data: Tuos_Data;var fft: Tuos_FFT): TDArFloat;
 var
   x, ratio: cint32;
   vleft, vright: cfloat;
@@ -3210,6 +3329,85 @@ begin
   pf := @Data.Buffer;
    
   for x := 0 to (Data.OutFrames div ratio) -1 do
+  begin
+  if (Data.VLeft <> 1)  or (Data.Vright <> 1) then
+  begin
+  if odd(x) then
+  pf^[x] := pf^[x] * vright
+  else
+  pf^[x] := pf^[x] * vleft;
+  end;
+
+// This to avoid distortion
+   if pf^[x] < -1 then pf^[x] := -1;
+   if pf^[x] > 1 then pf^[x] := 1 ;
+
+  end;
+
+  end;
+  end;
+
+  Result := Data.Buffer;
+end;
+
+function uos_DSPVolumeOut(var Data: Tuos_Data;var fft: Tuos_FFT): TDArFloat;
+var
+  x: cint32;
+  vleft, vright: cfloat;
+  ps: PDArShort;// if output is Int16 format
+  pl: PDArLong;// if output is Int32 format
+  pf: PDArFloat;// if output is Float32 format
+begin
+
+  vleft := Data.VLeft;
+  vright := Data.VRight;
+  
+   case Data.SampleFormat of
+  2:// int16
+  begin
+  ps := @Data.Buffer;
+  for x := 0 to (length(Data.Buffer) -1) do
+  begin
+  if (Data.VLeft <> 1)  or (Data.Vright <> 1) then
+  begin
+  if odd(x) then
+  ps^[x] := trunc(ps^[x] * vright)
+  else
+  ps^[x] := trunc(ps^[x] * vleft);
+  end;
+// This to avoid distortion
+   if ps^[x] < (-32760) then ps^[x] := -32760 ;
+   if ps^[x] > (32760) then ps^[x] := 32760 ;
+
+  end;
+
+  end;
+  1:// int32
+  begin
+  pl := @Data.Buffer;
+  for x := 0 to (length(Data.Buffer) -1) do
+  begin
+  if (Data.VLeft <> 1)  or (Data.Vright <> 1) then
+  begin
+  if odd(x) then
+  pl^[x] := trunc(pl^[x] * vright)
+  else
+  pl^[x] := trunc(pl^[x] * vleft);
+  end;
+
+// This to avoid distortion
+  if pl^[x] < (-2147000000) then pl^[x] := -2147000000 ;
+  if pl^[x] > (2147000000) then pl^[x] := 2147000000 ;
+
+  end;
+
+  end;
+  0:// float32
+  begin
+  
+  pf := @Data.Buffer;
+   
+  for x := 0 to (length(Data.Buffer)) -1 do
   begin
   if (Data.VLeft <> 1)  or (Data.Vright <> 1) then
   begin
@@ -3367,7 +3565,6 @@ end;
 function DSPLevelString(Buffer: TDArFloat; SampleFormat, Ratio : cint32; var resfloatleft : cfloat; var resfloatright : cfloat): string;
 var
   x, OutFrames: cint32;
-  LevelLeft, Levelright : cfloat;
   ps: PDArShort;// if input is Int16 format
   pl: PDArLong;// if input is Int32 format
   pf: PDArFloat;// if input is Float32 format
@@ -3405,14 +3602,14 @@ OutFrames := length(buffer);
   end;
 
   if Abs(mins[0]) > Abs(maxs[0]) then
-  LevelLeft := Sqrt(Abs(mins[0]) / 32768)
+  resfloatLeft := Sqrt(Abs(mins[0]) / 32768)
   else
-  LevelLeft := Sqrt(Abs(maxs[0]) / 32768);
+  resfloatLeft := Sqrt(Abs(maxs[0]) / 32768);
 
   if Abs(mins[1]) > Abs(maxs[1]) then
-  Levelright := Sqrt(Abs(mins[1]) / 32768)
+  resfloatright := Sqrt(Abs(mins[1]) / 32768)
   else
-  Levelright := Sqrt(Abs(maxs[1]) / 32768);
+  resfloatright := Sqrt(Abs(maxs[1]) / 32768);
 
   end;
 
@@ -3442,14 +3639,14 @@ OutFrames := length(buffer);
   end;
 
   if Abs(minl[0]) > Abs(maxl[0]) then
-  LevelLeft := Sqrt(Abs(minl[0]) / 2147483648)
+  resfloatLeft := Sqrt(Abs(minl[0]) / 2147483648)
   else
-  LevelLeft := Sqrt(Abs(maxl[0]) / 2147483648);
+  resfloatLeft := Sqrt(Abs(maxl[0]) / 2147483648);
 
   if Abs(minl[1]) > Abs(maxl[1]) then
-  Levelright := Sqrt(Abs(minl[1]) / 2147483648)
+  resfloatright := Sqrt(Abs(minl[1]) / 2147483648)
   else
-  Levelright := Sqrt(Abs(maxl[1]) / 2147483648);
+  resfloatright := Sqrt(Abs(maxl[1]) / 2147483648);
   end;
 
   0:
@@ -3479,21 +3676,17 @@ OutFrames := length(buffer);
   end;
 
   if Abs(minf[0]) > Abs(maxf[0]) then
-  LevelLeft := Sqrt(Abs(minf[0]))
+  resfloatLeft := Sqrt(Abs(minf[0]))
   else
-  LevelLeft := Sqrt(Abs(maxf[0]));
+  resfloatLeft := Sqrt(Abs(maxf[0]));
 
   if Abs(minf[1]) > Abs(maxf[1]) then
-  Levelright := Sqrt(Abs(minf[1]))
+  resfloatright := Sqrt(Abs(minf[1]))
   else
-  Levelright := Sqrt(Abs(maxf[1]));
+  resfloatright := Sqrt(Abs(maxf[1]));
   end;
   end;
-  
-  resfloatright := Levelright;
-  resfloatleft := Levelleft;
-// writeln(floattostr(Levelleft) + '|' + floattostr(Levelright));
-  Result := floattostr(Levelleft) + '|' + floattostr(Levelright);
+  Result := floattostr(resfloatleft) + '|' + floattostr(resfloatright);
 end;
 
 
@@ -3502,9 +3695,6 @@ var
   i, ratio: cint32;
   ifbuf: boolean;
   arg, res, res2: cfloat;
-  Levelright : cfloat;
-  Levelleft : cfloat;
-
   ps, ps2: PDArShort;// if input is Int16 format
   pl, pl2: PDArLong;// if input is Int32 format
   pf, pf2: PDArFloat;// if input is Float32 format
@@ -3538,7 +3728,7 @@ begin
   end;
   end;
   i := 0;
-  while i < (Data.OutFrames div ratio) do
+  while i < (Data.OutFrames div ratio) -1 do
   begin
 
   case Data.SampleFormat of
@@ -3694,11 +3884,11 @@ begin
   
   if ifbuf = false then
   begin
-  data.levelfilters  := data.levelfilters + '%'+ DSPLevelString(fft.VirtualBuffer, Data.SampleFormat, data.Ratio, levelleft, levelright) ;
-  setlength(Data.levelfiltersar,length(Data.levelfiltersar)+1);
-  Data.levelfiltersar[length(Data.levelfiltersar)-1] := levelleft;
-  setlength(Data.levelfiltersar,length(Data.levelfiltersar)+1);
-  Data.levelfiltersar[length(Data.levelfiltersar)-1] := levelright;
+  data.levelfilters  := data.levelfilters + '%'+ DSPLevelString(fft.VirtualBuffer, Data.SampleFormat, data.Ratio, data.levelleft, data.levelright) ;
+  inc(Data.incfilters);
+  Data.levelfiltersar[Data.incfilters-1] := data.levelleft;
+  inc(Data.incfilters);
+  Data.levelfiltersar[Data.incfilters-1] := data.levelright;
   end;
  
   Result := Data.Buffer;
@@ -3732,7 +3922,7 @@ var
   begin
   ps := @Data.Buffer;
   ps2 := @Buffer2;
-  while x < Data.OutFrames  do
+  while x < Data.OutFrames -1 do
   begin  
   ps2^[x2] := (ps^[x]);
   ps2^[x2+1] := (ps^[x]);
@@ -3745,7 +3935,7 @@ var
   begin
   pl := @Data.Buffer;
   pl2 := @Buffer2;
-  while x < Data.OutFrames  do
+  while x < Data.OutFrames -1  do
   begin  
   pl2^[x2] := (pl^[x]);
   pl2^[x2+1] := (pl^[x]);
@@ -3758,7 +3948,7 @@ var
   begin
   pf := @Data.Buffer;
   pf2 := @Buffer2;
-  while x < Data.OutFrames  do
+  while x < Data.OutFrames -1  do
   begin  
   pf2^[x2] := (pf^[x]);
   pf2^[x2+1] := (pf^[x]);
@@ -3898,7 +4088,7 @@ function Tuos_Player.InputAddDSPVolume(InputIndex: cint32; VolLeft: double;
 //  result : index of DSPIn in array
 // example  DSPIndex1 := InputAddDSPVolume(InputIndex1,1,1);
 begin
-  Result := InputAddDSP(InputIndex, nil, @uos_DSPVolume, nil, nil);
+  Result := InputAddDSP(InputIndex, nil, @uos_DSPVolumeIn, nil, nil);
   StreamIn[InputIndex].Data.VLeft := VolLeft;
   StreamIn[InputIndex].Data.VRight := VolRight;
 end;
@@ -3921,7 +4111,7 @@ function Tuos_Player.OutputAddDSPVolume(OutputIndex: cint32; VolLeft: double;
 //  result :  index of DSPIn in array
 // example  DSPIndex1 := OutputAddDSPVolume(OutputIndex1,1,1);
 begin
-  Result := InputAddDSP(OutputIndex, nil, @uos_DSPVolume, nil, nil);
+  Result := OutputAddDSP(OutputIndex, nil, @uos_DSPVolumeOut, nil, nil);
   StreamOut[OutputIndex].Data.VLeft := VolLeft;
   StreamOut[OutputIndex].Data.VRight := VolRight;
 end;
@@ -3975,14 +4165,19 @@ var
   FilterIndex: cint32;
 begin
   FilterIndex := InputAddDSP(InputIndex, nil, @uos_BandFilter, nil, LoopProc);
-
+  
+ if alsobuf = false then
+ begin
+  StreamIn[InputIndex].data.hasfilters := true;
+   inc(StreamIn[InputIndex].data.nbfilters);
+ end;
+ 
   StreamIn[InputIndex].DSP[FilterIndex].fftdata :=
   Tuos_FFT.Create();
   
   setlength(StreamIn[InputIndex].DSP[FilterIndex].fftdata.Virtualbuffer, length(StreamIn[InputIndex].data.buffer));
    
-  if TypeFilter = -1 then
-  TypeFilter := 1;
+  if TypeFilter = -1 then  TypeFilter := 1;
   InputSetFilter(InputIndex, FilterIndex, LowFrequency, HighFrequency,
   Gain, TypeFilter, AlsoBuf, True, LoopProc);
 
@@ -4006,11 +4201,17 @@ var
 begin
   FilterIndex := OutputAddDSP(OutputIndex, nil, @uos_BandFilter, nil, LoopProc);
   
+   if alsobuf = false then
+ begin
+  StreamIn[OutputIndex].data.hasfilters := true;  
+   inc(StreamIn[OutputIndex].data.nbfilters);
+ end;
+  
   StreamOut[OutputIndex].DSP[FilterIndex].fftdata :=
   Tuos_FFT.Create();
   
-  if TypeFilter = -1 then
-  TypeFilter := 1;
+  if TypeFilter = -1 then  TypeFilter := 1;
+  
   OutputSetFilter(OutputIndex, FilterIndex, LowFrequency, HighFrequency,
   Gain, TypeFilter, AlsoBuf, True, LoopProc);
 
@@ -4311,7 +4512,7 @@ var
   
 //  setlength(StreamOut[x].Data.Buffer,960); 
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('before opus_encoder_create ' );
   {$endif}
 
@@ -4319,7 +4520,7 @@ var
   StreamOut[x].encoder := opus_encoder_create(StreamOut[x].Data.SampleRate,
   StreamOut[x].Data.Channels, typeenc, err);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   if (err<0)
   then begin
   WriteLn(Format('failed to create an encoder: %s', [opus_strerror(err)]));
@@ -4327,7 +4528,7 @@ var
   {$endif}  
 // if (err=0) then
 //  err := opus_encoder_ctl(StreamOut[x].encoder , OPUS_SET_BITRATE(cBITRATE));
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if (err<0)
   then begin
   WriteLn(Format('failed opus_encoder_ctl: %s', [opus_strerror(err)]));
@@ -4344,54 +4545,54 @@ if err =0 then begin
 
   if assigned(StreamOut[x].Data.HandleSt) then
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('shhandle assigned');
   {$endif}
   err := shout_set_host( StreamOut[x].Data.HandleSt, pchar(Host));
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_host ok ' + inttostr(err)) else
   WriteLn('shout_set_host error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_protocol(StreamOut[x].Data.HandleSt, SHOUT_PROTOCOL_HTTP);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_protocol ' + inttostr(err)) else
   WriteLn('shout_set_protocol error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_port(StreamOut[x].Data.HandleSt, Port);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_port ok ' + inttostr(err)) else
   WriteLn('shout_set_port error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_password(StreamOut[x].Data.HandleSt, pchar(Password));
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('set_password ok ' + inttostr(err)) else
   WriteLn('set_password error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_mount(StreamOut[x].Data.HandleSt, pchar(MountFile));
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_mount ok ' + inttostr(err)) else
   WriteLn('shout_set_mount error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_user(StreamOut[x].Data.HandleSt, pchar(user));
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_user ok ' + inttostr(err)) else
   WriteLn('shout_set_user error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_set_format(StreamOut[x].Data.HandleSt,  SHOUT_FORMAT_OGG);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_set_format ok ' + inttostr(err)) else
   WriteLn('shout_set_format error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
   {$endif}
   err := shout_open(StreamOut[x].Data.HandleSt);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = SHOUTERR_SUCCESS then
   WriteLn('shout_open ok ' + inttostr(err)) else
   WriteLn('shout_open error: ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
@@ -4411,12 +4612,24 @@ if err =0 then begin
   begin
   StreamOut[Length(StreamOut) - 1].Destroy;
   setlength(StreamOut, Length(StreamOut) - 1);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('shhandle not assigned')  {$endif} ;
  end;
  end;
  end; 
  {$endif}
+ 
+procedure uos_CustBufferInfos(var bufferinfos: Tuos_BufferInfos; SampleRate: longword; SampleFormat : cint32; Channels: cint32 ; Length: cint32);
+begin
+  bufferinfos.SampleRate := Samplerate; 
+  bufferinfos.SampleRateRoot := Samplerate;
+  bufferinfos.SampleFormat := SampleFormat;
+  bufferinfos.Channels := Channels;
+  bufferinfos.Length := Length;
+  bufferinfos.LibOpen := 0;
+  bufferinfos.Ratio := 2 ;
+end; 
+
 
 function Tuos_Player.AddIntoFileFromMem(Filename: PChar; SampleRate: LongInt;
   Channels: LongInt; SampleFormat: LongInt; FramesCount: LongInt; FileFormat: cint32): LongInt;
@@ -4599,7 +4812,8 @@ begin
 // Add a Output into memory-bufffer
 // outmemory : buffer to use to store memory buffer
 // example : OutputIndex1 := AddIntoMemoryBuffer(bufmemory);
-  var
+ 
+var
   x: integer;
   begin
   result := -1 ;
@@ -4611,10 +4825,86 @@ begin
   StreamOut[x].Data.TypePut := 3;
   Streamout[x].Data.posmem := 0;
   Streamout[x].BufferOut := outmemory;
-  StreamOut[x].Data.Wantframes := 1024 ;
-  SetLength(StreamOut[x].Data.Buffer,1024*2);
+  StreamOut[x].Data.Wantframes := 1024*2 ;
+  StreamOut[x].Data.SampleRate := 44100 ;
+  SetLength(StreamOut[x].Data.Buffer,1024*4);
   intobuf := true;// to check, why ?
   result := x;
+   StreamOut[x].Data.Enabled := True;
+  end;
+ 
+function  Tuos_Player.AddIntoMemoryBuffer(outmemory: PDArFloat; SampleRate: LongInt;  SampleFormat: LongInt;
+      Channels: LongInt; FramesCount: LongInt): LongInt;  
+// Add a Output into TMemoryStream
+// outmemory : pointer of buffer to use to store memory.
+// SampleRate : delault : -1 (44100)
+// SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
+// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
+// FramesCount : default : -1 (= 1024 * 2) 
+
+  var
+  x, ch, sr, sf, fr: integer;
+  begin
+  result := -1 ;
+  x := 0;
+  SetLength(StreamOut, Length(StreamOut) + 1);
+  StreamOut[Length(StreamOut) - 1] := Tuos_OutStream.Create();
+  x := Length(StreamOut) - 1;
+  StreamOut[x].Data.Enabled := false;
+  StreamOut[x].Data.TypePut := 3;
+  Streamout[x].Data.posmem := 0;
+  Streamout[x].BufferOut := outmemory;
+  if channels = -1 then ch := 2 else ch := channels;
+  StreamOut[x].Data.channels := ch;
+  if SampleFormat = -1 then sf := 2 else sf := SampleFormat;
+  StreamOut[x].Data.SampleFormat := sf;
+  if FramesCount = -1 then fr := 1024 *2  else fr := FramesCount;
+  StreamOut[x].Data.Wantframes := fr ;
+  if SampleRate = -1 then sr := 44100  else sr := SampleRate;
+  StreamOut[x].Data.SampleRate := sr ;
+  
+  SetLength(StreamOut[x].Data.Buffer,fr*ch);
+  intobuf := true;// to check, why ?
+  result := x;
+  StreamOut[x].Data.Enabled := True;
+  end;
+  
+function Tuos_Player.AddIntoMemoryStream(var MemoryStream: TMemoryStream; SampleRate: LongInt; 
+       SampleFormat: LongInt ; Channels: LongInt; FramesCount: LongInt): LongInt;  
+// Add a Output into TMemoryStream
+// MemoryStream : the TMemoryStream to use to store memory.
+// SampleRate : delault : -1 (44100)
+// SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
+// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
+// FramesCount : default : -1 (= 4096)
+ var
+  x, ch, sr, sf, fr: integer;
+  begin
+  result := -1 ;
+  x := 0;
+  SetLength(StreamOut, Length(StreamOut) + 1);
+  StreamOut[Length(StreamOut) - 1] := Tuos_OutStream.Create();
+  x := Length(StreamOut) - 1;
+  StreamOut[x].Data.Enabled := false;
+  StreamOut[x].Data.TypePut := 5;
+   if channels = -1 then ch := 2 else ch := channels;
+  StreamOut[x].Data.channels := ch;
+  if SampleFormat = -1 then sf := 2 else sf := SampleFormat;
+  StreamOut[x].Data.SampleFormat := sf;
+  if FramesCount = -1 then fr := 1024 *2  else fr := FramesCount;
+  StreamOut[x].Data.Wantframes := fr ;
+  if SampleRate = -1 then sr := 44100  else sr := SampleRate;
+  StreamOut[x].Data.SampleRate := sr ;
+  
+  Streamout[x].Data.posmem := 0;
+  
+// if MemoryStream = nil then
+// MemoryStream := Tmemorystream.create;
+  
+  Streamout[x].MemorySteamOut := MemoryStream;
+  
+   SetLength(StreamOut[x].Data.Buffer, StreamOut[x].Data.Wantframes*StreamOut[x].Data.Channels);
+   result := x;
    StreamOut[x].Data.Enabled := True;
   end;
 
@@ -4632,9 +4922,8 @@ begin
 //  result :  Output Index in array  -1 = error
 // example : OutputIndex1 := AddIntoDevOut(-1,-1,-1,-1,0,-1,-1);
 var
-  x, x2, x3, err: cint32;
-  devname : pchar;
-
+  x, x2, err: cint32;
+  
 begin
   result := -1 ;
   x := 0;
@@ -4795,7 +5084,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   then
   begin
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Begin opus test');
   {$endif}
   
@@ -4805,7 +5094,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   
   PipeBufferSize := totsamples * sizeOf(Single);// * 2
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('totsamples: ' + inttostr(totsamples));
   WriteLn('PipeBufferSize: ' + inttostr(PipeBufferSize));
   {$endif}
@@ -4837,7 +5126,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   len2 := len2 + len;
   end;
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('PipeBufferSize = ' + inttostr(PipeBufferSize));
   WriteLn('InPipe.Read = ' + inttostr(len2));
   WriteLn('----------------------------------');
@@ -4845,7 +5134,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   {$endif}
 
   StreamIn[x].Data.HandleSt := pchar('opusurl');
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('StreamIn[x].Data.HandleSt url assisgned');
   {$endif}
   
@@ -4854,7 +5143,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
  op_test_callbacks(StreamIn[x].InPipe, uos_callbacks, StreamIn[x].data.BufferTMP[0], PipeBufferSize, err); 
 //  op_test_memory(StreamIn[x].data.BufferTMP[0],PipeBufferSize, Err);
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('error: op_test_*: ' + inttostr(err));
  {$endif}
   
@@ -4862,14 +5151,14 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   then begin
   Err := op_test_open(StreamIn[x].Data.HandleOP);
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('error: op_test_open: ' + inttostr(err));  
  {$endif}
   
   if (Err=0) and (op_link_count(StreamIn[x].Data.HandleOP)=1)
   then begin  
  
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('OK open');  
  {$endif}
  
@@ -4889,7 +5178,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   if OpusTag^.comments>0
   then begin
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn((Format('OpusTag.comments = %d', [OpusTag^.comments])));  
  {$endif}
   LComment := OpusTag^.user_comments;
@@ -4900,7 +5189,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   SetLength(s, LcommentLength^);
   move(Pointer(LComment^)^, Pointer(s)^, LcommentLength^);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn(s);  
  {$endif}  
   if j = 1 then StreamIn[x].Data.title := s;
@@ -4921,7 +5210,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   StreamIn[x].Data.filename := url;
   StreamIn[x].Data.channels := op_channel_count(StreamIn[x].Data.HandleOP, nil);
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn((Format('op_bitrate = %d', [op_bitrate(StreamIn[x].Data.HandleOP, nil)])));  
   WriteLn('Length ' + inttostr(StreamIn[x].Data.Length));  
   WriteLn('Data.Channels ' + inttostr(StreamIn[x].Data.channels));  
@@ -4944,7 +5233,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   StreamIn[x].LoopProc := nil;
   StreamIn[x].Data.Enabled := True;
  
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('End opus');  
   {$endif}  
 
@@ -4956,7 +5245,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   {$IF DEFINED(mpg123)}
   if (StreamIn[x].Data.LibOpen = -1) and ((AudioFormat = 0) or (AudioFormat = -1)) then
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Begin mpg123');  
  {$endif} 
   
@@ -4977,7 +5266,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   
   StreamIn[x].Data.HandleSt := mpg123_new(nil, Err);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  if err = 0 then writeln('===> mpg123_new => ok.') else writeln('===> mpg123_new NOT ok.') ;
  {$endif}
 
@@ -5002,7 +5291,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   mpg123_replace_reader_handle(StreamIn[x].Data.HandleSt,
   @mpg_read_stream, @mpg_seek_url, nil);
     
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = 0 then writeln('===> mpg123_replace_reader_handle => ok.') ;
   {$endif}
   
@@ -5019,7 +5308,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
  
   Err :=  mpg123_open_handle(StreamIn[x].Data.HandleSt, Pointer(StreamIn[x].InPipe));
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = 0 then writeln('===> mpg123_open_handle => ok.') else
   writeln('===> mpg123_open_handle => NOT ok.') ;
   {$endif}
@@ -5027,7 +5316,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   sleep(10);
   end;
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = 0 then
   writeln('===> mpg123_open_handle all => ok.') else
   writeln('===> mpg123_open_handle all => NOT ok.');
@@ -5055,7 +5344,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   StreamIn[x].Data.samplerate, StreamIn[x].Data.channels,
   StreamIn[x].Data.encoding);
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   if err = 0 then
   writeln('===> mpg123_getformat => ok.') else
   writeln('===> mpg123_getformat => NOT ok.');
@@ -5072,7 +5361,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   if err = 0 then
   begin
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('===> mpg123_getformat => ok');
   {$endif}
   
@@ -5106,7 +5395,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   MPG123_FORCE_FLOAT, 0);
   
   StreamIn[x].Data.Enabled := True;
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('===> mpg123_infos end => ok');
   {$endif}  
   
@@ -5115,7 +5404,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   end;
   {$endif}
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before result ' + inttostr(result));
   WriteLn('error ' + inttostr(err));
   WriteLn('StreamIn[x].Data.LibOpen ' + inttostr(StreamIn[x].Data.LibOpen));
@@ -5128,7 +5417,7 @@ function Tuos_Player.AddFromURL(URL: PChar; OutputIndex: cint32;
   begin
   StreamIn[Length(StreamIn) - 1].Destroy;
   setlength(StreamIn, Length(StreamIn) - 1);
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('After Length(StreamIn) ' + inttostr(Length(StreamIn)));  
   WriteLn('Result: ' + inttostr(result));
   {$endif}
@@ -5149,18 +5438,21 @@ function Tuos_Player.AddFromMemoryBuffer(var MemoryBuffer: TDArFloat; var Buffer
 // MemoryBuffer : the buffer
 // Bufferinfos : infos of the buffer
 // OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')// Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)// SampleRate : delault : -1 (44100)
-// FramesCount : default : -1 (4096)
+// FramesCount : default : -1 (65536 div Channels)
 //  result :  Input Index in array  -1 = error
 // example : InputIndex1 := AddFromMemoryBuffer(mybuffer, buffinfos,-1,1024);
-var
-  x,i : cint32; 
-  st: string;
  
+var
+  x : cint32; 
+  {$IF DEFINED(debug) and DEFINED(unix)}
+  st: string;
+  i : cint32; 
+  {$endif} 
   begin
   
  result := -1 ;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('AddFromMemoryBuffer Before all.');  
   writeln('length(MemoryBuffer) =' +inttostr(length(MemoryBuffer)));
   st := '';
@@ -5194,7 +5486,7 @@ var
   
   sleep(50);//TODO: it is necessary?
    
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('AddFromMemoryBuffer Before all.');  
   writeln('length(MemoryBuffer) =' +inttostr(length(MemoryBuffer)));
   st := '';
@@ -5209,7 +5501,7 @@ var
   StreamIn[x].Data.Channels := Bufferinfos.Channels;
    
  if FramesCount = -1 then
-  StreamIn[x].Data.Wantframes :=  65536 div StreamIn[x].Data.Channels
+  StreamIn[x].Data.Wantframes :=  4096
   else
   StreamIn[x].Data.Wantframes := FramesCount;
 
@@ -5258,20 +5550,23 @@ function Tuos_Player.AddFromFileIntoMemory(Filename: Pchar; OutputIndex: cint32;
 // example : InputIndex1 := AddFromFileIntoMemory(edit5.Text,-1,0,-1);
   var
   x,i : cint32; 
-  st: string;
   bufferinfos: Tuos_bufferinfos;
+ 
+  {$IF DEFINED(debug) and DEFINED(unix)}
+   st: string;
+  {$endif}
  
   begin
   result := -1 ;
  
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('AddFromFileIntoMemory Before all.');  
  {$endif}
  
   if fileexists(filename) then
   begin
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before setlength.');  
  {$endif}  
  
@@ -5285,7 +5580,7 @@ function Tuos_Player.AddFromFileIntoMemory(Filename: Pchar; OutputIndex: cint32;
   StreamIn[x].Data.levelArrayEnable := 0;
 // StreamIn[x].Data.wantframes := FramesCount;
  
-  {$IF DEFINED(debug)} 
+  {$IF DEFINED(debug) and DEFINED(unix)} 
   writeln('Before Filetobuffer');
   {$endif}
   
@@ -5301,16 +5596,14 @@ function Tuos_Player.AddFromFileIntoMemory(Filename: Pchar; OutputIndex: cint32;
   for i := 0 to length(tempoutmemory) -1 do
   StreamIn[x].Data.memorybuffer[i] := tempoutmemory [i];
 
-//  writeln('length(tempoutmemory) =' +inttostr(length(tempoutmemory)));
-  
-  {$IF DEFINED(debug)} 
+  {$IF DEFINED(debug) and DEFINED(unix)} 
   writeln('After Filetobuffer');
   writeln('length(tempoutmemory) =' +inttostr(length(tempoutmemory)));
   st := '';
   for i := 0 to length(tempoutmemory) -1 do
   st := st + '|' + inttostr(i) + '=' + floattostr(tempoutmemory[i]);  
   WriteLn('OUTPUT DATA into portaudio------------------------------');
-// WriteLn(st);
+  WriteLn(st);
   {$endif}
   
   StreamIn[x].Data.Length := tempLength;
@@ -5358,13 +5651,14 @@ function Tuos_Player.AddFromFileIntoMemory(Filename: Pchar; OutputIndex: cint32;
   end else  result := -2;  
    
   end; 
-  
-  function m_get_filelen(pms: PMemoryStream): tsf_count_t; cdecl; 
+
+{$IF DEFINED(portaudio) or DEFINED(sndfile)}  
+  function m_get_filelen(pms: PMemoryStream): tuos_count_t; cdecl; 
 begin
  Result:= pms^.Size;
 end;
  
-function m_seek(offset: tsf_count_t; whence: cint32; pms: PMemoryStream): tsf_count_t; cdecl; 
+function m_seek(offset: tuos_count_t; whence: cint32; pms: PMemoryStream): tuos_count_t; cdecl; 
 Const
  SEEK_SET = 0;
  SEEK_CUR = 1;
@@ -5379,26 +5673,122 @@ Result:= 0 ;
 
 end;
  
-function m_read(const buf: Pointer; count: Tsf_count_t; pms: PMemoryStream): Tsf_count_t; cdecl; 
+function m_read(const buf: Pointer; count: Tuos_count_t; pms: PMemoryStream): Tuos_count_t; cdecl; 
 
 begin
 Result := pms^.Read(buf^,count);
 end;
  
-function m_write(const buf: Pointer; count: Tsf_count_t; pms: PMemoryStream): Tsf_count_t; cdecl; 
+function m_write(const buf: Pointer; count: Tuos_count_t; pms: PMemoryStream): Tuos_count_t; cdecl; 
 begin
  Result:= pms^.Write(buf^,count);
 end;
  
-function m_tell(pms: PMemoryStream): Tsf_count_t; cdecl; 
+function m_tell(pms: PMemoryStream): Tuos_count_t; cdecl; 
 begin
  Result:= pms^.Position;
 end;
+{$endif}
+
+function Tuos_Player.AddFromMemoryStreamDec(var MemoryStream: TMemoryStream; var Bufferinfos: Tuos_bufferinfos;
+ OutputIndex: cint32; FramesCount: cint32): cint32;
+// MemoryStream : Memory-stream of decoded audio (like created by AddIntoMemoryStream)
+// Bufferinfos : infos of the Memory-stream
+// OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
+// FramesCount : default : -1 (4096)
+//  result :  Input Index in array  -1 = error
+var
+x : integer;
+begin
+ result := -1 ;
+
+   {$IF DEFINED(debug) and DEFINED(unix)}
+   WriteLn('Before all.');
+   {$endif}
+
+   if assigned(MemoryStream) then begin
+      x := 0;
+      MemoryStream.Position:= 0;
+
+      {$IF DEFINED(debug) and DEFINED(unix)}
+      WriteLn('Before setlength.');
+      {$endif}
+
+      SetLength(StreamIn, Length(StreamIn) + 1);
+      StreamIn[Length(StreamIn) - 1] := Tuos_InStream.Create;
+      x := Length(StreamIn) - 1;
+     
+      StreamIn[x].Data.LibOpen := -1;
+      StreamIn[x].Data.levelEnable := 0;
+      StreamIn[x].Data.Output := OutputIndex;
+         StreamIn[x].Data.Status := 1;
+         StreamIn[x].Data.Position := 0;
+         StreamIn[x].Data.OutFrames := 0;
+         StreamIn[x].Data.Poseek := -1;
+         StreamIn[x].Data.TypePut := 6;
+         StreamIn[x].Data.seekable := True;
+         StreamIn[x].LoopProc := nil;
+       
+  StreamIn[x].Data.Channels := Bufferinfos.Channels;
+   
+ if FramesCount = -1 then
+  StreamIn[x].Data.Wantframes :=  4096
+  else
+  StreamIn[x].Data.Wantframes := FramesCount;
+
+  StreamIn[x].Data.Samplerate := bufferinfos.SampleRate; 
+  StreamIn[x].Data.SampleRateRoot := Bufferinfos.Samplerate;
+  StreamIn[x].Data.SampleFormat := Bufferinfos.SampleFormat;
+  StreamIn[x].Data.Filename := BufferInfos.Filename;
+  StreamIn[x].Data.Title := BufferInfos.Title;
+  StreamIn[x].Data.Copyright := BufferInfos.Copyright;
+  StreamIn[x].Data.Software := BufferInfos.Software;
+  StreamIn[x].Data.Artist := BufferInfos.Artist;
+  StreamIn[x].Data.Comment := BufferInfos.Comment;
+  StreamIn[x].Data.Date := BufferInfos.Date;
+  StreamIn[x].Data.Tag := BufferInfos.Tag;
+  StreamIn[x].Data.Album := BufferInfos.Album;
+  StreamIn[x].Data.Genre := BufferInfos.Genre;
+  StreamIn[x].Data.HDFormat := BufferInfos.HDFormat;
+  StreamIn[x].Data.Sections := BufferInfos.Sections;
+  StreamIn[x].Data.Encoding := BufferInfos.Encoding;
+  StreamIn[x].Data.bitrate := BufferInfos.bitrate;
+//StreamIn[x].Data.Length := BufferInfos.Length;
+  StreamIn[x].Data.LibOpen := -1;
+  StreamIn[x].Data.ratio := StreamIn[x].Data.Channels;  
   
-function Tuos_Player.AddFromMemoryStream(MemoryStream: TMemoryStream; 
+  StreamIn[x].Data.posmem := 0;
+  StreamIn[x].Data.Output := OutputIndex;
+  StreamIn[x].Data.Status := 1;
+  StreamIn[x].Data.Position := 0;
+  StreamIn[x].Data.OutFrames := 0;
+  StreamIn[x].Data.Poseek := -1;
+  StreamIn[x].Data.seekable := false;
+  StreamIn[x].LoopProc := nil;
+  streamIn[x].Data.ratio := StreamIn[x].Data.Channels;
+  StreamIn[x].Data.positionEnable := 0;
+  StreamIn[x].Data.levelArrayEnable := 0;
+  StreamIn[x].MemoryStreamDec := MemoryStream;
+  
+    
+  StreamIn[x].MemoryStreamDec.Position:= 0;
+  SetLength(StreamIn[x].Data.Buffer, StreamIn[x].Data.Wantframes*StreamIn[x].Data.Channels);
+
+  StreamIn[x].Data.Enabled := true;
+       result := x; 
+      {$IF DEFINED(debug) and DEFINED(unix)}
+      writeln('length(StreamIn[x].MemoryStreamDec) = '+inttostr(StreamIn[x].MemoryStreamDec.size)) ;
+      writeln('length(MemoryStream) = '+inttostr(MemoryStream.size)) ;
+      WriteLn('Length(StreamIn) = '+ inttostr(x));
+      {$endif}
+end else result := -1;
+
+end;
+  
+function Tuos_Player.AddFromMemoryStream(var MemoryStream: TMemoryStream; 
          TypeAudio: cint32; OutputIndex: cint32; SampleFormat: cint32 ; FramesCount: cint32): cint32;
-// MemoryStream : Memory stream of encoded audio.
-// TypeAudio : default : -1 --> 0 (0: flac, ogg, wav; 1: mp3; 2:opus)
+// MemoryStream : Memory stream of encoded audio file.
+// TypeAudio : default : -1 --> 0 (0: flac, ogg, wav; 1: mp3; 2:opus ; 3:decoded Tmemory-stream)
 // OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
 // SampleFormat : default : -1 (1:Int16) (0: Float32, 1:Int32, 2:Int16)
 // FramesCount : default : -1 (4096)
@@ -5433,7 +5823,7 @@ function Tuos_Player.AddFromMemoryStream(MemoryStream: TMemoryStream;
 begin
    result := -1 ;
 
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before all.');
    {$endif}
 
@@ -5441,7 +5831,7 @@ begin
       x := 0;
       MemoryStream.Position:= 0;
 
-      {$IF DEFINED(debug)}
+      {$IF DEFINED(debug) and DEFINED(unix)}
       WriteLn('Before setlength.');
       {$endif}
 
@@ -5457,7 +5847,7 @@ begin
       StreamIn[x].data.MemoryStream := MemoryStream;
       StreamIn[x].data.MemoryStream.Position:= 0;
 
-      {$IF DEFINED(debug)}
+      {$IF DEFINED(debug) and DEFINED(unix)}
       WriteLn('Length(StreamIn) = '+ inttostr(x));
       {$endif}
 
@@ -5479,11 +5869,11 @@ begin
          (* try to open the file *)
          if StreamIn[x].Data.HandleSt = nil then begin
             StreamIn[x].Data.LibOpen := -1;
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('sf_open_virtual NOT OK');
             {$endif}
          end else begin
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('sf_open_virtual OK');
             {$endif}
             StreamIn[x].Data.LibOpen := 0;
@@ -5507,7 +5897,7 @@ begin
             StreamIn[x].Data.date := sf_get_string(StreamIn[x].Data.HandleSt, SF_STR_DATE);
             StreamIn[x].Data.Length := sfInfo.frames;
             err := 0;
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('sf_open END OK');
             {$endif}
          end;
@@ -5521,7 +5911,7 @@ begin
          StreamIn[x].Data.HandleSt := mpg123_new(nil, Err);
 
          if Err = 0 then begin
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('mpg123_new OK');
             {$endif}
 
@@ -5538,7 +5928,7 @@ begin
 
             err := mpg123_replace_reader_handle(StreamIn[x].Data.HandleSt, @mpg_read_stream, @mpg_seek_stream, nil);
 
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             if err = 0 then
                writeln('===> mpg123_replace_reader_handle => ok.')
             else writeln('===> mpg123_replace_reader_handle => NOT OK.');
@@ -5546,7 +5936,7 @@ begin
 
             Err :=  mpg123_open_handle(StreamIn[x].Data.HandleSt, pointer(StreamIn[x].Data.MemoryStream));
 
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             if err = 0 then
                writeln('===> mpg123_open_handle => ok.') else
             writeln('===> mpg123_open_handle => NOT ok.') ;
@@ -5561,7 +5951,7 @@ begin
          StreamIn[x].Data.samplerate, StreamIn[x].Data.channels,
          StreamIn[x].Data.encoding);
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          if err = 0 then
             writeln('===> mpg123_getformat => ok.')
          else writeln('===> mpg123_getformat => NOT ok.') ;
@@ -5573,7 +5963,7 @@ begin
         // Close handle and reload with forced resolution
             StreamIn[x].Data.HandleSt := mpg123_new(nil, Err);
 
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             if err = 0 then
                writeln('===> mpg123_open_handle => ok.')
             else writeln('===> mpg123_open_handle => NOT ok.') ;
@@ -5590,7 +5980,7 @@ begin
 
             err := mpg123_replace_reader_handle(StreamIn[x].Data.HandleSt, @mpg_read_stream, @mpg_seek_stream, nil);
 
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             if err = 0 then
                writeln('===> mpg123_replace_reader_handle => ok.')
             else writeln('===> mpg123_replace_reader_handle => NOT OK.');
@@ -5632,7 +6022,7 @@ begin
             StreamIn[x].Data.LibOpen := 1;
             StreamIn[x].Data.Length := mpg123_length(StreamIn[x].Data.HandleSt);
 
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             writeln('StreamIn[x].Data.Length = ' + inttostr(mpg123_length(StreamIn[x].Data.HandleSt)));
             writeln('StreamIn[x].Data.frames = ' + inttostr(StreamIn[x].Data.frames));
             writeln('END StreamIn[x].Data.samplerate = ' + inttostr(StreamIn[x].Data.samplerate));
@@ -5648,7 +6038,7 @@ begin
       if (((TypeAudio=-1) and (err=-1) ) or (TypeAudio = 2) and (StreamIn[x].Data.LibOpen = -1) and (uosLoadResult.OPloadERROR = 0)) then begin
          Err := -1;
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('Before Opus');
          {$endif}
 
@@ -5661,7 +6051,7 @@ begin
      // PipeBufferSize := totsamples * sizeOf(Single);// * 2
          PipeBufferSize := StreamIn[x].Data.MemoryStream.size;
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('totsamples: ' + inttostr(totsamples));
          WriteLn('PipeBufferSize: ' + inttostr(PipeBufferSize));
          {$endif}
@@ -5684,7 +6074,7 @@ begin
      // memory stream not needed anymore ---> converted into buffer
          freeandnil(StreamIn[x].Data.MemoryStream);
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('PipeBufferSize = ' + inttostr(PipeBufferSize));
          WriteLn('Data.MemoryStream.Read = ' + inttostr(len2));
          WriteLn('----------------------------------');
@@ -5693,7 +6083,7 @@ begin
 
          StreamIn[x].Data.HandleSt := pchar('opusstream');
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('StreamIn[x].Data.HandleSt assisgned');
          {$endif}
 
@@ -5703,7 +6093,7 @@ begin
      // this is a memorystream converted into a buffer, it works...
          StreamIn[x].Data.HandleOP := op_test_memory(StreamIn[x].data.BufferTMP[0],PipeBufferSize, Err);
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('op_test_file error = '+ inttostr(Err));
          {$endif}
 
@@ -5719,7 +6109,7 @@ begin
 
                if OpusTag<>nil then begin
                   if OpusTag^.comments>0 then begin
-                     {$IF DEFINED(debug)}
+                     {$IF DEFINED(debug) and DEFINED(unix)}
                      WriteLn((Format('OpusTag.comments = %d', [OpusTag^.comments])));
                      {$endif}
                      LComment := OpusTag^.user_comments;
@@ -5728,7 +6118,7 @@ begin
                         SetLength(s, LcommentLength^);
                         move(Pointer(LComment^)^, Pointer(s)^, LcommentLength^);
 
-                        {$IF DEFINED(debug)}
+                        {$IF DEFINED(debug) and DEFINED(unix)}
                     // WriteLn(s);
                         {$endif}
 
@@ -5776,7 +6166,7 @@ begin
 
          StreamIn[x].AACI:= TAACInfo.Create();
 
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('TAACInfo.Create() = ok');
          {$endif}
 
@@ -5788,7 +6178,7 @@ begin
          End;
          }
          if StreamIn[x].AACI <> nil then Begin
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('MP4OpenFile() = ok');
             {$endif}
 
@@ -5840,7 +6230,7 @@ begin
             StreamIn[x].Data.LibOpen :=2 ;
             Err:= 0;
          End else begin
-            {$IF DEFINED(debug)}
+            {$IF DEFINED(debug) and DEFINED(unix)}
             WriteLn('MP4OpenFile() NOT ok');
             {$endif}
          end;
@@ -5902,7 +6292,7 @@ begin
          StreamIn[Length(StreamIn) - 1].Destroy;
          setlength(StreamIn, Length(StreamIn) - 1);
       end else begin
-         {$IF DEFINED(debug)}
+         {$IF DEFINED(debug) and DEFINED(unix)}
          WriteLn('addfromfile OK');
          {$endif}
          Result := x;
@@ -5981,7 +6371,7 @@ var
 begin
   result := -1 ;
  
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before all.');  
  {$endif}
  
@@ -5989,7 +6379,7 @@ begin
   begin
   x := 0;
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before setlength.');  
  {$endif}  
   
@@ -6003,7 +6393,7 @@ begin
   StreamIn[x].Data.positionEnable := 0;
   StreamIn[x].Data.levelArrayEnable := 0;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Length(StreamIn) = '+ inttostr(x));  
  {$endif}  
  
@@ -6017,18 +6407,20 @@ begin
   if StreamIn[x].Data.HandleSt = nil then
   begin
   StreamIn[x].Data.LibOpen := -1;
-  {$IF DEFINED(debug)}
+  err := -1;
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('sf_open NOT OK');  
   {$endif}  
   end
   else
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('sf_open OK');  
   {$endif}  
   StreamIn[x].Data.LibOpen := 0;
   StreamIn[x].Data.filename := FileName;
   StreamIn[x].Data.channels := SFinfo.channels;
+ 
   if FramesCount = -1 then  StreamIn[x].Data.Wantframes := 65536 div StreamIn[x].Data.Channels  else
   StreamIn[x].Data.Wantframes := FramesCount ;
 
@@ -6039,6 +6431,7 @@ begin
   Streamin[x].Data.Buffer[x2] := 0.0 ;
   inc(x2);
    end;
+   
   StreamIn[x].Data.hdformat := SFinfo.format;
   StreamIn[x].Data.frames := SFinfo.frames;
   StreamIn[x].Data.samplerate := SFinfo.samplerate;
@@ -6057,7 +6450,7 @@ begin
   StreamIn[x].Data.date := sf_get_string(StreamIn[x].Data.HandleSt, SF_STR_DATE);
   StreamIn[x].Data.Length := sfInfo.frames;
   err := 0;
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('sf_open END OK');  
   {$endif} 
   end;
@@ -6065,6 +6458,11 @@ begin
 
   {$endif}
 
+ {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('sf StreamIn[x].Data.LibOpen = ' + inttostr(StreamIn[x].Data.LibOpen));  
+  WriteLn('sf err = ' + inttostr(err)); 
+ {$endif}  
+ 
   {$IF DEFINED(mpg123)}
    if ((StreamIn[x].Data.LibOpen = -1)) and (uosLoadResult.MPloadERROR = 0) then
   begin
@@ -6075,7 +6473,7 @@ begin
   if Err = 0 then
   begin
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('mpg123_new OK');  
   {$endif} 
   
@@ -6138,6 +6536,9 @@ begin
 // custom code for reading ID3Tag ---> problems with  mpg123_id3() 
 
    AssignFile(F, Filename); 
+   
+   FileMode:=fmOpenRead + fmShareDenyNone;
+   
    Reset(F, 1); 
    Seek(F, FileSize(F) - 128); 
    BlockRead(F, BufferTag, SizeOf(BufferTag)); 
@@ -6165,19 +6566,24 @@ begin
 
   {$endif}
   
+ {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('mp StreamIn[x].Data.LibOpen = ' + inttostr(StreamIn[x].Data.LibOpen));  
+  WriteLn('mp err = ' + inttostr(err)); 
+ {$endif} 
+  
   {$IF DEFINED(opus)}
   if (StreamIn[x].Data.LibOpen = -1) and (uosLoadResult.OPloadERROR = 0) then
   begin
   Err := -1;
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before Opus');  
  {$endif}  
   
   StreamIn[x].Data.HandleSt := pchar('opus');
   StreamIn[x].Data.HandleOP := op_test_file(PChar(FileName), Err);
  
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('op_test_file error = '+ inttostr(Err));  
  {$endif} 
   
@@ -6203,7 +6609,7 @@ begin
   if OpusTag^.comments>0
   then begin
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  WriteLn((Format('OpusTag.comments = %d', [OpusTag^.comments])));
  {$endif}  
   LComment := OpusTag^.user_comments;
@@ -6213,7 +6619,7 @@ begin
   SetLength(s, LcommentLength^);
   move(Pointer(LComment^)^, Pointer(s)^, LcommentLength^);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
 // WriteLn(s);
  {$endif}  
  
@@ -6257,6 +6663,11 @@ begin
   end;
 {$endif}
 
+ {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('op StreamIn[x].Data.LibOpen = ' + inttostr(StreamIn[x].Data.LibOpen));  
+  WriteLn('op err = ' + inttostr(err)); 
+ {$endif} 
+
   {$IF DEFINED(neaac)}
   if (StreamIn[x].Data.LibOpen = -1) and (uosLoadResult.AAloadERROR = 0) then
   begin
@@ -6264,7 +6675,7 @@ begin
 
   StreamIn[x].AACI:= TAACInfo.Create();
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('TAACInfo.Create() = ok');  
   {$endif} 
 
@@ -6276,7 +6687,7 @@ begin
   
   if StreamIn[x].AACI <> nil then
   Begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('MP4OpenFile() = ok');  
   {$endif}  
 
@@ -6330,14 +6741,19 @@ begin
   Err:= 0;
   End else
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('MP4OpenFile() NOT ok');  
   {$endif} 
   end;  
 
   end;
   {$endif}
-
+  
+ {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('ac StreamIn[x].Data.LibOpen = ' + inttostr(StreamIn[x].Data.LibOpen));  
+  WriteLn('ac err = ' + inttostr(err)); 
+ {$endif} 
+  
   {$IF DEFINED(cdrom)}
   if (StreamIn[x].Data.LibOpen = -1) then
   begin
@@ -6391,9 +6807,18 @@ begin
   End;
   end;
   {$endif}
- 
-   if err <> 0 then
+  
+ {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('cd StreamIn[x].Data.LibOpen = ' + inttostr(StreamIn[x].Data.LibOpen));  
+  WriteLn('cd err = ' + inttostr(err)); 
+ {$endif} 
+   
+   if (err <> 0) or (StreamIn[x].Data.LibOpen = -1) then
   begin
+   {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('not ok StreamIn[x].Data.LibOpen = -1');  
+  WriteLn('not ok cd err = ' + inttostr(err)); 
+   {$endif} 
   
   result := -1 ;
   StreamIn[Length(StreamIn) - 1].Destroy;
@@ -6402,7 +6827,7 @@ begin
   else
   begin
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('addfromfile OK');  
   {$endif} 
   Result := x;
@@ -6448,6 +6873,11 @@ begin
   StreamIn[x].Data.Enabled := True;
   end;
   end else result := -2;
+  
+  {$IF DEFINED(debug) and DEFINED(unix)}
+  WriteLn('result = ' + inttostr(result));  
+  WriteLn('cd err = ' + inttostr(err)); 
+  {$endif} 
 end;
 
 procedure Tuos_Player.ReadEndless(x : integer);
@@ -6552,7 +6982,7 @@ pf: PDArFloat;// if input is Float32 format
 procedure Tuos_Player.ReadMem(X : integer);  
 var
 x2, wantframestemp : integer;
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 i : integer;
  st : string;
 {$endif}
@@ -6563,7 +6993,7 @@ begin
 * StreamIn[x].Data.Channels) else
  wantframestemp := length(StreamIn[x].Data.memorybuffer) - StreamIn[x].Data.posmem;
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('length(StreamIn[x].Data.MemoryBuffer) = '+inttostr(length(StreamIn[x].Data.MemoryBuffer))) ;
 writeln('StreamIn[x].Data.posmem = '+inttostr(StreamIn[x].Data.posmem)) ;
 writeln('wantframestemp = '+inttostr(wantframestemp)) ;
@@ -6580,7 +7010,55 @@ StreamIn[x].Data.OutFrames := wantframestemp;
 if StreamIn[x].Data.SampleFormat > 0 then
 StreamIn[x].Data.Buffer := ConvertSampleFormat(StreamIn[x].Data);
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
+writeln('StreamIn[x].Data.posmem after = '+inttostr(StreamIn[x].Data.posmem)) ;
+writeln('StreamIn[x].Data.OutFrames = '+ inttostr(wantframestemp)) ;
+st := '';
+for i := 0 to length(StreamIn[x].data.Buffer) -1 do
+st := st + '|' + inttostr(i) + '=' + floattostr(StreamIn[x].data.Buffer[i]);
+WriteLn('OUTPUT DATA AFTER Input from memory ------------------------------');
+WriteLn(st);
+{$endif}
+end;
+
+procedure Tuos_Player.ReadMemDec(X : integer);  
+var
+x2, wantframestemp : integer;
+{$IF DEFINED(debug) and DEFINED(unix)}
+i : integer;
+ st : string;
+{$endif}
+begin
+ {
+ if length(StreamIn[x].Data.MemoryStream) - StreamIn[x].Data.posmem - (StreamIn[x].Data.WantFrames
+
+* StreamIn[x].Data.Channels) >= 0 then wantframestemp := (StreamIn[x].Data.WantFrames
+* StreamIn[x].Data.Channels) else
+ wantframestemp := length(StreamIn[x].Data.MemoryStream) - StreamIn[x].Data.posmem;
+}
+
+
+wantframestemp := (StreamIn[x].Data.WantFrames * StreamIn[x].Data.channels);
+
+{$IF DEFINED(debug) and DEFINED(unix)}
+writeln('length(StreamIn[x].MemoryStreamDec) = '+inttostr(StreamIn[x].MemoryStreamDec.size)) ;
+writeln('StreamIn[x].Data.posmem = '+inttostr(StreamIn[x].Data.posmem)) ;
+writeln('wantframestemp = '+inttostr(wantframestemp)) ;
+{$endif}
+
+
+StreamIn[x].Data.OutFrames := StreamIn[x].MemoryStreamDec.Read(StreamIn[x].Data.Buffer[0] ,wantframestemp);
+
+StreamIn[x].Data.OutFrames := StreamIn[x].Data.OutFrames div StreamIn[x].Data.channels;
+
+StreamIn[x].Data.posmem := StreamIn[x].Data.posmem + wantframestemp;
+
+// StreamIn[x].Data.OutFrames := wantframestemp;
+
+if StreamIn[x].Data.SampleFormat > 0 then
+StreamIn[x].Data.Buffer := ConvertSampleFormat(StreamIn[x].Data);
+
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('StreamIn[x].Data.posmem after = '+inttostr(StreamIn[x].Data.posmem)) ;
 writeln('StreamIn[x].Data.OutFrames = '+ inttostr(wantframestemp)) ;
 st := '';
@@ -6642,7 +7120,7 @@ begin
   {$IF not DEFINED(Library)}
   if (StreamOut[x].DSP[x3].LoopProc <> nil) then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,StreamOut[x].DSP[x3].LoopProc);
+  thethread.synchronize(thethread,StreamOut[x].DSP[x3].LoopProc);
   {$else}
  {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
  begin
@@ -6661,7 +7139,7 @@ begin
   {$else}
   if (StreamOut[x].DSP[x3].LoopProc <> nil) then
   {$IF FPC_FULLVERSION >= 20701}
-  thethread.queue(thethread,@StreamOut[x].DSP[x3].LoopProcjava);
+  thethread.synchronize(thethread,@StreamOut[x].DSP[x3].LoopProcjava);
   {$else}
   thethread.synchronize(thethread,@StreamOut[x].DSP[x3].LoopProcjava);
   {$endif}
@@ -6718,7 +7196,7 @@ begin
   if (StreamIn[x].DSP[x2].Enabled = True) then
   begin
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('DSPin AfterBuffProc 1.');
  {$endif}
   if (StreamIn[x].DSP[x2].AftFunc <> nil) then
@@ -6726,7 +7204,7 @@ begin
   StreamIn[x].DSP[x2].AftFunc(StreamIn[x].Data,
   StreamIn[x].DSP[x2].fftdata);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('DSPin AfterBuffProc 2.');
  {$endif}
 
@@ -6740,7 +7218,7 @@ begin
     {$IF not DEFINED(Library)}
   if (StreamIn[x].DSP[x2].LoopProc <> nil) then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,StreamIn[x].DSP[x2].LoopProc);
+  thethread.synchronize(thethread,StreamIn[x].DSP[x2].LoopProc);
   {$else}
   {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
   begin
@@ -6758,7 +7236,7 @@ begin
   {$else}
   if (StreamIn[x].DSP[x2].LoopProc <> nil) then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@Streamin[x].DSP[x2].LoopProcjava);
+  thethread.synchronize(thethread,@Streamin[x].DSP[x2].LoopProcjava);
   {$else}
   thethread.synchronize(thethread,@Streamin[x].DSP[x2].LoopProcjava);
   {$endif}
@@ -6775,6 +7253,9 @@ begin
   statustemp := 0 ;
   for x := 0 to high(StreamIn) do
   begin
+   if (StreamIn[x].Data.enabled = true)
+  then begin
+   
   if (StreamIn[x].Data.TypePut <> 1)
   then
   begin
@@ -6786,6 +7267,8 @@ begin
   if
   (StreamIn[x].Data.TypePut = 1) then statustemp := status ;
   end ;
+  end;
+  
   if statustemp <> status then status := statustemp;
 
   if (status = 0) and IsLooped then
@@ -6800,7 +7283,7 @@ begin
 
    Status:= 1;
 
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
     WriteLn('Loop (NLooped: '+IntToStr(NLooped)+')----');
    {$endif}
 
@@ -6824,7 +7307,7 @@ begin
 
 //  Execute LoopEndProc procedure
    {$IF FPC_FULLVERSION>=20701}
-   thethread.queue(thethread,LoopEndProc);
+   thethread.synchronize(thethread,LoopEndProc);
    {$else}
    {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
    begin
@@ -6842,7 +7325,7 @@ begin
    if LoopEndProc <> nil then
 
    {$IF FPC_FULLVERSION>=20701}
-   thethread.queue(thethread,@endprocjava);
+   thethread.synchronize(thethread,@endprocjava);
    {$else}
    thethread.synchronize(thethread,@endprocjava);//  Execute EndProc procedure
    {$endif}
@@ -6854,32 +7337,22 @@ procedure Tuos_Player.DoEndProc;
 begin
 {$IF DEFINED(mse)}
  if EndProc <> nil then
-   begin
-   application.queueasynccall(EndProc);
-   end;
-     {$else}
+     application.queueasynccall(EndProc);
+ {$else}
 
  {$IF not DEFINED(Library)}
   if EndProc <> nil then
-  {$IF FPC_FULLVERSION>=20701}
-  begin
-  thethread.queue(thethread,EndProc);
-  end;
-  {$else}
-  thethread.synchronize(thethread,EndProc);//  Execute EndProc procedure
-  {$endif}
+  // thethread.synchronize(thethread,EndProc);//  Execute EndProc procedure
+
+ thethread.queue(thethread,EndProc);//  Execute EndProc procedure
 
   {$elseif not DEFINED(java)}
   if (EndProc <> nil) then
   EndProc;
   {$else}
   if (EndProc <> nil) then
-  {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@endprocjava);
-  {$else}
   thethread.synchronize(thethread,@endprocjava);//  Execute EndProc procedure
-  {$endif}
-  
+ 
   {$endif}
 
   {$endif}
@@ -6928,7 +7401,7 @@ begin
   {$IF not DEFINED(Library)}
   if EndProc <> nil then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,EndProc);
+  thethread.synchronize(thethread,EndProc);
   {$else}
   thethread.synchronize(thethread,EndProc);//  Execute EndProc procedure
   {$endif}
@@ -6939,7 +7412,7 @@ begin
   {$else}
   if (EndProc <> nil) then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@endprocjava);
+  thethread.synchronize(thethread,@endprocjava);
   {$else}
   thethread.synchronize(thethread,@endprocjava);//  Execute EndProc procedure
   {$endif}
@@ -7003,7 +7476,7 @@ begin
    end;
    end;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Destroy DSP In');
   {$endif}
 
@@ -7015,7 +7488,7 @@ begin
    StreamIn[x].DSP[x2].EndFunc(StreamIn[x].Data, StreamIn[x].DSP[x2].fftdata);
    end;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Destroy DSP Out');
   {$endif}
 
@@ -7149,7 +7622,7 @@ begin
   {$IF not DEFINED(Library)}
   if StreamIn[x].LoopProc <> nil then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,StreamIn[x].LoopProc);
+  thethread.synchronize(thethread,StreamIn[x].LoopProc);
   {$else}
   {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
   begin
@@ -7168,7 +7641,7 @@ begin
   {$else}
   if (StreamIn[x].LoopProc <> nil) then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@Streamin[x].LoopProcjava);
+  thethread.synchronize(thethread,@Streamin[x].LoopProcjava);
   {$else}
   thethread.synchronize(thethread,@Streamin[x].LoopProcjava);
   {$endif}
@@ -7193,7 +7666,7 @@ begin
   if BeginProc <> nil then
 //  Execute BeginProc procedure
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,BeginProc);
+  thethread.synchronize(thethread,BeginProc);
   {$else}
   {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
   begin
@@ -7210,7 +7683,7 @@ begin
   {$else}
   if BeginProc <> nil then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@BeginProcjava);
+  thethread.synchronize(thethread,@BeginProcjava);
   {$else}
   thethread.synchronize(thethread,@BeginProcjava);
   {$endif}
@@ -7234,7 +7707,7 @@ begin
   if LoopBeginProc <> nil then
 //  Execute BeginProc procedure
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,LoopBeginProc);
+  thethread.synchronize(thethread,LoopBeginProc);
   {$else}
   {$IF (FPC_FULLVERSION < 20701) and DEFINED(fpgui)}
   begin
@@ -7251,7 +7724,7 @@ begin
   {$else}
   if loopBeginProc <> nil then
   {$IF FPC_FULLVERSION>=20701}
-  thethread.queue(thethread,@loopBeginProcjava);
+  thethread.synchronize(thethread,@loopBeginProcjava);
   {$else}
   thethread.synchronize(thethread,@loopBeginProcjava);
   {$endif}
@@ -7261,16 +7734,16 @@ end;
 
 procedure Tuos_Player.WriteOut(x:integer;  x2 : integer);  
  var
- err, rat, wantframestemp, sizsam: integer;
-
- {$IF DEFINED(debug)}
+ err, rat, wantframestemp: integer;
+ 
+{$IF DEFINED(debug) and DEFINED(unix)}
  st : string;
  i : integer;
- {$endif}
+{$endif}
   Bufferst2mo: TDArFloat;
 begin
 // Convert Input format into Output format if needed:
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Convert Input format into Output');
  {$endif}
   case StreamOut[x].Data.SampleFormat of
@@ -7282,7 +7755,7 @@ begin
   end;
   end;
 // End convert.
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Finally give buffer to output');
  {$endif}
 // Finally give buffer to output
@@ -7291,7 +7764,7 @@ begin
   1:// Give to output device using portaudio
   begin
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Give to output device');
  writeln('length(StreamOut[x].Data.Buffer) =' + inttostr(length(StreamOut[x].Data.Buffer)));
  {$endif}
@@ -7299,7 +7772,7 @@ begin
   if (StreamIn[x2].Data.TypePut <> 1) or
   ((StreamIn[x2].Data.TypePut = 1) and (StreamIn[x2].Data.Channels > 1)) then
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   st := '';
   for i := 0 to length(StreamOut[x].Data.Buffer) -1 do
   st := st + '|' + inttostr(i) + '=' + floattostr(StreamOut[x].Data.Buffer[i]);
@@ -7313,7 +7786,7 @@ begin
    Pa_WriteStream(StreamOut[x].Data.HandleSt,
   @StreamOut[x].Data.Buffer[0], StreamIn[x2].Data.outframes div StreamIn[x2].Data.ratio);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('give to output device 1');
 {$endif}
   end else
@@ -7323,7 +7796,7 @@ begin
   @StreamOut[x].Data.Buffer[0], StreamIn[x2].Data.outframes);
   end;
 // if err <> 0 then status := 0;// if you want clean buffer ...
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
  writeln('End give to output device 2');
 {$endif}
   end;
@@ -7334,7 +7807,7 @@ begin
   2:// Give to IceCast server
   begin
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Give to output IceCast server');
  {$endif}
 
@@ -7355,7 +7828,7 @@ begin
 
   StreamOut[x].data.outframes := err;
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('opus_encode outframes =' + inttostr(err));
   WriteLn('----------------------------------');
 //  writeln(tencoding.utf8.getstring(StreamOut[x].cbits));
@@ -7365,7 +7838,7 @@ if err > 0 then
 
  err := shout_send_raw(StreamOut[x].Data.HandleSt, StreamOut[x].cbits, StreamOut[x].data.outframes);
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 		 if err = SHOUTERR_SUCCESS then
   WriteLn('shout_send ok ' + inttostr(err)) else
   WriteLn('shout_send error: '+ inttostr(err) + ' ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
@@ -7381,12 +7854,12 @@ if err > 0 then
 
    wantframestemp := StreamIn[x2].Data.outframes ;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before Give to memory ------------------------------');
    st := '';
   for i := 0 to wantframestemp -1 do
   st := st + '|' + inttostr(i) + '=' + floattostr(StreamOut[x].Data.Buffer[i]);
-//WriteLn(st);
+  WriteLn(st);
   WriteLn('OUTPUT DATA AFTER5 ------------------------------');
   writeln('Streamout[x].Data.posmem before = '+inttostr( Streamout[x].Data.posmem)) ;
 
@@ -7395,7 +7868,7 @@ if err > 0 then
   writeln('Begin Give to memory buffer');
   writeln('(StreamIn[x2].Data.outframes ) -1 = ' +
   inttostr((StreamIn[x2].Data.outframes) -1));
-  {$endif}
+ {$endif}
   
   if StreamIn[x2].Data.numbuf > -1 then
   begin
@@ -7414,14 +7887,14 @@ if err > 0 then
 //  if Streamout[x].Data.SampleFormat > 0 then
 //StreamOut[x].Data.Buffer := ConvertSampleFormat(StreamOut[x].Data);
 
-  {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Streamout[x].Data.posmem after = '+inttostr( Streamout[x].Data.posmem)) ;
   st := '';
   for i := 0 to length(tempoutmemory) -1 do
   st := st + '|' + inttostr(i) + '=' + floattostr(tempoutmemory[i]);
   WriteLn('OUTPUT DATA AFTER5 ------------------------------');
 //WriteLn(st);
-  {$endif}
+ {$endif}
 
   end;
 
@@ -7451,6 +7924,21 @@ if err > 0 then
 
   StreamOut[x].FileBuffer.DataMS.WriteBuffer(
   StreamOut[x].Data.Buffer[0],  StreamIn[x2].Data.outframes * StreamIn[x2].Data.Channels * rat);
+  end;
+
+   5:// Give to MemoryStream
+  begin
+ 
+  case StreamOut[x].Data.SampleFormat of
+  0: rat := 2 ;
+  1: rat := 2 ;
+  2: rat := 1 ;
+  end;
+  
+ if assigned(StreamOut[x].MemorySteamOut) then
+  StreamOut[x].MemorySteamOut.WriteBuffer(
+  StreamOut[x].Data.Buffer[0],  StreamIn[x2].Data.outframes * StreamIn[x2].Data.Channels * rat);
+   
   end;
 
   0:// Give to wav file from TFileStream
@@ -7486,8 +7974,8 @@ end;
 
 procedure Tuos_Player.WriteOutPlug(x:integer;  x2 : integer);  
  var
- x3, x4, err, wantframestemp, sizsam: integer;
-  {$IF DEFINED(debug)}
+ x3, x4, err, wantframestemp: integer;
+  {$IF DEFINED(debug) and DEFINED(unix)}
  st : string;
  i : integer;
  {$endif}
@@ -7525,7 +8013,7 @@ begin
   Plugin[x3].param5, Plugin[x3].param6, Plugin[x3].param7, Plugin[x3].param8);
   {$endif}
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('PlugFunc: Length(BufferplugINFLTMP,BufferplugFL) = ' +
   inttostr(Length(BufferplugINFLTMP)) + ' , ' + inttostr(Length(BufferplugFL)));
  {$endif}
@@ -7538,13 +8026,13 @@ begin
   end;
   end;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('2-PlugFunc: Length(BufferplugINFLTMP,BufferplugFL) = ' +
   inttostr(Length(BufferplugINFLTMP)) + ' , ' + inttostr(Length(BufferplugFL)));
  {$endif}
   end;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Give the processed input to output.');
  writeln('Length(BufferplugFL) = ' + inttostr(Length(BufferplugFL)));
  {$endif}
@@ -7571,7 +8059,7 @@ begin
   1:// Give to output device
   begin
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Before Pa_WriteStream: Length(BufferplugFL) = ' + inttostr(Length(BufferplugFL)));
  {$endif}
   case StreamOut[x].Data.SampleFormat of
@@ -7602,7 +8090,7 @@ begin
   end;
 // if err <> 0 then status := 0;// if you want clean buffer ...
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Pa_WriteStream error = '+ inttostr(err));
  {$endif}
   end;
@@ -7612,7 +8100,7 @@ begin
   2:// Give to IceCast server
   begin
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Give to output IceCast server');
  {$endif}
 
@@ -7633,7 +8121,7 @@ begin
 
   StreamOut[x].data.outframes  := err ;
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('opus_encode outframes =' + inttostr(err));
   WriteLn('----------------------------------');
 //  writeln(tencoding.utf8.getstring(StreamOut[x].cbits));
@@ -7643,7 +8131,7 @@ if err > 0 then
 
  err := shout_send(StreamOut[x].Data.HandleSt, StreamOut[x].cbits, StreamOut[x].data.outframes);
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 		 if err = SHOUTERR_SUCCESS then
   WriteLn('shout_send ok ' + inttostr(err)) else
   WriteLn('shout_send error: '+ inttostr(err) + ' ' + pchar(shout_get_error(StreamOut[x].Data.HandleSt)));
@@ -7686,6 +8174,23 @@ if err > 0 then
   Length(BufferplugSH));
 
   end;
+  
+  5:// Give to MemoryStream
+  begin
+
+   case StreamOut[x].Data.SampleFormat of
+  0:  StreamOut[x].MemorySteamOut.WriteBuffer(BufferplugFL[0],
+  Length(BufferplugFL));
+  
+  1:  StreamOut[x].MemorySteamOut.WriteBuffer(BufferplugLO[0],
+  Length(BufferplugLO));
+  
+  2:  StreamOut[x].MemorySteamOut.WriteBuffer(BufferplugSH[0],
+  Length(BufferplugSH));
+ 
+  end;
+  end;
+
 
   3:
   begin// Give to memory buffer
@@ -7697,7 +8202,7 @@ if err > 0 then
  
   Streamout[x].Data.posmem := Streamout[x].Data.posmem + wantframestemp;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Streamout[x].Data.posmem = '+inttostr( Streamout[x].Data.posmem)) ;
   st := '';
   for i := 0 to length(tempoutmemory) -1 do
@@ -7715,7 +8220,7 @@ end;
 procedure Tuos_Player.ReadUrl(x : integer);  
 var
 err : integer;
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 i : integer;
  st : string;
 {$endif}
@@ -7724,14 +8229,14 @@ case StreamIn[x].Data.LibOpen of
 1 : begin
 {$IF DEFINED(mpg123)}
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('===> Before mpg123_read') ;
 {$endif}
 err :=
 mpg123_read(StreamIn[x].Data.HandleSt, @StreamIn[x].Data.Buffer[0],
 StreamIn[x].Data.wantframes, StreamIn[x].Data.outframes);
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('===> mpg123_read error => ' + inttostr(err)) ;
 {$endif}
 StreamIn[x].Data.outframes :=
@@ -7741,7 +8246,7 @@ end;
 4 : begin
 {$IF DEFINED(opus)}
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('===> Before op_read_x.') ;
 {$endif}
 
@@ -7771,7 +8276,7 @@ end;
 
 setlength(StreamIn[x].data.Buffer, StreamIn[x].Data.outframes * StreamIn[x].Data.Channels);
 
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 writeln('Seek outframes = '+inttostr(StreamIn[x].Data.outframes)) ;
 st := '';
 for i := 0 to length(StreamIn[x].data.Buffer) -1 do
@@ -7790,7 +8295,7 @@ end;
   if (StreamIn[x].Data.TypePut = 2) and ((StreamIn[x].Data.LibOpen = 1 ) or (StreamIn[x].Data.LibOpen = 4 )) then
   begin
   if StreamIn[x].httpget.IsRunning = false then  StreamIn[x].Data.status := 0;// no more data then close the stream
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Check if internet is stopped.');
   {$endif}
   end;
@@ -7805,7 +8310,7 @@ var
 {$IF DEFINED(neaac)}
 outBytes: longword;
 {$endif}
-{$IF DEFINED(debug)}
+{$IF DEFINED(debug) and DEFINED(unix)}
 i : integer;
  st : string;
 {$endif}
@@ -7817,7 +8322,7 @@ begin
 // Here we are, reading the data and store it in buffer
  {$IF DEFINED(sndfile)}
  0: begin
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('Before sf_read ' + inttostr(StreamIn[x].Data.Wantframes) + ' length(StreamIn[x].Data.Buffer ' +
   inttostr(length(StreamIn[x].Data.Buffer)));
  {$endif}
@@ -7833,13 +8338,13 @@ begin
  @StreamIn[x].Data.Buffer[0], StreamIn[x].Data.Wantframes);
  end;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   WriteLn('after sf_read');
  {$endif}
  if  StreamIn[x].Data.outframes < 0 then  StreamIn[x].Data.outframes := 0 ;
  setlength(StreamIn[x].data.Buffer,StreamIn[x].Data.outframes);
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  st := '';
  for i := 0 to length(StreamIn[x].data.Buffer) -1 do
  case StreamIn[x].Data.SampleFormat of
@@ -7866,7 +8371,7 @@ begin
  setlength(StreamIn[x].data.Buffer,StreamIn[x].Data.outframes div
  (StreamIn[x].Data.channels) );
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  st := '';
  for i := 0 to length(StreamIn[x].data.Buffer) -1 do
  case StreamIn[x].Data.SampleFormat of
@@ -7904,7 +8409,7 @@ begin
  if  StreamIn[x].Data.outframes < 0 then  StreamIn[x].Data.outframes := 0 ;
 //  setlength(StreamIn[x].data.Buffer,StreamIn[x].Data.outframes * StreamIn[x].Data.channels );
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  st := '';
  for i := 0 to length(StreamIn[x].data.Buffer) -1 do
  case StreamIn[x].Data.SampleFormat of
@@ -7963,7 +8468,7 @@ begin
 
  setlength(StreamIn[x].data.Buffer,int32(StreamIn[x].Data.outframes * StreamIn[x].Data.Channels));
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  st := '';
  for i := 0 to length(StreamIn[x].data.Buffer) -1 do
  case StreamIn[x].Data.SampleFormat of
@@ -8013,9 +8518,15 @@ var
   x, x2, x3 : cint32;
   plugenabled: boolean;
   curpos: cint64 = 0;
+  {$IF DEFINED(debug) and DEFINED(unix)}
+  st : string;
+  i : integer;
+   {$endif}
+  
 begin
 
 theinc := 0;
+
 
 {$IF DEFINED(mse)}
  {$else}
@@ -8023,7 +8534,7 @@ with  Tuos_Player(theparent) do
 begin
  {$endif}
  
-  CheckIfPaused ;// is there a pause waiting ?
+   CheckIfPaused ;// is there a pause waiting ?
 
   DoBeginMethods();
    
@@ -8031,14 +8542,20 @@ begin
 
  repeat
 
-   DoLoopBeginMethods;
+  if uosisactif then DoLoopBeginMethods else nofree := false;
  
    CheckIfPaused ;// is there a pause waiting ?
 // Dealing with input
   for x := 0 to high(StreamIn) do
   begin
-  
-  {$IF DEFINED(debug)}
+ 
+  if (StreamIn[x].data.hasfilters) and uosisactif then
+  begin
+  setlength(StreamIn[x].Data.levelfiltersar,StreamIn[x].Data.nbfilters * StreamIn[x].Data.channels );
+  StreamIn[x].Data.incfilters := 0;
+  end;
+   
+  {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before for x := 0 to high(StreamIn)');
   {$endif}
 
@@ -8049,12 +8566,11 @@ begin
   begin
   
   StreamIn[x].Data.levelfilters := '';
-  setlength(StreamIn[x].Data.levelfiltersar,0);
-
-  {$IF DEFINED(debug)}
+  
+  {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before StreamIn[x].Data.Seekable = True');
   {$endif}
-  if (StreamIn[x].Data.Poseek > -1) and (StreamIn[x].Data.Seekable = True) then
+  if (StreamIn[x].Data.Poseek > -1) and (StreamIn[x].Data.Seekable = True) and uosisactif then
   begin// there is a seek waiting
 
   DoSeek(x);
@@ -8066,17 +8582,18 @@ begin
   if (StreamIn[x].Data.positionEnable = 1)  and (StreamIn[x].Data.Seekable = True) then
   StreamIn[x].Data.position := curpos;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('DSPin BeforeBufProc 1');
  {$endif}
   if (StreamIn[x].Data.Status = 1) and (length(StreamIn[x].DSP) > 0) then
   DoDSPinBeforeBufProc(x);// Procedure in DSP to execute before fill buffer.
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('DSPin BeforeBufProc 2');
   {$endif}   
 
+ if uosisactif then
+  begin
   CheckIfPaused ;// is there a pause waiting ?
-   
   case StreamIn[x].Data.TypePut of
  
   0:// It is a input from audio file.
@@ -8102,15 +8619,20 @@ begin
   
   5:// for Input from endless muted
   ReadEndless(x);
+  
+  6:// for Input from decoded memory-stream
+  ReadMemDec(x);
 
   end;//case StreamIn[x].Data.TypePut of
+  
+  end else StreamIn[x].Data.OutFrames := 0;
   
   if StreamIn[x].Data.OutFrames = 0 then StreamIn[x].Data.status := 0;
 
   if (StreamIn[x].Data.Seekable = True) then if StreamIn[x].Data.OutFrames < 100 then
   StreamIn[x].Data.status := 0;// no more data then close the stream
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('StreamIn[x].Data.status = ' + inttostr(StreamIn[x].Data.status));
  {$endif}  
 
@@ -8131,7 +8653,7 @@ begin
   StreamIn[x].Data.position := curpos;// new position
   end;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Getting the level before DSP procedure');
  {$endif}
  
@@ -8145,22 +8667,22 @@ begin
   DoArrayLevel(x);
   end;
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('DSPin AfterBuffProcBefore');
  {$endif}
 
   if (StreamIn[x].Data.Status = 1) and (length(StreamIn[x].DSP) > 0) then
    DoDSPinAfterBufProc(x) ;
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('DSPin AfterBuffProcAfter');
  {$endif}
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('The synchro main loop procedurebefore');
  {$endif}
  DoMainLoopProc(x);
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Getting the level after DSP procedure');
  {$endif}
 
@@ -8175,7 +8697,7 @@ begin
   DoArrayLevel(x);
   end;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('End level after DSP procedure');
  {$endif}
  
@@ -8186,13 +8708,13 @@ begin
   end;// end for low(StreamIn[x]) to high(StreamIn[x])
 
 // Seeking if StreamIn is terminated
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Seeking if StreamIn is terminated');
  {$endif}
 
  if status <> 0 then SeekIfTerminated;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('status = ' +inttostr(status));
  {$endif}
  
@@ -8201,19 +8723,25 @@ begin
 // Give Buffer to Output
   if status = 1 then
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Give Buffer to Output');
   {$endif}
  
-  for x := 0 to high(StreamOut) do
+  if uosisactif then for x := 0 to high(StreamOut) do
 
   if (StreamOut[x].Data.Enabled = True)
   then
   begin
+  
+   if StreamOut[x].data.hasfilters then
+  begin
+  setlength(StreamOut[x].Data.levelfiltersar,StreamOut[x].Data.nbfilters * StreamOut[x].Data.channels );
+  StreamOut[x].Data.incfilters := 0;
+  end;
 
   for x2 := 0 to high(StreamOut[x].Data.Buffer) do
   StreamOut[x].Data.Buffer[x2] := cfloat(0.0);// clear output
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('Buffer[x2] := cfloat(0.0)');
   {$endif}
   for x2 := 0 to high(StreamIn) do
@@ -8222,7 +8750,7 @@ begin
    and  ((StreamIn[x2].Data.Output = x) or (StreamIn[x2].Data.Output = -1))
   then
   begin
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('length(StreamIn[x2].Data.Buffer) = ' +inttostr(length(StreamIn[x2].Data.Buffer)));
   writeln('length(StreamOut[x].Data.Buffer) = ' +inttostr(length(StreamOut[x].Data.Buffer)));
   writeln('for x3 := 0 to high(StreamIn[x2].Data.Buffer) do');
@@ -8231,12 +8759,14 @@ begin
  
   for x3 := 0 to high(StreamIn[x2].Data.Buffer) do
   begin
+  if x3 < high(StreamOut[x].Data.Buffer) + 1 then
   StreamOut[x].Data.Buffer[x3] :=
   cfloat(StreamOut[x].Data.Buffer[x3]) +
   cfloat(StreamIn[x2].Data.Buffer[x3]);
+ 
   end;
   
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('StreamOut[x].Data.Buffer ------------------------------');
    st := '';
    for i := 0 to length(StreamOut[0].Data.Buffer) -1 do
@@ -8256,19 +8786,19 @@ begin
   end;  
   
 // copy buffer-in into buffer-out
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln('copy buffer-in into buffer-out');
   {$endif}
  
 // DSPOut AfterBuffProc
-  if (length(StreamOut[x].DSP) > 0) then
+  if (length(StreamOut[x].DSP) > 0) and uosisactif then
 
   DoDSPOutAfterBufProc(x) ;
 
 // apply plugin (ex: SoundTouch Library)
   plugenabled := False;
 
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
   writeln(' if (length(Plugin) > 0) then');
   {$endif}
 
@@ -8280,25 +8810,28 @@ begin
   end;
 //
  
+ if uosisactif then begin
   if plugenabled = True then
   WriteOutPlug(x, x2)
   else// No plugin
   WriteOut(x, x2);
   end;
+  
+  end;
   end;
  
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before LoopEndProc ------------------------------');
   {$endif}
 
-  DoLoopEndMethods;
+ if uosisactif then DoLoopEndMethods;
 
   if length(StreamIn) > 1 then// clear buffer for multi-input
   for x2 := 0 to high(StreamIn) do
   for x3 := 0 to high(StreamIn[x2].Data.Buffer) do
   StreamIn[x2].Data.Buffer[x3] := cfloat(0.0);
   
-   {$IF DEFINED(debug)}
+   {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before if (nofree = true) and (status = 0)-----');
   {$endif}
 
@@ -8306,7 +8839,7 @@ begin
 
   DoTerminateNoFreePlayer ;
 
-    {$IF DEFINED(debug)}
+    {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before until status = 0;----');
   {$endif}
 
@@ -8314,7 +8847,7 @@ begin
 
 // End of Loop ---
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
    WriteLn('Before Terminate Thread---');
   {$endif}
 
@@ -8322,28 +8855,28 @@ begin
   if status = 0 then
   begin
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('Status = 0');
  {$endif}
 
   DoTerminatePlayer;
 
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('EndProc---');
  {$endif}
 
-  DoEndProc;
+ if uosisactif then  DoEndProc;
 
- if EndProcOnly <> nil then EndProcOnly;
+if uosisactif then if EndProcOnly <> nil then EndProcOnly;
          
   isAssigned := false ;
   
-  {$IF DEFINED(debug)}
+  {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('EndProc All');
  {$endif}
   end;
   
- {$IF DEFINED(debug)}
+ {$IF DEFINED(debug) and DEFINED(unix)}
  writeln('This is the end...');
  {$endif}  
  
@@ -8450,7 +8983,7 @@ end;
 
 function Tuos_Init.loadlib(): cint32;
 begin
-  Result := 0;
+  Result := -1;
   uosLoadResult.PAloadERROR := -1;
   uosLoadResult.SFloadERROR := -1;
   uosLoadResult.MPloadERROR := -1;
@@ -8695,7 +9228,7 @@ end;
 procedure uos_UnloadPlugin(PluginName: PChar);
 // load plugin...
 begin
- uosInit.unloadplugin(PluginName) ;
+ uosInit.unloadplugin(PluginName);
 end;
 
 function uos_GetInfoLibraries() : PansiChar ;
@@ -8861,6 +9394,7 @@ begin
   Seekable:= False;
   Status:= 0;// no data
 
+  
   SetLength(Buffer,0);
   SetLength(MemoryBuffer,0);
   MemoryStream:= nil;
@@ -8873,8 +9407,15 @@ begin
   DSPVolumeIndex:= -1;
   DSPNoiseIndex:= -1;
   VLeft:= 0;
+  
   VRight:= 0;
-
+  
+  hasfilters := false;
+  
+  nbfilters := 0;
+  
+  incfilters := 0;
+  
   PositionEnable:= 0;
   LevelEnable:= 0;
   LevelLeft:= 0;
@@ -9007,19 +9548,8 @@ begin
   {$IF DEFINED(webstream)}
     httpget:= nil;
 
-//TODO: check this block
-    {$IF DEFINED(windows)}
-      {$if defined(cpu64)}
-      InHandle:= 0;//qword
-      OutHandle:= 0;
-      {$else}
-      InHandle:= 0;//longword
-      OutHandle:= 0;
-      {$ENDIF}
-    {$else}
-    InHandle:= -1;//cint32
-    OutHandle:= -1;
-    {$endif}
+    InHandle:= 0;
+    OutHandle:= 0;   
 
     InPipe:= nil;
     OutPipe:= nil;
@@ -9028,7 +9558,6 @@ begin
   {$IF DEFINED(portaudio)}
   with PAParam do
   begin
-//TODO: check if the default settings are ok
    device:= 0;
    channelCount:= 0;
    sampleFormat:= nil;
@@ -9069,6 +9598,8 @@ begin
   for i:= 0 to High(cbits) do
    cbits[i]:= 0;//byte
   {$endif}
+  
+  
 
   with FileBuffer do
   begin
@@ -9081,6 +9612,8 @@ begin
    DataMS:= nil;
   end;
   LoopProc:= nil;
+  
+  MemorySteamOut := nil;
 
   {$IF DEFINED(Java)}
 //  procedure LoopProcjava;
@@ -9164,7 +9697,7 @@ begin
   intobuf := false;
   NLooped:= 0; 
   NoFree:= False;
-  status := 2;
+  status := -1;
   BeginProc := nil;
   EndProc := nil;
   EndProcOnly := nil;
@@ -9226,7 +9759,7 @@ if thethread <> nil then begin
   for x := 0 to high(Plugin) do
   freeandnil(Plugin[x]);
   
-//Note: if Index = -1 is a indipendent instance
+//Note: if Index = -1 is a independent instance
   if Index <> -1 then
   begin
 //now notice that player is really free
