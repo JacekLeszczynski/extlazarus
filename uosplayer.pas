@@ -34,6 +34,7 @@ type
     FBeforeStart: TNotifyEvent;
     FBeforeStop: TNotifyEvent;
     FBusy: boolean;
+    FCalcLoop: boolean;
     FDevEngine: TUOSEngine;
     FFileName: string;
     FDevIndex: cardinal;
@@ -42,6 +43,7 @@ type
     FMeter: boolean;
     FMode: TUOSPlayerMode;
     FMute: boolean;
+    FOnLoop: TNotifyEvent;
     FOnStop: TNotifyEvent;
     FPause: boolean;
     FPosition: boolean;
@@ -52,6 +54,7 @@ type
     procedure SetVolume(AValue: integer);
     procedure _init;
     procedure ClosePlayer;
+    procedure LoopPlayer;
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -78,18 +81,19 @@ type
     procedure ServerSet(server: string; port: word; password: string);
     {$ENDIF}
   published
-    property DeviceEngine: TUOSEngine read FDevEngine write FDevEngine;
-    property Busy: boolean read FBusy default false;
-    property Paused: boolean read FPause default false;
-    property FileName: string read FFileName write FFileName;
-    property Mode: TUOSPlayerMode read FMode write SetMode;
-    property ListenMic: boolean read FListenMic write FListenMic default false;
-    property DeviceIndex: cardinal read FDevIndex write FDevIndex default 0;
+    property DeviceEngine: TUOSEngine read FDevEngine write FDevEngine; //Engine Component
+    property Busy: boolean read FBusy default false; //Is Active Player
+    property Paused: boolean read FPause default false; //Player is paused
+    property FileName: string read FFileName write FFileName; //Plik lub adres URL
+    property Mode: TUOSPlayerMode read FMode write SetMode; //Tryb działania kontrolki
+    property ListenMic: boolean read FListenMic write FListenMic default false; //Mik idzie na głośniki gdy włączone
+    property DeviceIndex: cardinal read FDevIndex write FDevIndex default 0; //Dla każdej kontrolki wartość unikatowa
     //property IntoDeviceIndex: TUOSPlayer read FIntoPlayer write FIntoPlayer;
-    property Volume: integer read FVolume write SetVolume default 100;
+    property Volume: integer read FVolume write SetVolume default 100; //Sterowanie głośnością
     property Mute: boolean read FMute write SetMute default false; //Nie wycisza głośników, wycisza nagrywanie!
-    property CalcMeter: boolean read FMeter write FMeter default false;
-    property CalcPosition: boolean read FPosition write FPosition default false;
+    property CalcLoop: boolean read FCalcLoop write FCalcLoop default false; //Uruchamia wyzwalacz do sterowania wskaźnikami wysterowania czy pozycji
+    property CalcMeter: boolean read FMeter write FMeter default false; //Uruchamia rejestrowanie wysterowania
+    property CalcPosition: boolean read FPosition write FPosition default false; //Uruchamia rejestrowanie pozycji
     property BeforeStart: TNotifyEvent read FBeforeStart write FBeforeStart;
     property AfterStart: TNotifyEvent read FAfterStart write FAfterStart;
     property BeforeStop: TNotifyEvent read FBeforeStop write FBeforeStop;
@@ -97,6 +101,7 @@ type
     property BeforeMute: TNotifyEvent read FBeforeMute write FBeforeMute;
     property AfterMute: TNotifyEvent read FAfterMute write FAfterMute;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
+    property OnLoop: TNotifyEvent read FOnLoop write FOnLoop;  //Wyzwalacz do wyświetlania pozycji i poziomu sygnału
   end;
 
 procedure Register;
@@ -129,6 +134,7 @@ begin
   FMode:=moPlay;
   FListenMic:=false;
   FVolume:=100;
+  FCalcLoop:=false;
   FMute:=false;
   FMeter:=false;
   FPosition:=false;
@@ -139,6 +145,11 @@ begin
   FBusy:=false;
   FPause:=false;
   if Assigned(FOnStop) then FOnStop(self);
+end;
+
+procedure TUOSPlayer.LoopPlayer;
+begin
+  if Assigned(FOnLoop) then FOnLoop(self);
 end;
 
 procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
@@ -202,6 +213,7 @@ begin
     uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,true); /// Set volume
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
+    if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
     uos_EndProc(FDevIndex,@ClosePlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
   end else if FMode=moURL then
@@ -213,9 +225,10 @@ begin
     uos_OutputAddDSPVolume(FDevIndex,outindex,1,1);
     uos_OutputSetDSPVolume(FDevIndex,outindex,a/100,a/100,true);
     //uos_AddIntoFile(FDevIndex, PChar('/home/tao/test.wav'));
-    //if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
-    //if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
-    //uos_EndProc(FDevIndex,@ClosePlayer);
+    if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
+    if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
+    if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
+    uos_EndProc(FDevIndex,@ClosePlayer);
     uos_Play(FDevIndex);
   end else if FMode=moRecord then
   begin
@@ -227,6 +240,7 @@ begin
     uos_InputAddDSPVolume(FDevIndex,InIndex, 1, 1);
     uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True); /// Set volume
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
+    if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
   end else if FMode=moInfo then
   begin
@@ -241,6 +255,7 @@ begin
     uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True); /// Set volume
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
+    if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
     uos_EndProc(FDevIndex,@ClosePlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
     {$ENDIF}
