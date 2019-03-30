@@ -17,6 +17,7 @@ type
   TNetSynHTTP = class(TComponent)
   private
     FMethod: TSynHttpMethode;
+    FUrlData: string;
     FUserAgent: string;
     http: THttpSend;
     procedure SetUserAgent(AValue: string);
@@ -31,6 +32,7 @@ type
   published
     property Method: TSynHttpMethode read FMethod write FMethod;
     property UserAgent: string read FUserAgent write SetUserAgent;
+    property UrlData: string read FUrlData write FUrlData;
   end;
 
 procedure Register;
@@ -65,6 +67,7 @@ begin
   inherited Create(AOwner);
   FMethod:=meGet;
   FUserAgent:='<auto>';
+  FUrlData:='';
 end;
 
 destructor TNetSynHTTP.Destroy;

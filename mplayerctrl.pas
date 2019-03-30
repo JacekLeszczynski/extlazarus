@@ -96,7 +96,7 @@ interface
 
 uses
   Classes, SysUtils, Controls, WSLCLClasses, LCLProc, LCLType, InterfaceBase,
-  LResources, LMessages, Graphics, ExtCtrls, FileUtil, Process, UTF8Process,
+  LResources, LMessages, Graphics, ExtCtrls, FileUtil, Process, AsyncProcess,
   LazFileUtils
   {$ifdef Linux}
   , gtk2int, gtk2, glib2, gdk2x, Gtk2WSControls, GTK2Proc, Gtk2Def
@@ -126,23 +126,30 @@ type
   TOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
   TOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
   TOnPlaying = procedure(ASender: TObject; APosition: single) of object;
-  TOnGrabImage = Procedure(ASender: TObject; AFilename: String) of object;
+  TOnGrabImage = procedure(ASender: TObject; AFilename: String) of object;
+  TOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
+  TOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
 
   TCustomMPlayerControl = class(TWinControl)
   private
+    FActiveTimer: boolean;
+    FCapture: boolean;
     FEngine: TMPlayerEngine;
     FFilename: string;
     FImagePath: string;
     FLastImageFilename: string;
     FNoSound: boolean;
+    FOnCapture: TOnCaptureDump;
     FOnGrabImage: TOnGrabImage;
+    FOnICYRadio: TOnICYRadio;
+    FRadio: boolean;
     FRate: single;
     FStartParam:string;
     FLoop: integer;
     FMPlayerPath: string;
     FMPVPath: string;
     FPaused: boolean;
-    FPlayerProcess: TProcessUTF8;
+    FPlayerProcess: TAsyncProcess;
     FTimer: TTimer;
     FVolume: integer;
     FCanvas: TCanvas;
@@ -173,6 +180,7 @@ type
     procedure SetVolume(const AValue: integer);
     procedure SetStartParam(const AValue: string);
     procedure TimerEvent(Sender: TObject);
+    procedure PlayerProcessReadData(Sender: TObject);
   protected
     procedure WMPaint(var Message: TLMPaint); message LM_PAINT;
     procedure WMSize(var Message: TLMSize); message LM_SIZE;
@@ -183,11 +191,14 @@ type
     destructor Destroy; override;
     procedure SendMPlayerCommand(Cmd: string); // see: mplayer -input cmdlist and http://www.mplayerhq.hu/DOCS/tech/slave.txt
     function Running: boolean;
-    procedure Play;
+    procedure Play(sBaseDirectory: string = '');
     procedure Stop;
     function Playing: boolean;
     procedure Invalidate; override;
     procedure EraseBackground(DC: HDC); override;
+    procedure Capturing;
+    procedure Pause;
+    procedure Replay;
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -200,10 +211,13 @@ type
     property Filename: string read FFilename write SetFilename;
     property StartParam: string read FStartParam write SetStartParam;
     property MPlayerPath: string read FMPlayerPath write SetMPlayerPath;
-    property PlayerProcess: TProcessUTF8 read fPlayerProcess;  deprecated;
+    property PlayerProcess: TAsyncProcess read fPlayerProcess;  deprecated;
     property Paused: boolean read FPaused write SetPaused;
     property Loop: integer read FLoop write SetLoop; // -1 no, 0 forever, 1 once, 2 twice, ...
     property Volume: integer read FVolume write SetVolume;
+    property ICYRadio: boolean read FRadio write FRadio;
+    property CaptureDump: boolean read FCapture write FCapture;
+    property ActiveTimer: boolean read FActiveTimer write FActiveTimer;
 
     property ImagePath: string read FImagePath write SetImagePath;
 
@@ -219,7 +233,9 @@ type
     property OnPlaying: TOnPlaying read FOnPlaying write FOnPlaying;
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
-    Property OnGrabImage: TOnGrabImage read FOnGrabImage write FOnGrabImage;
+    property OnGrabImage: TOnGrabImage read FOnGrabImage write FOnGrabImage;
+    property OnICYRadio: TOnICYRadio read FOnICYRadio write FOnICYRadio;
+    property OnCapture: TOnCaptureDump read FOnCapture write FOnCapture;
   end;
 
   TMPlayerControl = class(TCustomMPlayerControl)
@@ -232,6 +248,11 @@ type
     property NoSound;
     property Filename;
     property Loop;
+    property StartParam;
+    property MPlayerPath;
+    property ICYRadio;
+    property CaptureDump;
+    property ActiveTimer;
     property OnChangeBounds;
     property OnConstrainedResize;
     property OnResize;
@@ -247,6 +268,8 @@ type
     property OnPlay;     // Sent after mplayer initialises the current video file
     property OnStop;     // Sent sometime (up to approx 250ms) after mplayer finishes current video
     property OnGrabImage; // Fired when mplayer reports the filename of the image grab
+    property OnICYRadio;
+    property OnCapture;
   end;
 
   { TWSMPlayerControl }
@@ -270,9 +293,51 @@ implementation
 Uses
   Forms;
 
+var
+  icyName,icyGenre,icyWebsite: string;
+  icyPublic: boolean;
+  icyBitrate,icyStreamTitle,icyStreamURL: string;
+  vIsDump: boolean = false;
+
 procedure Register;
 begin
   RegisterComponents('Multimedia',[TMPlayerControl]);
+end;
+
+const
+  textseparator = '"';
+
+function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
+var
+  i,ll,dl: integer;
+  b: boolean;
+begin
+  b:=false;
+  dl:=length(s);
+  ll:=1;
+  s:=s+separator;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then inc(ll);
+    if ll=l then break;
+  end;
+  if ll=1 then dec(i);
+  delete(s,1,i);
+  b:=false;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then break;
+  end;
+  delete(s,i,dl);
+  if (s<>'') and (s[1]=textseparator) then
+  begin
+    delete(s,1,1);
+    delete(s,length(s),1);
+  end;
+  if s='' then s:=wynik;
+  result:=s;
 end;
 
 // returns the value from "ANS_PropertyName=Value" strings
@@ -287,20 +352,7 @@ end;
 { TCustomMPlayerControl }
 
 procedure TCustomMPlayerControl.TimerEvent(Sender: TObject);
-var
-  ErrList: TStringList;
-  i: integer;
-  sTemp: string;
-  iPosEquals, iPosAfterUS: SizeInt;
-  sValue: string;
-  sProperty: string;
-  iError: Integer;
-  bPostOnPlay, bPostOnStop, bPostOnPlaying: boolean;
-
 begin
-  bPostOnPlay:=False;
-  bPostOnStop:=False;
-  bPostOnPlaying:=False;
   if FPlayerProcess<>nil then
   begin
     If Running And ((Now-FLastTimer)>ON_PLAYING_INTERVAL) Then
@@ -309,138 +361,208 @@ begin
       if Assigned(FOnPlaying) and not FPaused then
       begin
         SendMPlayerCommand('get_time_pos');
-        FRequestingPosition := True;
+        FRequestingPosition:=True;
       end;
-
       // Inject a request for Volume level
       if FRequestVolume then
         SendMPlayerCommand('get_property volume');
-
-      FLastTimer := Now;
-      bPostOnPlaying := True;
     end;
+  end;
+end;
 
-    if FPlayerProcess.Output.NumBytesAvailable > 0 then
+procedure TCustomMPlayerControl.PlayerProcessReadData(Sender: TObject);
+var
+  ErrList: TStringList;
+  i,j: integer;
+  temp,sTemp,s,pom,s1,s2: string;
+  str: TStringList;
+  iPosEquals, iPosAfterUS: SizeInt;
+  sValue: string;
+  sProperty: string;
+  iError: Integer;
+  b1,b2: boolean;
+  a,b: integer;
+  bPostOnPlay, bPostOnStop, bPostOnPlaying: boolean;
+begin
+  bPostOnPlay:=False;
+  bPostOnStop:=False;
+  bPostOnPlaying:=true;
+  FLastTimer := Now;
+
+  if FPlayerProcess.Output.NumBytesAvailable > 0 then
+  begin
+    FOutList.LoadFromStream(FPlayerProcess.Output);
+
+    // Look for responses to injected commands...
+    // or for standard issued information
+    for i:=FOutList.Count-1 downto 0 do
     begin
-      FOutList.LoadFromStream(FPlayerProcess.Output);
+      temp:=FOutList[i];
+      sTemp:=Lowercase(temp);
+      iPosEquals:=Pos('=',sTemp);
 
-      // Look for responses to injected commands...
-      // or for standard issued information
-      for i := FOutList.Count - 1 downto 0 do
+      (* CAPTURING *)
+      if FCapture and Assigned(FOnCapture) then
+        if pos('capturing:',sTemp)>0 then FOnCapture(Self,pos('enabled',sTemp)>0);
+
+      (* ICYRADIO *)
+      if FRadio then
       begin
-        sTemp := Lowercase(FOutList[i]);
-        iPosEquals := Pos('=', sTemp);
-
-        // Identify requests look like ID_Property=Value
-        // Property requests look like ANS_Property=Value
-        if (iPosEquals>1) and ((Pos('ans_', sTemp)=1) or (Pos('id_', sTemp)=1)) then
+        b2:=pos(':',sTemp)>0;
+        b1:=pos('name',sTemp)=1;
+        if b1 and b2 then icyName:=trim(GetLineToStr(temp,2,':'));
+        b1:=pos('genre',sTemp)=1;
+        if b1 and b2 then icyGenre:=trim(GetLineToStr(temp,2,':'));
+        b1:=pos('website',sTemp)=1;
+        if b1 and b2 then
         begin
-          iPosAfterUS := Pos('_', sTemp)+1;
-          sValue := Copy(sTemp, iPosEquals + 1, Length(sTemp) - iPosEquals);
-          sProperty := Copy(sTemp, iPosAfterUS, iPosEquals - iPosAfterUS);
-
-          if Assigned(FOnPlaying) and (FRequestingPosition) and (sProperty = 'time_position') then
-          begin
-            // Are we paused by any chance?
-            if sValue = FLastPosition then
-              SendMPlayerCommand('get_property pause');
-
-            FLastPosition := sValue;
-
-            FPosition := StrToFloatDef(sValue, 0) - FStartTime;
-
-            // Don't remove any further ANS_Time_Positions, they're not ours...
-            FRequestingPosition := False;
-
-            // clear this response from the queue
-            FOutList.Delete(i);
-          end
-          else
-            case sProperty Of
-              'volume' :
-                begin
-                  FVolume := Trunc(0.5 + StrToFloatDef(sValue, 100));
-                  FRequestVolume := False;
-
-                  // clear this response from the queue
-                  FOutList.Delete(i);
-                 end;
-              'length'       : FDuration := StrToFloatDef(sValue, -1);
-              'pause'        : FPaused := (sValue = 'yes');
-              'video_codec'  : FVideoInfo.Codec:=sValue;
-              'video_format' : FVideoInfo.Format:=sValue;
-              'video_bitrate': FVideoInfo.Bitrate:=StrToIntDef(sValue, 0);
-              'video_width'  : FVideoInfo.Width:=StrToIntDef(sValue, 0);
-              'video_height' : FVideoInfo.Height:=StrToIntDef(sValue, 0);
-              'video_fps'    : FVideoInfo.FPS:=StrToFloatDef(sValue, 0);
-              'start_time'   : FStartTime:=StrToFloatDef(sValue, 0);
-              //'seekable'     : FSeekable:=(sValue='1');
-              'audio_codec'  : FAudioInfo.Codec:=sValue;
-              'audio_format' : FAudioInfo.Format:=sValue;
-              'audio_bitrate': FAudioInfo.Bitrate:=StrToIntDef(sValue, 0);
-              'audio_rate'   : FAudioInfo.SampleRate:=StrToIntDef(sValue, 0);
-              'audio_nch'    : FAudioInfo.Channels:=StrToIntDef(sValue, 0);
-              'exit'         : bPostOnStop:=True;
+          s:=temp;
+          a:=pos(':',s);
+          delete(s,1,a);
+          icyWebsite:=trim(s);
+        end;
+        b1:=pos('public',sTemp)=1;
+        if b1 and b2 then icyPublic:=trim(GetLineToStr(temp,2,':'))='yes';
+        b1:=pos('bitrate',sTemp)=1;
+        if b1 and b2 then icyBitrate:=trim(GetLineToStr(temp,2,':'));
+        b1:=pos('icy info:',sTemp)=1;
+        if b1 then
+        begin
+          s:=temp;
+          a:=pos(':',s);
+          delete(s,1,a);
+          s:=trim(s);
+          str:=TStringList.Create;
+          try
+            a:=1;
+            while true do
+            begin
+              pom:=trim(GetLineToStr(s,a,';'));
+              if pom='' then break;
+              str.Add(pom);
+              inc(a);
+            end;
+            for j:=0 to str.Count-1 do
+            begin
+              s:=str[j];
+              s1:=GetLineToStr(s,1,'=');
+              s2:=GetLineToStr(s,2,'=');
+              if s2[1]='''' then delete(s2,1,1);
+              if s2[length(s2)]='''' then delete(s2,length(s2),1);
+              if s1='StreamTitle' then icyStreamTitle:=s2 else
+              if s1='StreamUrl' then icyStreamURL:=s2;
+            end;
+          finally
+            str.Free;
           end;
-        end // ID_ or ANS_
-        else if Assigned(FOnPlay) and (sTemp = 'starting playback...') then
-          bPostOnPlay:=True
-        else if (Pos('*** screenshot', sTemp)=1) Then
-        begin
-          //  result looks like *** screenshot 'shot0002.png' ***
-          FLastImageFilename:=IncludeTrailingBackslash(GetCurrentDirUTF8) + Copy(sTemp, 17, Pos('.', sTemp)-17+4);
+        end;
+      end;
 
-          if assigned(FOnGrabImage) And FileExistsUTF8(FLastImageFilename) then
-            FOnGrabImage(Self, FLastImageFilename);
+      // Identify requests look like ID_Property=Value
+      // Property requests look like ANS_Property=Value
+      if (iPosEquals>1) and ((Pos('ans_', sTemp)=1) or (Pos('id_', sTemp)=1)) then
+      begin
+        iPosAfterUS := Pos('_', sTemp)+1;
+        sValue := Copy(sTemp, iPosEquals + 1, Length(sTemp) - iPosEquals);
+        sProperty := Copy(sTemp, iPosAfterUS, iPosEquals - iPosAfterUS);
+
+        if Assigned(FOnPlaying) and (FRequestingPosition) and (sProperty = 'time_position') then
+        begin
+          // Are we paused by any chance?
+          if sValue = FLastPosition then
+            SendMPlayerCommand('get_property pause');
+
+          FLastPosition := sValue;
+
+          FPosition := StrToFloatDef(sValue, 0) - FStartTime;
+
+          // Don't remove any further ANS_Time_Positions, they're not ours...
+          FRequestingPosition := False;
 
           // clear this response from the queue
           FOutList.Delete(i);
         end
-        else if sTemp='sending vfctrl_screenshot!' then
-          FOutList.Delete(i);
-      end;
+        else
+          case sProperty Of
+            'volume' :
+              begin
+                FVolume := Trunc(0.5 + StrToFloatDef(sValue, 100));
+                FRequestVolume := False;
 
-      if Assigned(FOnFeedback) and (FOutlist.Count > 0) then
-        FOnFeedback(Self, FOutlist);
+                // clear this response from the queue
+                FOutList.Delete(i);
+               end;
+            'length'       : FDuration := StrToFloatDef(sValue, -1);
+            'pause'        : FPaused := (sValue = 'yes');
+            'video_codec'  : FVideoInfo.Codec:=sValue;
+            'video_format' : FVideoInfo.Format:=sValue;
+            'video_bitrate': FVideoInfo.Bitrate:=StrToIntDef(sValue, 0);
+            'video_width'  : FVideoInfo.Width:=StrToIntDef(sValue, 0);
+            'video_height' : FVideoInfo.Height:=StrToIntDef(sValue, 0);
+            'video_fps'    : FVideoInfo.FPS:=StrToFloatDef(sValue, 0);
+            'start_time'   : FStartTime:=StrToFloatDef(sValue, 0);
+            //'seekable'     : FSeekable:=(sValue='1');
+            'audio_codec'  : FAudioInfo.Codec:=sValue;
+            'audio_format' : FAudioInfo.Format:=sValue;
+            'audio_bitrate': FAudioInfo.Bitrate:=StrToIntDef(sValue, 0);
+            'audio_rate'   : FAudioInfo.SampleRate:=StrToIntDef(sValue, 0);
+            'audio_nch'    : FAudioInfo.Channels:=StrToIntDef(sValue, 0);
+            'exit'         : bPostOnStop:=True;
+        end;
+      end // ID_ or ANS_
+      else if Assigned(FOnPlay) and (sTemp = 'starting playback...') then
+        bPostOnPlay:=True
+      else if (Pos('*** screenshot', sTemp)=1) Then
+      begin
+        //  result looks like *** screenshot 'shot0002.png' ***
+        FLastImageFilename:=IncludeTrailingBackslash(GetCurrentDirUTF8) + Copy(sTemp, 17, Pos('.', sTemp)-17+4);
+
+        if assigned(FOnGrabImage) And FileExistsUTF8(FLastImageFilename) then
+          FOnGrabImage(Self, FLastImageFilename);
+
+        // clear this response from the queue
+        FOutList.Delete(i);
+      end
+      else if sTemp='sending vfctrl_screenshot!' then
+        FOutList.Delete(i);
     end;
 
-    if FPlayerProcess.StdErr.NumBytesAvailable > 0 then
-    begin
-      ErrList := TStringList.Create;
-      try
-        ErrList.LoadFromStream(FPlayerProcess.Stderr);
+    if Assigned(FOnFeedback) and (FOutlist.Count > 0) then
+      FOnFeedback(Self, FOutlist);
+  end;
 
-        // Catch error retrieving volume
-        If FRequestVolume Then
+  if FPlayerProcess.StdErr.NumBytesAvailable > 0 then
+  begin
+    ErrList := TStringList.Create;
+    try
+      ErrList.LoadFromStream(FPlayerProcess.Stderr);
+
+      // Catch error retrieving volume
+      If FRequestVolume Then
+      begin
+        iError := ErrList.IndexOf('Failed to get value of property ''volume''.');
+        If iError<>-1 Then
         begin
-          iError := ErrList.IndexOf('Failed to get value of property ''volume''.');
-          If iError<>-1 Then
-          begin
-            Errlist.Delete(iError);
+          Errlist.Delete(iError);
 
-            // Prevent further requests for volume
-            FVolume := 0;
-            FRequestVolume := False;
-          end;
+          // Prevent further requests for volume
+          FVolume := 0;
+          FRequestVolume := False;
         end;
-
-        if Assigned(FOnError) then
-          FOnError(Self, ErrList);
-      finally
-        ErrList.Free;
       end;
+
+      if Assigned(FOnError) then
+        FOnError(Self, ErrList);
+    finally
+      ErrList.Free;
     end;
   end;
 
   // don't post the OnPlay until all the data above is processed
-  if Assigned(FOnPlay) and bPostOnPlay then
-    FOnPlay(Self);
-
-  If Assigned(FOnPlaying) And bPostOnPlaying then
-    FOnPlaying(Self, FPosition);
-
-  If (not Running) Or bPostOnStop Then
-    Stop;
+  if Assigned(FOnPlay) and bPostOnPlay then FOnPlay(Self);
+  If Assigned(FOnPlaying) and bPostOnPlaying then FOnPlaying(Self, FPosition);
+  if Assigned(FOnICYRadio) then FOnICYRadio(Self,icyName,icyGenre,icyWebsite,icyPublic,icyBitrate,icyStreamTitle,icyStreamURL);
+  If (not Running) Or bPostOnStop Then Stop;
 end;
 
 procedure TCustomMPlayerControl.WMPaint(var Message: TLMPaint);
@@ -544,6 +666,10 @@ begin
   inherited Create(TheOwner);
   FEngine:=meMplayer;
   FNoSound:=false;
+  FRadio:=false;
+  FCapture:=false;
+  FVolume:=-1;
+  FActiveTimer:=false;
   ControlStyle:=ControlStyle-[csSetCaption];
   FCanvas := TControlCanvas.Create;
   TControlCanvas(FCanvas).Control := Self;
@@ -651,7 +777,7 @@ begin
     SendMPlayerCommand('screenshot 0')
 end;
 
-procedure TCustomMPlayerControl.Play;
+procedure TCustomMPlayerControl.Play(sBaseDirectory: string);
 var
   CurWindowID: PtrUInt;
   slStartParams : TStringList;
@@ -671,7 +797,9 @@ begin
 
   {$IFDEF Linux}
   if (not HandleAllocated) then exit;
+  {$IFDEF DEBUG}
   DebugLn(['TCustomMPlayerControl.Play ']);
+  {$ENDIF}
   {$endif}
 
   if fPlayerProcess<>nil then
@@ -693,8 +821,10 @@ begin
     CurWindowID := Handle;
   {$ENDIF}
 
-  FPlayerProcess := TProcessUTF8.Create(Self);
+  FPlayerProcess := TAsyncProcess.Create(Self);
+  FPlayerProcess.OnReadData:=@PlayerProcessReadData;
   FPlayerProcess.Options := FPlayerProcess.Options + [poUsePipes, poNoConsole];
+  FPlayerProcess.CurrentDirectory:=sBaseDirectory;
 
   // -really-quiet       : DONT USE: causes the video player to not connect to -wid.  Odd...
   // -noconfig all       : stop mplayer from reading commands from a text file
@@ -709,6 +839,7 @@ begin
   begin
     FPlayerProcess.Parameters.Add('-slave');     // allow us to control mplayer
     FPlayerProcess.Parameters.Add('-identify');  // Request stats on playing file
+    if FCapture then FPlayerProcess.Parameters.Add('-capture');
     FPlayerProcess.Parameters.Add('-vf');
     FPlayerProcess.Parameters.Add('screenshot'); // (with -vf) Allow frame grab
   end;
@@ -751,7 +882,9 @@ begin
   FPlayerProcess.Parameters.Add(FFilename);
 
   FPlayerProcess.Parameters.Delimiter:=' ';
+  {$IFDEF DEBUG}
   DebugLn(['TCustomMPlayerControl.Play ', FPlayerProcess.Parameters.DelimitedText]);
+  {$ENDIF}
 
   // Normally I'd be careful to only use FOutList in the
   // Timer event, but here I'm confident the timer isn't running...
@@ -769,27 +902,30 @@ begin
   FPlayerProcess.Execute;
 
   // Start the timer that handles feedback from mplayer
-  FTimer.Enabled := True;
+  FTimer.Enabled:=FActiveTimer;
 end;
 
 procedure TCustomMPlayerControl.Stop;
 begin
-  if FPlayerProcess = nil then
+  if FPlayerProcess=nil then
     exit;
 
-  DebugLn(Format('ExitStatus=%d', [fPlayerProcess.ExitStatus]));
-  DebugLn(Format('ExitCode=%d', [fPlayerProcess.ExitCode]));
-  FPaused := False;
-  FDuration := -1;
-  FTimer.Enabled := False;
+  {$IFDEF DEBUG}
+  DebugLn(Format('ExitStatus=%d',[fPlayerProcess.ExitStatus]));
+  DebugLn(Format('ExitCode=%d',[fPlayerProcess.ExitCode]));
+  {$ENDIF}
+  FPaused:=False;
+  FDuration:=-1;
+  FTimer.Enabled:=False;
 
   SendMPlayerCommand('quit');
 
+  sleep(250);
   FPlayerProcess.Terminate(0);
+
   FreeAndNil(FPlayerProcess);
 
-  if Assigned(FOnStop) then
-    FOnStop(Self);
+  if Assigned(FOnStop) then FOnStop(Self);
 
   // repaint the control
   Refresh;
@@ -820,6 +956,30 @@ begin
     end;
 end;
 
+procedure TCustomMPlayerControl.Capturing;
+begin
+  vIsDump:=not vIsDump;
+  SendMPlayerCommand('capturing');
+end;
+
+procedure TCustomMPlayerControl.Pause;
+begin
+  if Running and Playing then
+  begin
+    FPaused:=true;
+    SendMPlayerCommand('pause');
+  end;
+end;
+
+procedure TCustomMPlayerControl.Replay;
+begin
+  if Running and (not Playing) then
+  begin
+    FPaused:=false;
+    SendMPlayerCommand('pause');
+  end;
+end;
+
 procedure TCustomMPlayerControl.InitialiseInfo;
 begin
   FLastPosition := '';
@@ -847,7 +1007,9 @@ end;
 
 function TCustomMPlayerControl.GetPosition: single;
 begin
+  {$IFDEF DEBUG}
   DebugLn(Format('Get Position %.3f', [FPosition]));
+  {$ENDIF}
   Result := FPosition;
 end;
 
@@ -879,7 +1041,9 @@ begin
     Else
       FPosition := 0;
 
+    {$IFDEF DEBUG}
     DebugLn(Format('Set Position to  %.3f', [FPosition]));
+    {$ENDIF}
     SendMPlayerCommand(Format('pausing_keep seek %.3f 2', [FPosition]));
   end;
 end;
@@ -927,7 +1091,9 @@ begin
                        TGTKSignalFunc(@MPLayerWidgetDestroyCB), WidgetInfo);
     end;
     Result:=HWND({%H-}PtrUInt(Pointer(NewWidget)));
+    {$IFDEF DEBUG}
     DebugLn(['TWSMPlayerControl.CreateHandle ',dbgs(NewWidget)]);
+    {$ENDIF}
   end;
 end;
 
