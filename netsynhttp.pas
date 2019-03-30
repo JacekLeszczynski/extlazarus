@@ -86,6 +86,12 @@ begin
   v_http:=THttpSend.Create;
   try
     v_http.UserAgent:=GetUserAgent;
+    v_http.MimeType:='text/html';
+    if FUrlData<>'' then
+    begin
+      v_http.MimeType:='application/x-www-form-urlencoded';
+      v_http.Document.Write(Pointer(FUrlData)^,length(FUrlData));
+    end;
     v_ok:=v_http.HTTPMethod(v_method,url);
     result_code:=v_http.ResultCode;
     res.LoadFromStream(v_http.Document);
