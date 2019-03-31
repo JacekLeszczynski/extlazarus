@@ -29,6 +29,12 @@ type
     function execute(url: string; var res: TMemoryStream): integer;
     function execute(url: string; var res: string): integer;
     function execute(url: string; var res: TStringList): integer;
+    function execute_get_post(url_get,url_post: string; var res: TMemoryStream): integer;
+    function execute_get_post(url_get,url_post: string; var res: string): integer;
+    function execute_get_post(url_get,url_post: string; var res: TStringList): integer;
+    function execute_get_post(url: string; var res: TMemoryStream): integer;
+    function execute_get_post(url: string; var res: string): integer;
+    function execute_get_post(url: string; var res: TStringList): integer;
   published
     property Method: TSynHttpMethode read FMethod write FMethod;
     property UserAgent: string read FUserAgent write SetUserAgent;
@@ -90,6 +96,7 @@ begin
     if FUrlData<>'' then
     begin
       v_http.MimeType:='application/x-www-form-urlencoded';
+      v_http.MimeType:='text/html';
       v_http.Document.Write(Pointer(FUrlData)^,length(FUrlData));
     end;
     v_ok:=v_http.HTTPMethod(v_method,url);
@@ -133,6 +140,88 @@ begin
     str.Free;
   end;
   result:=result_code;
+end;
+
+function TNetSynHTTP.execute_get_post(url_get, url_post: string;
+  var res: TMemoryStream): integer;
+var
+  v_http: THttpSend;
+  v_method: string;
+  v_ok: boolean;
+  result_code: integer;
+begin
+  v_http:=THttpSend.Create;
+  try
+
+    v_http.UserAgent:=GetUserAgent;
+    v_http.MimeType:='text/html';
+    v_ok:=v_http.HTTPMethod('GET',url_get);
+    result_code:=v_http.ResultCode;
+
+    v_http.UserAgent:=GetUserAgent;
+    v_http.MimeType:='application/x-www-form-urlencoded';
+    v_http.Document.Write(Pointer(FUrlData)^,length(FUrlData));
+    v_ok:=v_http.HTTPMethod('POST',url_get);
+    result_code:=v_http.ResultCode;
+    res.LoadFromStream(v_http.Document);
+
+  finally
+    v_http.Free;
+  end;
+  result:=result_code;
+end;
+
+function TNetSynHTTP.execute_get_post(url_get, url_post: string; var res: string
+  ): integer;
+var
+  str: TMemoryStream;
+  list: TStringList;
+  result_code: integer;
+begin
+  str:=TMemoryStream.Create;
+  list:=TStringList.Create;
+  try
+    result_code:=execute_get_post(url_get,url_post,str);
+    list.LoadFromStream(str);
+    res:=list.Text;
+  finally
+    str.Free;
+    list.Free;
+  end;
+  result:=result_code;
+end;
+
+function TNetSynHTTP.execute_get_post(url_get, url_post: string;
+  var res: TStringList): integer;
+var
+  str: TMemoryStream;
+  result_code: integer;
+begin
+  str:=TMemoryStream.Create;
+  try
+    result_code:=execute_get_post(url_get,url_post,str);
+    res.LoadFromStream(str);
+  finally
+    str.Free;
+  end;
+  result:=result_code;
+end;
+
+function TNetSynHTTP.execute_get_post(url: string; var res: TMemoryStream
+  ): integer;
+begin
+  result:=execute_get_post(url,url,res);
+end;
+
+function TNetSynHTTP.execute_get_post(url: string; var res: string): integer;
+begin
+  result:=execute_get_post(url,url,res);
+end;
+
+function TNetSynHTTP.execute_get_post(url: string; var res: TStringList
+  ): integer;
+begin
+  result:=execute_get_post(url,url,res);
 end;
 
 end.
