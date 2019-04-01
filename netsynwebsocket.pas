@@ -56,6 +56,7 @@ type
     fFrameString: string;
     FHost: string;
     FKeepConnection: boolean;
+    FPingText: string;
     FTimer: TTimer;
     fOnClose: TWebSocketConnectionClose;
     fOnOpen: TWebSocketConnectionEvent;
@@ -75,12 +76,14 @@ type
     destructor Destroy; override;
     procedure Open;
     procedure Close;
+    function SendText(sText: string): boolean;
   published
     property Host: string read FHost write FHost;
     property Port: word read FPort write FPort;
     property SSL: boolean read FSSL write FSSL;
-    property OnActive: boolean read FActive;
+    property Active: boolean read FActive;
     property KeepConnection: boolean read FKeepConnection write SetKeepConnection;
+    property PingText: string read FPingText write FPingText;
     property OnRead: TWebSocketConnectionData read fOnRead write fOnRead;
     property OnWrite: TWebSocketConnectionData read fOnWrite write fOnWrite;
     property OnClose: TWebSocketConnectionClose read fOnClose write fOnClose;
@@ -90,6 +93,9 @@ type
 procedure Register;
 
 implementation
+
+uses
+  synachar;
 
 procedure Register;
 begin
@@ -229,7 +235,8 @@ end;
 
 procedure TNetSynWebSocket.TimerEvent(Sender: TObject);
 begin
-
+  //fClient.SendText(CharsetConversion('{"numbers":[2],"strings":[]}',GetCurCP,UTF_8));
+  fClient.SendText(CharsetConversion(PingText,GetCurCP,UTF_8));
 end;
 
 constructor TNetSynWebSocket.Create(AOwner: TComponent);
@@ -237,7 +244,7 @@ begin
   inherited Create(AOwner);
   FTimer:=TTimer.Create(Self);
   FTimer.Enabled:=False;
-  FTimer.Interval:=5000;
+  FTimer.Interval:=30000;
   FTimer.OnTimer:=@TimerEvent;
 end;
 
@@ -266,6 +273,11 @@ begin
   //fClient.TerminateThread;
   fClient.Close(wsCloseNormal,'bye bye');
   //sleep(2000);
+end;
+
+function TNetSynWebSocket.SendText(sText: string): boolean;
+begin
+  fClient.SendText(CharsetConversion(sText,GetCurCP,UTF_8));
 end;
 
 end.
