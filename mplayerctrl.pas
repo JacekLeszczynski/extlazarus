@@ -132,6 +132,10 @@ type
 
   TCustomMPlayerControl = class(TWinControl)
   private
+    icyName,icyGenre,icyWebsite: string;
+    icyPublic: boolean;
+    icyBitrate,icyStreamTitle,icyStreamURL: string;
+    vIsDump: boolean;
     FActiveTimer: boolean;
     FCapture: boolean;
     FEngine: TMPlayerEngine;
@@ -292,12 +296,6 @@ implementation
 
 Uses
   Forms;
-
-var
-  icyName,icyGenre,icyWebsite: string;
-  icyPublic: boolean;
-  icyBitrate,icyStreamTitle,icyStreamURL: string;
-  vIsDump: boolean = false;
 
 procedure Register;
 begin
@@ -806,6 +804,10 @@ begin
     FreeAndNil(fPlayerProcess);
 //    raise Exception.Create('TCustomMPlayerControl.Play fPlayerProcess still exists');
 
+  icyName:=''; icyGenre:=''; icyWebsite:='';
+  icyPublic:=false;
+  icyBitrate:=''; icyStreamTitle:=''; icyStreamURL:='';
+
   if FEngine=meMplayer then
   begin
     if not FindMPlayerPath then
@@ -924,6 +926,10 @@ begin
   FPlayerProcess.Terminate(0);
 
   FreeAndNil(FPlayerProcess);
+
+  icyName:=''; icyGenre:=''; icyWebsite:='';
+  icyPublic:=false;
+  icyBitrate:=''; icyStreamTitle:=''; icyStreamURL:='';
 
   if Assigned(FOnStop) then FOnStop(Self);
 

@@ -57,6 +57,7 @@ type
     FHost: string;
     FKeepConnection: boolean;
     FPingText: string;
+    FPongText: string;
     FTimer: TTimer;
     fOnClose: TWebSocketConnectionClose;
     fOnOpen: TWebSocketConnectionEvent;
@@ -84,6 +85,7 @@ type
     property Active: boolean read FActive;
     property KeepConnection: boolean read FKeepConnection write SetKeepConnection;
     property PingText: string read FPingText write FPingText;
+    property PongText: string read FPongText write FPongText;
     property OnRead: TWebSocketConnectionData read fOnRead write fOnRead;
     property OnWrite: TWebSocketConnectionData read fOnWrite write fOnWrite;
     property OnClose: TWebSocketConnectionClose read fOnClose write fOnClose;
@@ -95,7 +97,7 @@ procedure Register;
 implementation
 
 uses
-  synachar;
+  synachar, synautil;
 
 procedure Register;
 begin
@@ -201,7 +203,17 @@ end;
 
 procedure TNetSynWebSocket.OnReadPrivate(aSender: TWebSocketCustomConnection;
   aFinal, aRes1, aRes2, aRes3: boolean; aCode: integer; aData: TMemoryStream);
+var
+  s: string;
 begin
+  //s:=ReadStrFromStream(TTestWebSocketClientConnection(aSender).ReadStream,min(c.ReadStream.size,10*1024));
+  s:=ReadStrFromStream(TTestWebSocketClientConnection(aSender).ReadStream,TTestWebSocketClientConnection(aSender).ReadStream.size);
+  aData.Position:=0;
+  if s=FPingText then
+  begin
+    fClient.SendText(PongText);
+    exit;
+  end;
   if Assigned(FOnRead) then FOnRead(aSender,aFinal,aRes1,aRes2,aRes3,aCode,aData);
 end;
 
@@ -235,8 +247,7 @@ end;
 
 procedure TNetSynWebSocket.TimerEvent(Sender: TObject);
 begin
-  //fClient.SendText(CharsetConversion('{"numbers":[2],"strings":[]}',GetCurCP,UTF_8));
-  fClient.SendText(CharsetConversion(PingText,GetCurCP,UTF_8));
+  fClient.SendText(CharsetConversion(PongText,GetCurCP,UTF_8));
 end;
 
 constructor TNetSynWebSocket.Create(AOwner: TComponent);
@@ -277,7 +288,7 @@ end;
 
 function TNetSynWebSocket.SendText(sText: string): boolean;
 begin
-  fClient.SendText(CharsetConversion(sText,GetCurCP,UTF_8));
+  fClient.SendText(sText);
 end;
 
 end.

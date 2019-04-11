@@ -59,7 +59,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure Start;
+    procedure Start(aMemoryStream: TMemoryStream = nil);
     procedure Stop;
     procedure Pause;
     procedure Replay;
@@ -194,7 +194,7 @@ begin
   inherited Destroy;
 end;
 
-procedure TUOSPlayer.Start;
+procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 var
   a: integer;
 begin
@@ -206,7 +206,8 @@ begin
   if FMode=moPlay then       //moShout
   begin
     (* PLAY *)
-    InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName));
+    if aMemoryStream=nil then InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName))
+    else InIndex:=uos_AddFromMemoryStream(FDevIndex,aMemoryStream,-1,-1,-1,-1);
     uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,InIndex),uos_InputGetChannels(FDevIndex,InIndex),-1,-1,-1);
     uos_InputAddDSP1ChanTo2Chan(FDevIndex,InIndex);
     uos_InputAddDSPVolume(FDevIndex,InIndex,1,1);

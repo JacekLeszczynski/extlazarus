@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="36">
+    <Files Count="37">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -189,6 +189,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="NetSynWebSocket"/>
       </Item36>
+      <Item37>
+        <Filename Value="polfan.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="Polfan"/>
+      </Item37>
     </Files>
     <RequiredPkgs Count="8">
       <Item1>

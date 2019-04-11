@@ -17,6 +17,7 @@ type
   TNetSynHTTP = class(TComponent)
   private
     FMethod: TSynHttpMethode;
+    //FTimeout: integer;
     FUrlData: string;
     FUserAgent: string;
     http: THttpSend;
@@ -38,7 +39,8 @@ type
   published
     property Method: TSynHttpMethode read FMethod write FMethod;
     property UserAgent: string read FUserAgent write SetUserAgent;
-    property UrlData: string read FUrlData write FUrlData;
+    property UrlData: string read FUrlData write FUrlData; //Dane formularzy w metodzie "POST"
+    //property Timeout: integer read FTimeout write FTimeout default 0;  //Default 0 = 90000 sec.
   end;
 
 procedure Register;
@@ -74,6 +76,7 @@ begin
   FMethod:=meGet;
   FUserAgent:='<auto>';
   FUrlData:='';
+  //FTimeout:=0;
 end;
 
 destructor TNetSynHTTP.Destroy;
