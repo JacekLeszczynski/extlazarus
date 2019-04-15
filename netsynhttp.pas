@@ -36,6 +36,8 @@ type
     function execute_get_post(url: string; var res: TMemoryStream): integer;
     function execute_get_post(url: string; var res: string): integer;
     function execute_get_post(url: string; var res: TStringList): integer;
+    function GetText(const URL: string; const Response: TStrings): Boolean;
+    function GetBinary(const URL: string; const Response: TStream): Boolean;
   published
     property Method: TSynHttpMethode read FMethod write FMethod;
     property UserAgent: string read FUserAgent write SetUserAgent;
@@ -225,6 +227,18 @@ function TNetSynHTTP.execute_get_post(url: string; var res: TStringList
   ): integer;
 begin
   result:=execute_get_post(url,url,res);
+end;
+
+function TNetSynHTTP.GetText(const URL: string; const Response: TStrings
+  ): Boolean;
+begin
+  result:=HttpGetText(URL,Response);
+end;
+
+function TNetSynHTTP.GetBinary(const URL: string; const Response: TStream
+  ): Boolean;
+begin
+  result:=HttpGetBinary(URL,Response);
 end;
 
 end.

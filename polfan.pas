@@ -17,12 +17,18 @@ type
 
 type
   TPolfanArchOsInfoElements = (osNone,osWindows86,osWindows64,osLinux86,osLinux64,osFreeBSD86,osFreeBSD64);
+  TPolfanOnSoundRequest = procedure(Sender: TObject; aUser: string) of object;
   TPolfanOnRead = procedure(Sender: TObject; aRoom, aFrame: string) of object;
-  TPolfanOnDownloadRequest = procedure(Sender: TObject; AFilename: string) of object;
+  TPolfanOnImageFilename = procedure(Sender: TObject; aFilename: string; var aNewFilename: string) of object;
+  TPolfanOnDownloadRequest = procedure(Sender: TObject; AFilename, APrive: string) of object;
+  TPolfanOnDownloadNow = procedure(Sender: TObject; APrive: string) of object;
   TPolfanOnUserToList = procedure(Sender: TObject; AUsername, ADescription: string; aAttr: integer) of object;
+  TPolfanOnNewAttr = procedure(Sender: TObject; aAttr: integer) of object;
+  TPolfanOnUserNewAttr = procedure(Sender: TObject; AUsername: string; aAttr: integer) of object;
   TPolfanOnUserDelFromList = procedure(Sender: TObject; AUsername: string) of object;
   TPolfanOnInitUserList = procedure(Sender: TObject; AUsers, ADescriptions, AAttributes: TStrings) of object;
   TPolfanOnReadDocument = procedure(Sender: TObject; AUser: string; AMessage: string; ADocument: TStrings; ARefresh: boolean) of object;
+  TPolfanOnRoomBeginEnd = procedure(Sender: TObject; ARoom: string) of object;
   TPolfanOnRoomAdd = procedure(Sender: TObject; AUser: string; var AID: integer; AForceSetRoom: boolean) of object;
   TPolfanOnRoomDel = procedure(Sender: TObject; AUser: string; AID: integer) of object;
 
@@ -32,31 +38,43 @@ type
   private
     FActive: boolean;
     FBaseDirectory: string;
+    FDevOn: boolean;
     FImgAltVisible: boolean;
     FMaxLines: integer;
     FOnClose: TNotifyEvent;
-    FOnDownloadNow: TNotifyEvent;
+    FOnDownloadNow: TPolfanOnDownloadNow;
     FOnDownloadRequest: TPolfanOnDownloadRequest;
+    FOnImageFilename: TPolfanOnImageFilename;
     FOnListUserAdd: TPolfanOnUserToList;
     FOnListUserDeInit: TNotifyEvent;
     FOnListUserDel: TPolfanOnUserDelFromList;
     FOnListUsersInit: TPolfanOnInitUserList;
+    FOnNewAttr: TPolfanOnNewAttr;
     FOnOpen: TNotifyEvent;
     FOnRead: TPolfanOnRead;
     FOnReadDocument: TPolfanOnReadDocument;
     FOnRoomAdd: TPolfanOnRoomAdd;
+    FOnRoomClearRequest: TNotifyEvent;
     FOnRoomDel: TPolfanOnRoomDel;
     FOnRoomDelAll: TNotifyEvent;
-    FOnSoundRequest: TNotifyEvent;
+    FOnRoomIn: TPolfanOnRoomBeginEnd;
+    FOnRoomOut: TPolfanOnRoomBeginEnd;
+    FOnSoundRequest: TPolfanOnSoundRequest;
+    FOnUserAttr: TPolfanOnUserNewAttr;
     FProgName,FProgVersion: string;
     FUser,FPassword,FRoom: string;
     FUserStatus: string;
     web: TNetSynWebSocket;
+    color_user,color_op: string;
+    color_guest: array of string;
+    color_guest_count: integer;
+    actual_room: string;
     pokoje: array of TPolfanPokoje;
     pokoje_count: integer;
     nick: string;
     time_status: integer;
-    document: TStrings;
+    src_dump: boolean;
+    src,document: TStrings;
     send_zmiana_pokoju: boolean;
     procedure SetUserStatus(AValue: string);
     procedure WebOpen(ASender: TWebSocketCustomConnection);
@@ -65,11 +83,12 @@ type
     procedure WebRead(aSender: TWebSocketCustomConnection; aFinal, aRes1,
       aRes2, aRes3: boolean; aCode: integer; aData: TMemoryStream);
     function ArchInfo: TPolfanArchOsInfoElements;
-    function IsExistImages(str: string): boolean;
+    function IsExistImages(aPrive: string; var str: string): boolean;
     function ImagePlusOpis(str: string): string;
+    procedure ReadColorsTable(ATable: string);
     procedure ReadFrame(aFrame: string);
     procedure GoRefresh(aMessage: string = ''; aUser: string = '');
-    procedure StartDownloading;
+    procedure StartDownloading(APrive: string);
     function indeks_pokoju(nazwa: string): integer;
     function dodaj_pokoj(nazwa: string): integer;
     procedure usun_pokoj(nazwa: string);
@@ -86,6 +105,11 @@ type
     function GetLoginNick: string;
     procedure AddNewRoom(ARoom: string);
     procedure DelRoom(ARoom: string);
+    function GetSourceDump: TStrings;
+    procedure SourceDumpClear;
+    procedure RoomClear;
+    function IsRoom: string;
+    function GetColorUser(aAttr: integer): TColor;
   published
     property Active: boolean read FActive;
     property ProgName: string read FProgName write FProgName;
@@ -96,6 +120,9 @@ type
     property BaseDirectory: string read FBaseDirectory write FBaseDirectory;
     property ImgAltVisible: boolean read FImgAltVisible write FImgAltVisible;
     property MaxLines: integer read FMaxLines write FMaxLines default 200;
+    {Gdy włączone przed połączeniem,
+    będzie można zdampować całą komunikację.}
+    property DeveloperCodeOn: boolean read FDevOn write FDevOn default false;
     {Status użytkownika, jeśli niedostępny
      to wpisać tekst powiadomienia.
      Aktywność należy zainicjować przez:
@@ -107,19 +134,29 @@ type
     property OnRead: TPolfanOnRead read FOnRead write FOnRead;
     {Polecenie odebrania powiadomienia
      dźwiękowego.}
-    property OnSoundRequest: TNotifyEvent read FOnSoundRequest write FOnSoundRequest;
+    property OnSoundRequest: TPolfanOnSoundRequest read FOnSoundRequest write FOnSoundRequest;
+    {Translacja nazwy obrazka jeśli potrzena.}
+    property OnImageFilename: TPolfanOnImageFilename read FOnImageFilename write FOnImageFilename;
     {Zapamiętaj brakujące pliki.}
     property OnDownloadRequest: TPolfanOnDownloadRequest read FOnDownloadRequest write FOnDownloadRequest;
     {Ściągnij teraz te pliki.}
-    property OnDownloadNow: TNotifyEvent read FOnDownloadNow write FOnDownloadNow;
+    property OnDownloadNow: TPolfanOnDownloadNow read FOnDownloadNow write FOnDownloadNow;
     {Zjawia się nowy użytkownik do pokoju.}
     property OnListUserAdd: TPolfanOnUserToList read FOnListUserAdd write FOnListUserAdd;
+    {Wczytanie praw lub zmiana aktualnych.}
+    property OnNewAttr: TPolfanOnNewAttr read FOnNewAttr write FOnNewAttr;
+    property OnUserAttr: TPolfanOnUserNewAttr read FOnUserAttr write FOnUserAttr;
     {Odchodzi użytkownik z pokoju.}
     property OnListUserDel: TPolfanOnUserDelFromList read FOnListUserDel write FOnListUserDel;
     {Inicjuję początkową listę użytkowników.}
     property OnListUserInit: TPolfanOnInitUserList read FOnListUsersInit write FOnListUsersInit;
     {Usuwa wszystkich użytkowników.}
     property OnListUserDeInit: TNotifyEvent read FOnListUserDeInit write FOnListUserDeInit;
+    {Wchodzisz do pokoju.}
+    property OnRoomIn: TPolfanOnRoomBeginEnd read FOnRoomIn write FOnRoomIn;
+    {Opuszczasz pokój.}
+    property OnRoomOut: TPolfanOnRoomBeginEnd read FOnRoomOut write FOnRoomOut;
+    property OnRoomClearRequest: TNotifyEvent read FOnRoomClearRequest write FOnRoomClearRequest;
     property OnReadDocument: TPolfanOnReadDocument read FOnReadDocument write FOnReadDocument;
     property OnRoomAdd: TPolfanOnRoomAdd read FOnRoomAdd write FOnRoomAdd;
     property OnRoomDel: TPolfanOnRoomDel read FOnRoomDel write FOnRoomDel;
@@ -134,7 +171,7 @@ function SHtmlColorToColor(s: string; out Len: integer; Default: TColor): TColor
 implementation
 
 uses
-  synautil, math, fpjson, jsonparser;
+  synautil, math, fpjson, jsonparser, strutils;
 
 type
   TIm = record
@@ -292,6 +329,7 @@ begin
     osNone:      s:=FProgName+ver;
     else         s:=FProgName+ver;
   end;
+  if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   if Assigned(FOnOpen) then FOnOpen(self);
 end;
@@ -310,6 +348,7 @@ begin
   nick:='';
   if Assigned(FOnListUserDeInit) then FOnListUserDeInit(self);
   if Assigned(FOnClose) then FOnClose(self);
+  if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
 end;
 
 procedure TPolfan.WebRead(aSender: TWebSocketCustomConnection; aFinal, aRes1,
@@ -351,14 +390,15 @@ begin
   {$ENDIF}
 end;
 
-function TPolfan.IsExistImages(str: string): boolean;
+function TPolfan.IsExistImages(aPrive: string; var str: string): boolean;
 var
-  s,s1: string;
+  s,s1,new_filename: string;
   a: integer;
   b: boolean;
 begin
   b:=false;
   s:=str;
+  new_filename:='';
   s:=StringReplace(s,'\"','"',[rfReplaceAll]);
   while true do
   begin
@@ -369,10 +409,24 @@ begin
     delete(s,1,a+4);
     a:=pos('"',s);
     s1:=copy(s,1,a-1);
-    if not FileExists(FBaseDirectory+_FF+s1) then
+    if Assigned(FOnImageFilename) then
     begin
-      FOnDownloadRequest(self,s1);
-      b:=true;
+      FOnImageFilename(self,s1,new_filename);
+      if new_filename<>'' then str:=StringReplace(str,s1,new_filename,[]);
+    end;
+    if new_filename='' then
+    begin
+      if not FileExists(FBaseDirectory+_FF+s1) then
+      begin
+        FOnDownloadRequest(self,s1,aPrive);
+        b:=true;
+      end;
+    end else begin
+      if not FileExists(FBaseDirectory+_FF+new_filename) then
+      begin
+        FOnDownloadRequest(self,s1,aPrive);
+        b:=true;
+      end;
     end;
   end;
   result:=b;
@@ -411,18 +465,55 @@ begin
   result:=s;
 end;
 
+procedure TPolfan.ReadColorsTable(ATable: string);
+var
+  pom,s,s1,s2: string;
+  i,j: integer;
+begin
+  //color_user,color_op: string;
+  //color_guest: array [1..15] of string;
+  //color_user=#000000&color_op=#ff0000&color_guest=#ffffff #0000a6 #a62a2a #008000 #e68a00 #800080 #3366ff #8b4513 #ffcc00 #336699 #ff33ff #f9c000 #66cc66 #7f7f7f #000000 &password_protection=1&room_creation=1&server_version=100.0&pver=2.0.8
+  i:=1;
+  while true do
+  begin
+    pom:=trim(GetLineToStr(ATable,i,'&'));
+    if pom='' then exit;
+    s1:=trim(GetLineToStr(pom,1,'='));
+    s2:=trim(GetLineToStr(pom,2,'='));
+    if s1='color_user' then color_user:=s2 else
+    if s1='color_op' then color_op:=s2 else
+    if s1='color_guest' then
+    begin
+      color_guest_count:=0;
+      SetLength(color_guest,color_guest_count);
+      j:=1;
+      while true do
+      begin
+        s:=trim(GetLineToStr(s2,j,' '));
+        if s='' then break;
+        inc(color_guest_count);
+        SetLength(color_guest,color_guest_count);
+        color_guest[color_guest_count-1]:=s;
+        inc(j);
+      end;
+    end;
+    inc(i);
+  end;
+end;
+
 procedure TPolfan.ReadFrame(aFrame: string);
 var
   jData : TJSONData;
   jObject : TJSONObject;
   jArray : TJSONArray;
-  s,nadawca,adresat,uzytkownik: string;
+  s,nadawca,adresat,uzytkownik,pom: string;
   i,ii,ile: integer;
-  kod,kod2: integer;
+  kod,kod2,a,b: integer;
   wiadomosc: string;
   u_nick,u_s: string;
   pom_ss1,pom_ss2,pom_ss3: TStrings;
 begin
+  if FDevOn then src.Add('[Received]: '+AFrame);
   uzytkownik:='';
   jData:=GetJSON(aFrame);
   jObject:=TJSONObject(jData);
@@ -431,20 +522,28 @@ begin
   if jArray.Count=2 then kod2:=jArray[1].AsInteger else kod2:=-1;
   s:='';
 
-  if kod=619 then writeln(aFrame);
+  //if kod=619 then writeln(aFrame);
 
   if kod=610 then {Normalne pakiety rozmów}
   begin
     jArray:=jObject.Arrays['strings'];
     s:=jArray[0].AsString;
     (* tu kod sprawdzający czy obrazek istnieje, a jak nie, to ściąga obrazek automatycznie *)
-    if Assigned(FOnDownloadRequest) then if IsExistImages(s) then StartDownloading;
+    if Assigned(FOnDownloadRequest) then if IsExistImages('',s) then StartDownloading('');
     if FImgAltVisible then s:=ImagePlusOpis(s);
     u_nick:=upcase(nick);
     u_s:=upcase(s);
     (* powiadomienie dźwiękowe przy wiadomości nadchodzącej do ciebie *)
+    //   '><b>Samusia</b></font>:';
     if Assigned(FOnSoundRequest) then if (pos('><B>'+u_nick+'</B></FONT>:',u_s)=0) and (pos('<FONT COLOR=RED>** PRZYCHODZI <B>'+u_nick+'</B>...</FONT>',u_s)=0)
-    and ((pos(' '+u_nick+' ',u_s)>0) or (pos(' '+u_nick+'<',u_s)>0) or (pos('>'+u_nick+' ',u_s)>0) or (pos('>'+u_nick+'<',u_s)>0)) then FOnSoundRequest(self);
+    and ((pos(' '+u_nick+' ',u_s)>0) or (pos(' '+u_nick+'<',u_s)>0) or (pos('>'+u_nick+' ',u_s)>0) or (pos('>'+u_nick+'<',u_s)>0)) then
+    begin
+      pom:=s;
+      a:=pos('><B>',u_s)+4;
+      b:=pos('</B></FONT>:',u_s);
+      pom:=copy(s,a,b-a);
+      FOnSoundRequest(self,pom);
+    end;
     (* jeśli nie mogę odpowiedzieć - odpowiedź automatyczna *)
     if (FUserStatus<>'<Available>') and (FUserStatus<>'') then
     begin
@@ -454,7 +553,7 @@ begin
             then
       begin
         time_status:=TimeToInteger;
-        wiadomosc:='<u>Info:</u> <i>'+FUserStatus;
+        wiadomosc:=StringReplace(FUserStatus,'$',pom,[rfReplaceAll]);
         web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+FRoom+'"]}');
       end;
     end;
@@ -470,21 +569,28 @@ begin
     if (adresat='') or (adresat=nick) then uzytkownik:=nadawca else
     if (nadawca='') or (nadawca=nick) then uzytkownik:=adresat else
     uzytkownik:='';
-    if Assigned(FOnDownloadRequest) then if IsExistImages(s) then StartDownloading;
+    if Assigned(FOnDownloadRequest) then if IsExistImages(uzytkownik,s) then StartDownloading(uzytkownik);
     if FImgAltVisible then s:=ImagePlusOpis(s);
-    if nadawca<>nick then if Assigned(FOnSoundRequest) then FOnSoundRequest(self);
+    if nadawca<>nick then if Assigned(FOnSoundRequest) then FOnSoundRequest(self,'');
   end else
 
   if kod=615 then {ZJAWIA SIĘ NOWY UŻYTKOWNIK}
   begin
     jArray:=jObject.Arrays['strings'];
     if Assigned(FOnListUserAdd) then FOnListUserAdd(self,jArray[0].AsString,jArray[2].AsString,kod2);
+    if jArray[0].AsString=nick then if Assigned(FOnNewAttr) then FOnNewAttr(self,kod2);
   end else
 
-  if kod=616 then {ZNIKA SIĘ NOWY UŻYTKOWNIK}
+  if kod=616 then {UŻYTKOWNIK ODCHODZI}
   begin
     jArray:=jObject.Arrays['strings'];
     if Assigned(FOnListUserDel) then FOnListUserDel(self,jArray[0].AsString);
+  end else
+
+  if kod=617 then {INNY UŻYTKOWNIK DOSTAJE AKTUALIZACJĘ UPRAWNIEŃ}
+  begin
+    jArray:=jObject.Arrays['strings'];
+    if Assigned(FOnUserAttr) then FOnUserAttr(self,jArray[0].AsString,kod2);
   end else
 
   if (kod=618) and (kod2=4) then {Jako kto się loguję}
@@ -527,13 +633,31 @@ begin
   if kod=625 then {NAGŁÓWKI POKOJU}
   begin
     jArray:=jObject.Arrays['strings'];
-    s:=jArray[0].AsString;
+    actual_room:=jArray[0].AsString;
+    if Assigned(FOnRoomIn) then FOnRoomIn(self,actual_room);
+  end else
+
+  if kod=626 then {MAPY KOLORÓW}
+  begin
+    jArray:=jObject.Arrays['strings'];
+    ReadColorsTable(jArray[0].AsString);
   end else
 
   if kod=630 then {INFORMACJE SERWERA DO UŻYTKOWNIKA - WAŻNE}
   begin
     jArray:=jObject.Arrays['strings'];
     s:=jArray[0].AsString;
+  end else
+
+  if kod=631 then {OPUSZCZASZ POKÓJ}
+  begin
+    jArray:=jObject.Arrays['strings'];
+    actual_room:='';
+    document.Clear;
+    if Assigned(FOnRoomOut) then FOnRoomOut(self,jArray[1].AsString);
+    if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
+    jData.Free;
+    exit;
   end else
 
   if kod=65535 then {ZAMKNIJ POŁĄCZENIE}
@@ -578,9 +702,9 @@ begin
   end;
 end;
 
-procedure TPolfan.StartDownloading;
+procedure TPolfan.StartDownloading(APrive: string);
 begin
-  if Assigned(FOnDownloadNow) then FOnDownloadNow(self);
+  if Assigned(FOnDownloadNow) then FOnDownloadNow(self,APrive);
 end;
 
 function TPolfan.indeks_pokoju(nazwa: string): integer;
@@ -645,6 +769,8 @@ constructor TPolfan.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   document:=TStringList.Create;
+  src:=TStringList.Create;
+  src_dump:=false;
   web:=TNetSynWebSocket.Create(self);
   web.Host:=STR_HOST;
   web.PingText:=STR_PING;
@@ -654,6 +780,8 @@ begin
   web.OnClose:=@WebClose;
   web.OnRead:=@WebRead;
   pokoje_count:=0;
+  color_guest_count:=0;
+  FDevOn:=false;
   FActive:=false;
   FUserStatus:='<Available>';
   FMaxLines:=200;
@@ -664,13 +792,18 @@ begin
   if web.Active then Disconnect;
   web.Free;
   document.Free;
+  src.Free;
   usun_wszystkie_pokoje;
   inherited Destroy;
 end;
 
 procedure TPolfan.Connect;
 begin
-  if not web.Active then web.Open;
+  if not web.Active then
+  begin
+    src_dump:=FDevOn;
+    web.Open;
+  end;
 end;
 
 procedure TPolfan.Disconnect;
@@ -679,6 +812,7 @@ begin
   begin
     if nick<>'' then
     begin
+      if FDevOn then src.Add('[Sent]: {"numbers":[410],"strings":["/quit", ""]}');
       web.SendText('{"numbers":[410],"strings":["/quit", ""]}');
       sleep(500);
     end;
@@ -693,6 +827,7 @@ end;
 
 function TPolfan.SendText(AText: string; AZmianaPokoju: boolean): boolean;
 begin
+  if FDevOn then src.Add('[Sent]: '+AText);
   send_zmiana_pokoju:=AZmianaPokoju;
   result:=web.SendText(AText);
 end;
@@ -716,6 +851,40 @@ end;
 procedure TPolfan.DelRoom(ARoom: string);
 begin
   usun_pokoj(ARoom);
+end;
+
+function TPolfan.GetSourceDump: TStrings;
+begin
+  result:=src;
+end;
+
+procedure TPolfan.SourceDumpClear;
+begin
+  src.Clear;
+end;
+
+procedure TPolfan.RoomClear;
+begin
+  document.Clear;
+  if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
+end;
+
+function TPolfan.IsRoom: string;
+begin
+  result:=actual_room;
+end;
+
+function TPolfan.GetColorUser(aAttr: integer): TColor;
+var
+  kolor,dlugosc: integer;
+  kolory: array [0..15] of string = ('#000000','#9F0004','#990099','#FF00FF','#000066','#2079FF',
+                                     '#00FFFF','#008080','#008000','#00FF00','#B5E61D','#FF6600',
+                                     '#F9C000','#FFFF00','#7F7F7F','#000000');
+begin
+  kolor:=trunc(aAttr div 16);
+  if (aAttr and 2) = 2 then result:=SHtmlColorToColor(color_op,dlugosc,clRed) //OP
+  else if kolor>0 then result:=SHtmlColorToColor(kolory[kolor],dlugosc,clBlack) //GUEST
+  else result:=SHtmlColorToColor(color_user,dlugosc,clBlack); //USER
 end;
 
 end.
