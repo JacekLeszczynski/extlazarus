@@ -48,7 +48,7 @@ type
     FPause: boolean;
     FPosition: boolean;
     FVolume: integer;
-    InIndex, outIndex : integer;
+    InIndex,OutIndex : integer;
     procedure SetMode(AValue: TUOSPlayerMode);
     procedure SetMute(AValue: boolean);
     procedure SetVolume(AValue: integer);
@@ -208,6 +208,7 @@ begin
     (* PLAY *)
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(FDevIndex,aMemoryStream,-1,-1,-1,-1);
+
     uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,InIndex),uos_InputGetChannels(FDevIndex,InIndex),-1,-1,-1);
     uos_InputAddDSP1ChanTo2Chan(FDevIndex,InIndex);
     uos_InputAddDSPVolume(FDevIndex,InIndex,1,1);
@@ -386,17 +387,16 @@ var
 begin
   if (FMode=moInfo) and FBusy then
   begin
-    InIndex:=uos_AddFromFile(FDevIndex,Pchar(Filename));
+    InIndex:=uos_AddFromFile(FDevIndex,Pchar(ExtractShortPathName(Filename)));
     ext:=upcase(ExtractFileExt(Filename));
     s:=strpas(uos_InputGetTagTag(FDevIndex,InIndex));
     setlength(s,3);
-    writeln(s);
     if ((ext='.MP3') and (s='TAG')) or (ext<>'.MP3') then
     begin
       aTag.Title:=strpas(uos_InputGetTagTitle(FDevIndex,InIndex));
       aTag.Artist:=strpas(uos_InputGetTagArtist(FDevIndex,InIndex));
       aTag.Album:=strpas(uos_InputGetTagAlbum(FDevIndex,InIndex));
-      result:=true;
+      if aTag.Title='' then result:=false else result:=true;
     end else result:=false;
   end else result:=false;
 end;

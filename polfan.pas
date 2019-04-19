@@ -105,6 +105,7 @@ type
     function GetLoginNick: string;
     procedure AddNewRoom(ARoom: string);
     procedure DelRoom(ARoom: string);
+    procedure AddSourceDump(AText: string);
     function GetSourceDump: TStrings;
     procedure SourceDumpClear;
     procedure RoomClear;
@@ -329,8 +330,9 @@ begin
     osNone:      s:=FProgName+ver;
     else         s:=FProgName+ver;
   end;
-  if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
-  web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
+  actual_room:=FRoom;
+  if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+actual_room+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
+  web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+actual_room+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   if Assigned(FOnOpen) then FOnOpen(self);
 end;
 
@@ -362,7 +364,7 @@ begin
   //InfoMemo.Lines.Insert(0, Format('OnRead %d, final: %d, ext1: %d, ext2: %d, ext3: %d, type: %d, length: %d', [aSender.Index, ord(aFinal), ord(aRes1), ord(aRes2), ord(aRes3), aCode, aData.Size]));
   s:=ReadStrFromStream(c.ReadStream,min(c.ReadStream.size,10*1024));
   ReadFrame(s);
-  if Assigned(FOnRead) then FOnRead(self,FRoom,s);
+  if Assigned(FOnRead) then FOnRead(self,actual_room,s);
 end;
 
 function TPolfan.ArchInfo: TPolfanArchOsInfoElements;
@@ -519,10 +521,8 @@ begin
   jObject:=TJSONObject(jData);
   jArray:=jObject.Arrays['numbers'];
   kod:=jArray[0].AsInteger;
-  if jArray.Count=2 then kod2:=jArray[1].AsInteger else kod2:=-1;
+  if jArray.Count>=2 then kod2:=jArray[1].AsInteger else kod2:=-1;
   s:='';
-
-  //if kod=619 then writeln(aFrame);
 
   if kod=610 then {Normalne pakiety rozmów}
   begin
@@ -554,7 +554,7 @@ begin
       begin
         time_status:=TimeToInteger;
         wiadomosc:=StringReplace(FUserStatus,'$',pom,[rfReplaceAll]);
-        web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+FRoom+'"]}');
+        web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+actual_room+'"]}');
       end;
     end;
   end else
@@ -565,7 +565,7 @@ begin
     ile:=jArray.Count;
     s:=jArray[0].AsString; {wiadomość}
     nadawca:=jArray[1].AsString; {nadawca}
-    if 2<=ile-1 then adresat:=jArray[2].AsString; {adresat}
+    if ile>=3 then adresat:=jArray[2].AsString else adresat:=''; {adresat}
     if (adresat='') or (adresat=nick) then uzytkownik:=nadawca else
     if (nadawca='') or (nadawca=nick) then uzytkownik:=adresat else
     uzytkownik:='';
@@ -641,6 +641,8 @@ begin
   begin
     jArray:=jObject.Arrays['strings'];
     ReadColorsTable(jArray[0].AsString);
+    if FPassword='' then nick:='~'+FUser else nick:=FUser; //Na start, potem i tak zostanie zaktualizowany
+    if Assigned(FOnNewAttr) then FOnNewAttr(self,0); //Reset wszystkiego, jak będzie trzeba potem się odświeży
   end else
 
   if kod=630 then {INFORMACJE SERWERA DO UŻYTKOWNIKA - WAŻNE}
@@ -664,7 +666,6 @@ begin
     if web.Active then web.Close;
 
   GoRefresh(s+'<br>',uzytkownik);
-  jData.Free;
 end;
 
 procedure TPolfan.GoRefresh(aMessage: string; aUser: string);
@@ -851,6 +852,11 @@ end;
 procedure TPolfan.DelRoom(ARoom: string);
 begin
   usun_pokoj(ARoom);
+end;
+
+procedure TPolfan.AddSourceDump(AText: string);
+begin
+  if FDevOn then src.Add(AText);
 end;
 
 function TPolfan.GetSourceDump: TStrings;

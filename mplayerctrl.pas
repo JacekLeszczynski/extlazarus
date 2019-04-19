@@ -132,6 +132,8 @@ type
 
   TCustomMPlayerControl = class(TWinControl)
   private
+    FCache: integer;
+    FCacheMin: integer;
     icyName,icyGenre,icyWebsite: string;
     icyPublic: boolean;
     icyBitrate,icyStreamTitle,icyStreamURL: string;
@@ -212,6 +214,8 @@ type
 
     property Engine: TMPlayerEngine read FEngine write FEngine;
     property NoSound: boolean read FNoSound write FNoSound default false;
+    property Cache: integer read FCache write FCache default 0; //0=default
+    property CacheMin: integer read FCacheMin write FCacheMin default 0; //0=default
     property Filename: string read FFilename write SetFilename;
     property StartParam: string read FStartParam write SetStartParam;
     property MPlayerPath: string read FMPlayerPath write SetMPlayerPath;
@@ -250,6 +254,8 @@ type
     property Enabled;
     property Engine;
     property NoSound;
+    property Cache;
+    property CacheMin;
     property Filename;
     property Loop;
     property StartParam;
@@ -844,6 +850,16 @@ begin
     if FCapture then FPlayerProcess.Parameters.Add('-capture');
     FPlayerProcess.Parameters.Add('-vf');
     FPlayerProcess.Parameters.Add('screenshot'); // (with -vf) Allow frame grab
+    if FCache>0 then
+    begin
+      FPlayerProcess.Parameters.Add('-cache');
+      FPlayerProcess.Parameters.Add(IntToStr(FCache));
+      if FCacheMin>0 then
+      begin
+        FPlayerProcess.Parameters.Add('-cache-min');
+        FPlayerProcess.Parameters.Add(IntToStr(FCacheMin));
+      end;
+    end;
   end;
   if FEngine=meMPV then
   begin
