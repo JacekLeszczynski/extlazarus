@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="37">
+    <Files Count="38">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -194,6 +194,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="Polfan"/>
       </Item37>
+      <Item38>
+        <Filename Value="googletranslator.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="GoogleTranslator"/>
+      </Item38>
     </Files>
     <RequiredPkgs Count="8">
       <Item1>

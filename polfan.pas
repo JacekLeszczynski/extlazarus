@@ -39,6 +39,7 @@ type
     FActive: boolean;
     FBaseDirectory: string;
     FDevOn: boolean;
+    FIdentify: string;
     FImgAltVisible: boolean;
     FMaxLines: integer;
     FOnClose: TNotifyEvent;
@@ -76,6 +77,7 @@ type
     src_dump: boolean;
     src,document: TStrings;
     send_zmiana_pokoju: boolean;
+    procedure SetIdentify(AValue: string);
     procedure SetUserStatus(AValue: string);
     procedure WebOpen(ASender: TWebSocketCustomConnection);
     procedure WebClose(aSender: TWebSocketCustomConnection;
@@ -111,10 +113,12 @@ type
     procedure RoomClear;
     function IsRoom: string;
     function GetColorUser(aAttr: integer): TColor;
+    procedure AddDocument(aText: string);
   published
     property Active: boolean read FActive;
     property ProgName: string read FProgName write FProgName;
     property ProgVersion: string read FProgVersion write FProgVersion;
+    property Identify: string read FIdentify write SetIdentify;
     property User: string read FUser write FUser;
     property Password: string read FPassword write FPassword;
     property Room: string read FRoom write FRoom;
@@ -322,6 +326,7 @@ begin
   FActive:=true;
   if FProgVersion='' then ver:='' else ver:=' '+FProgVersion;
   sleep(500);
+  if (FIdentify<>'<auto>') and (FIdentify<>'') then s:=FIdentify else
   case ArchInfo of
     osLinux86:   s:=FProgName+ver+' (Linux 32bit)';
     osLinux64:   s:=FProgName+ver+' (Linux 64bit)';
@@ -339,6 +344,11 @@ end;
 procedure TPolfan.SetUserStatus(AValue: string);
 begin
   if AValue='' then FUserStatus:='<Available>' else FUserStatus:=AValue;
+end;
+
+procedure TPolfan.SetIdentify(AValue: string);
+begin
+  if AValue='' then FIdentify:='<auto>' else FIdentify:=AValue;
 end;
 
 procedure TPolfan.WebClose(aSender: TWebSocketCustomConnection;
@@ -785,6 +795,7 @@ begin
   FDevOn:=false;
   FActive:=false;
   FUserStatus:='<Available>';
+  FIdentify:='<auto>';
   FMaxLines:=200;
 end;
 
@@ -891,6 +902,12 @@ begin
   if (aAttr and 2) = 2 then result:=SHtmlColorToColor(color_op,dlugosc,clRed) //OP
   else if kolor>0 then result:=SHtmlColorToColor(kolory[kolor],dlugosc,clBlack) //GUEST
   else result:=SHtmlColorToColor(color_user,dlugosc,clBlack); //USER
+end;
+
+procedure TPolfan.AddDocument(aText: string);
+begin
+  document.Add(aText+'<br>');
+  Refresh;
 end;
 
 end.

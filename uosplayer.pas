@@ -47,11 +47,14 @@ type
     FOnStop: TNotifyEvent;
     FPause: boolean;
     FPosition: boolean;
-    FVolume: integer;
+    FVolume: double;
+    FVolumeGlobal: double;
     InIndex,OutIndex : integer;
     procedure SetMode(AValue: TUOSPlayerMode);
     procedure SetMute(AValue: boolean);
-    procedure SetVolume(AValue: integer);
+    function GetMixVolume: double;
+    procedure SetVolume(AValue: double);
+    procedure SetVolumeGlobal(AValue: double);
     procedure _init;
     procedure ClosePlayer;
     procedure LoopPlayer;
@@ -64,9 +67,9 @@ type
     procedure Pause;
     procedure Replay;
     function GetStatus: integer;
+    procedure GetMeter(var ALeft,ARight: single);
     procedure GetMeter(var ALeft,ARight: double);
     procedure GetMeter(var ALeft,ARight: integer);
-    procedure SetVolume(AVolume: double);
     function GetLength: longint;
     function GetLengthSeconds: single;
     function GetLengthTime: TTime;
@@ -89,7 +92,8 @@ type
     property ListenMic: boolean read FListenMic write FListenMic default false; //Mik idzie na głośniki gdy włączone
     property DeviceIndex: cardinal read FDevIndex write FDevIndex default 0; //Dla każdej kontrolki wartość unikatowa
     //property IntoDeviceIndex: TUOSPlayer read FIntoPlayer write FIntoPlayer;
-    property Volume: integer read FVolume write SetVolume default 100; //Sterowanie głośnością
+    property Volume: double read FVolume write SetVolume; //Sterowanie głośnością
+    property VolumeGlobal: double read FVolumeGlobal write SetVolumeGlobal; //Sterowanie głośnością wyższego poziomu
     property Mute: boolean read FMute write SetMute default false; //Nie wycisza głośników, wycisza nagrywanie!
     property CalcLoop: boolean read FCalcLoop write FCalcLoop default false; //Uruchamia wyzwalacz do sterowania wskaźnikami wysterowania czy pozycji
     property CalcMeter: boolean read FMeter write FMeter default false; //Uruchamia rejestrowanie wysterowania
@@ -133,7 +137,8 @@ begin
   FDevIndex:=0;
   FMode:=moPlay;
   FListenMic:=false;
-  FVolume:=100;
+  FVolume:=1.0;
+  FVolumeGlobal:=1.0;
   FCalcLoop:=false;
   FMute:=false;
   FMeter:=false;
@@ -160,26 +165,47 @@ end;
 
 procedure TUOSPlayer.SetMute(AValue: boolean);
 var
-  a: integer;
+  a,b: double;
 begin
   if Assigned(FBeforeMute) then FBeforeMute(self);
   if FMute=AValue then Exit;
   FMute:=AValue;
   if FBusy then
   begin
-    if FMute then a:=0 else a:=FVolume;
-    uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True);
+    if FMode=moRecord then b:=FVolume else b:=GetMixVolume;
+    if FMute then a:=0 else a:=b;
+    uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,True);
   end;
   if Assigned(FAfterMute) then FAfterMute(self);
 end;
 
-procedure TUOSPlayer.SetVolume(AValue: integer);
+function TUOSPlayer.GetMixVolume: double;
+begin
+  result:=FVolume*FVolumeGlobal;
+end;
+
+procedure TUOSPlayer.SetVolume(AValue: double);
+var
+  a: double;
 begin
   if FVolume=AValue then Exit;
   FVolume:=AValue;
   if FVolume<0 then FVolume:=0;
-  if FVolume>100 then FVolume:=100;
-  if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,FVolume/100,FVolume/100,True);
+  if FVolume>1 then FVolume:=1;
+  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
+  if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,True);
+end;
+
+procedure TUOSPlayer.SetVolumeGlobal(AValue: double);
+var
+  a: double;
+begin
+  if FVolumeGlobal=AValue then Exit;
+  FVolumeGlobal:=AValue;
+  if FVolumeGlobal<0 then FVolumeGlobal:=0;
+  if FVolumeGlobal>1 then FVolumeGlobal:=1;
+  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
+  if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,True);
 end;
 
 constructor TUOSPlayer.Create(AOwner: TComponent);
@@ -196,23 +222,23 @@ end;
 
 procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 var
-  a: integer;
+  a: double;
 begin
   if Assigned(FBeforeStart) then FBeforeStart(Self);
   if not FDevEngine.Loaded then exit;
   if FBusy then exit;
   uos_CreatePlayer(FDevIndex);
-  if FMute then a:=0 else a:=FVolume;
+  if FMute then a:=0 else a:=GetMixVolume;
   if FMode=moPlay then       //moShout
   begin
     (* PLAY *)
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(FDevIndex,aMemoryStream,-1,-1,-1,-1);
 
-    uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,InIndex),uos_InputGetChannels(FDevIndex,InIndex),-1,-1,-1);
+    OutIndex:=uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,InIndex),uos_InputGetChannels(FDevIndex,InIndex),-1,-1,-1);
     uos_InputAddDSP1ChanTo2Chan(FDevIndex,InIndex);
     uos_InputAddDSPVolume(FDevIndex,InIndex,1,1);
-    uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,true); /// Set volume
+    uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,true); /// Set volume
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
@@ -225,7 +251,7 @@ begin
     //outindex:=uos_AddIntoDevOut(FDevIndex);
     outindex:=uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,inindex),uos_InputGetChannels(FDevIndex,inindex),-1,1024,-1);
     uos_OutputAddDSPVolume(FDevIndex,outindex,1,1);
-    uos_OutputSetDSPVolume(FDevIndex,outindex,a/100,a/100,true);
+    uos_OutputSetDSPVolume(FDevIndex,outindex,a,a,true);
     //uos_AddIntoFile(FDevIndex, PChar('/home/tao/test.wav'));
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
@@ -240,7 +266,7 @@ begin
     uos_outputsetenable(FDevIndex,outindex,FListenMic);
     InIndex:=uos_AddFromDevIn(FDevIndex);  /// add Input from mic into IN device with default parameters
     uos_InputAddDSPVolume(FDevIndex,InIndex, 1, 1);
-    uos_InputSetDSPVolume(FDevIndex,InIndex,a/100,a/100,True); /// Set volume
+    uos_InputSetDSPVolume(FDevIndex,InIndex,FVolume,FVolume,True); /// Set volume
     if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
@@ -303,6 +329,18 @@ begin
   result:=uos_GetStatus(FDevIndex);
 end;
 
+procedure TUOSPlayer.GetMeter(var ALeft, ARight: single);
+begin
+  if FMode=moRecord then
+  begin
+    ALeft:=uos_InputGetLevelLeft(FDevIndex,InIndex);
+    ARight:=uos_InputGetLevelRight(FDevIndex,InIndex);
+  end else begin
+    ALeft:=uos_InputGetLevelLeft(FDevIndex,OutIndex)*FVolume;
+    ARight:=uos_InputGetLevelRight(FDevIndex,OutIndex)*FVolume;
+  end;
+end;
+
 procedure TUOSPlayer.GetMeter(var ALeft, ARight: double);
 begin
   if FMode=moRecord then
@@ -310,8 +348,8 @@ begin
     ALeft:=uos_InputGetLevelLeft(FDevIndex,InIndex);
     ARight:=uos_InputGetLevelRight(FDevIndex,InIndex);
   end else begin
-    ALeft:=uos_InputGetLevelLeft(FDevIndex,OutIndex)*(FVolume/100);
-    ARight:=uos_InputGetLevelRight(FDevIndex,OutIndex)*(FVolume/100);
+    ALeft:=uos_InputGetLevelLeft(FDevIndex,OutIndex)*FVolume;
+    ARight:=uos_InputGetLevelRight(FDevIndex,OutIndex)*FVolume;
   end;
 end;
 
@@ -322,17 +360,9 @@ begin
     ALeft:=round(uos_InputGetLevelLeft(FDevIndex,InIndex)*105);
     ARight:=round(uos_InputGetLevelRight(FDevIndex,InIndex)*105);
   end else begin
-    ALeft:=round(uos_InputGetLevelLeft(FDevIndex,OutIndex)*100*(FVolume/100));
-    ARight:=round(uos_InputGetLevelRight(FDevIndex,OutIndex)*100*(FVolume/100));
+    ALeft:=round(uos_InputGetLevelLeft(FDevIndex,OutIndex)*100*FVolume);
+    ARight:=round(uos_InputGetLevelRight(FDevIndex,OutIndex)*100*FVolume);
   end;
-end;
-
-procedure TUOSPlayer.SetVolume(AVolume: double);
-begin
-  FVolume:=Round(AVolume*100);
-  if FVolume<0 then FVolume:=0;
-  if FVolume>100 then FVolume:=100;
-  if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,AVolume,AVolume,True);
 end;
 
 function TUOSPlayer.GetLength: longint;

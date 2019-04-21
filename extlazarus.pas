@@ -15,7 +15,8 @@ uses
   DBSchemaSync_postgres, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
-  ArchitectureOSInfo, NetSynWebSocket, Polfan, LazarusPackageIntf;
+  ArchitectureOSInfo, NetSynWebSocket, Polfan, GoogleTranslator, 
+  LazarusPackageIntf;
 
 implementation
 
@@ -55,6 +56,7 @@ begin
   RegisterUnit('ArchitectureOSInfo', @ArchitectureOSInfo.Register);
   RegisterUnit('NetSynWebSocket', @NetSynWebSocket.Register);
   RegisterUnit('Polfan', @Polfan.Register);
+  RegisterUnit('GoogleTranslator', @GoogleTranslator.Register);
 end;
 
 initialization
