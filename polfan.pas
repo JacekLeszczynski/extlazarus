@@ -40,6 +40,7 @@ type
     FBaseDirectory: string;
     FDevOn: boolean;
     FIdentify: string;
+    FImagesOFF: boolean;
     FImgAltVisible: boolean;
     FMaxLines: integer;
     FOnClose: TNotifyEvent;
@@ -133,6 +134,8 @@ type
      Aktywność należy zainicjować przez:
         metodę: InitUserStatus;}
     property UserStatus: string read FUserStatus write SetUserStatus;
+    {Wyłącza obsługę obrazków - emotek.}
+    property ImagesOFF: boolean read FImagesOFF write FImagesOFF;
     property OnOpen: TNotifyEvent read FOnOpen write FOnOpen;
     property OnClose: TNotifyEvent read FOnClose write FOnClose;
     {Została odebrana ramka tekstu.}
@@ -797,6 +800,7 @@ begin
   FUserStatus:='<Available>';
   FIdentify:='<auto>';
   FMaxLines:=200;
+  FImagesOFF:=false;
 end;
 
 destructor TPolfan.Destroy;
