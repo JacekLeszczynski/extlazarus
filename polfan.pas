@@ -31,12 +31,15 @@ type
   TPolfanOnRoomBeginEnd = procedure(Sender: TObject; ARoom: string) of object;
   TPolfanOnRoomAdd = procedure(Sender: TObject; AUser: string; var AID: integer; AForceSetRoom: boolean) of object;
   TPolfanOnRoomDel = procedure(Sender: TObject; AUser: string; AID: integer) of object;
+  TPolfanOnAutoResponseRequest = procedure(Sender: TObject; AUser, AMessage: string) of object;
 
   { TPolfan }
 
   TPolfan = class(TComponent)
   private
     FActive: boolean;
+    FAutoResponse: boolean;
+    FAutoResponseRequest: TPolfanOnAutoResponseRequest;
     FBaseDirectory: string;
     FDevOn: boolean;
     FIdentify: string;
@@ -134,6 +137,7 @@ type
      Aktywność należy zainicjować przez:
         metodę: InitUserStatus;}
     property UserStatus: string read FUserStatus write SetUserStatus;
+    property AutoResponse: boolean read FAutoResponse write FAutoResponse;
     {Wyłącza obsługę obrazków - emotek.}
     property ImagesOFF: boolean read FImagesOFF write FImagesOFF;
     property OnOpen: TNotifyEvent read FOnOpen write FOnOpen;
@@ -170,6 +174,7 @@ type
     property OnRoomDel: TPolfanOnRoomDel read FOnRoomDel write FOnRoomDel;
     {Czyści listę użytkowników.}
     property OnRoomDelAll: TNotifyEvent read FOnRoomDelAll write FOnRoomDelAll;
+    property OnAutoResponseRequest: TPolfanOnAutoResponseRequest read FAutoResponseRequest write FAutoResponseRequest;
   end;
 
 procedure Register;
@@ -521,15 +526,17 @@ var
   jData : TJSONData;
   jObject : TJSONObject;
   jArray : TJSONArray;
-  s,nadawca,adresat,uzytkownik,pom: string;
+  s,nadawca,adresat,uzytkownik,pom,pom2: string;
   i,ii,ile: integer;
   kod,kod2,a,b: integer;
   wiadomosc: string;
   u_nick,u_s: string;
   pom_ss1,pom_ss2,pom_ss3: TStrings;
+  do_mnie: boolean;
 begin
   if FDevOn then src.Add('[Received]: '+AFrame);
   uzytkownik:='';
+  do_mnie:=false;
   jData:=GetJSON(aFrame);
   jObject:=TJSONObject(jData);
   jArray:=jObject.Arrays['numbers'];
@@ -546,27 +553,69 @@ begin
     if FImgAltVisible then s:=ImagePlusOpis(s);
     u_nick:=upcase(nick);
     u_s:=upcase(s);
-    (* powiadomienie dźwiękowe przy wiadomości nadchodzącej do ciebie *)
-    //   '><b>Samusia</b></font>:';
-    if Assigned(FOnSoundRequest) then if (pos('><B>'+u_nick+'</B></FONT>:',u_s)=0) and (pos('<FONT COLOR=RED>** PRZYCHODZI <B>'+u_nick+'</B>...</FONT>',u_s)=0)
-    and ((pos(' '+u_nick+' ',u_s)>0) or (pos(' '+u_nick+'<',u_s)>0) or (pos('>'+u_nick+' ',u_s)>0) or (pos('>'+u_nick+'<',u_s)>0)) then
+    (* testy na dalsze zdarzenia *)
+    if Assigned(FOnSoundRequest) or FAutoResponse or ((FUserStatus<>'<Available>') and (FUserStatus<>'')) then
     begin
+      do_mnie:=(pos('><B>'+u_nick+'</B></FONT>:',u_s)=0) and (pos('<FONT COLOR=RED>** PRZYCHODZI <B>'+u_nick+'</B>...</FONT>',u_s)=0)
+               and (
+                 (pos(' '+u_nick+' ',u_s)>0) or
+                 (pos(' '+u_nick+'<',u_s)>0) or
+                 (pos('>'+u_nick+' ',u_s)>0) or
+                 (pos('>'+u_nick+'<',u_s)>0) or
+                 (pos('>'+u_nick+'.',u_s)>0) or
+                 (pos('>'+u_nick+',',u_s)>0) or
+                 (pos('>'+u_nick+'!',u_s)>0) or
+                 (pos(' '+u_nick+'.',u_s)>0) or
+                 (pos(' '+u_nick+',',u_s)>0) or
+                 (pos(' '+u_nick+'!',u_s)>0)
+               );
       pom:=s;
       a:=pos('><B>',u_s)+4;
       b:=pos('</B></FONT>:',u_s);
       pom:=copy(s,a,b-a);
-      FOnSoundRequest(self,pom);
+    end;
+    (* powiadomienie dźwiękowe przy wiadomości nadchodzącej do ciebie *)
+    //   '><b>Samusia</b></font>:';
+    if Assigned(FOnSoundRequest) then if do_mnie and (pom<>'') then FOnSoundRequest(self,pom);
+    (* gdy autoresponse jest aktywne, każda wiadomość wędruje do analizy *)
+    if do_mnie and FAutoResponse and (pom<>'') then if Assigned(FAutoResponseRequest) then
+    begin
+      pom2:=s;
+      a:=pos('><b>'+pom+'</b></font>:',pom2);
+      delete(pom2,1,a+15+length(pom));
+      pom2:=StringReplace(pom2,'</font>','',[rfReplaceAll,rfIgnoreCase]);
+      pom2:=StringReplace(pom2,'<font color=#','<#',[rfReplaceAll,rfIgnoreCase]);
+      //<img src="img/piwosz.gif" alt="piwosz" />
+      while true do begin
+        a:=pos('<img src="',pom2);
+        if a=0 then break;
+        b:=pos('alt="',pom2);
+        delete(pom2,a,b-a);
+        pom2:=StringReplace(pom2,'alt="','<',[rfIgnoreCase]);
+        pom2:=StringReplace(pom2,'" />','>',[rfIgnoreCase]);
+      end;
+      while true do begin
+        a:=pos('&lt;',pom2);
+        if a=0 then break;
+        if a>0 then delete(pom2,a,4);
+        insert('<',pom2,a);
+      end;
+      while true do begin
+        a:=pos('&gt;',pom2);
+        if a=0 then break;
+        if a>0 then delete(pom2,a,4);
+        insert('>',pom2,a);
+      end;
+      FAutoResponseRequest(self,pom,trim(pom2));
     end;
     (* jeśli nie mogę odpowiedzieć - odpowiedź automatyczna *)
     if (FUserStatus<>'<Available>') and (FUserStatus<>'') then
     begin
-      if (pos('><B>'+u_nick+'</B></FONT>:',u_s)=0) and (pos('<FONT COLOR=RED>** PRZYCHODZI <B>'+u_nick+'</B>...</FONT>',u_s)=0)
-        and ((pos(' '+u_nick+' ',u_s)>0) or (pos(' '+u_nick+'<',u_s)>0) or (pos('>'+u_nick+' ',u_s)>0) or (pos('>'+u_nick+'<',u_s)>0))
-          and (time_status+60000<TimeToInteger)
-            then
+      if do_mnie and (time_status+60000<TimeToInteger) then
       begin
         time_status:=TimeToInteger;
         wiadomosc:=StringReplace(FUserStatus,'$',pom,[rfReplaceAll]);
+        wiadomosc:=StringReplace(wiadomosc,'<#>','<'+SColorToHtmlColor(clGray)+'>',[rfReplaceAll]);
         web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+actual_room+'"]}');
       end;
     end;
@@ -798,6 +847,7 @@ begin
   FDevOn:=false;
   FActive:=false;
   FUserStatus:='<Available>';
+  FAutoResponse:=false;
   FIdentify:='<auto>';
   FMaxLines:=200;
   FImagesOFF:=false;
