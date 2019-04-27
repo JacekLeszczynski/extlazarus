@@ -9,29 +9,82 @@ uses
   netsynwebsocket, WebSocket2;
 
 type
-  TPolfanPokoje = record
-    nazwa: string;
-    doc: TStringList;
-    id: integer;
-  end;
+  TPolfanRoomMode = (rmService,rmRoom,rmUser);
 
 type
   TPolfanArchOsInfoElements = (osNone,osWindows86,osWindows64,osLinux86,osLinux64,osFreeBSD86,osFreeBSD64);
   TPolfanOnSoundRequest = procedure(Sender: TObject; aUser: string) of object;
-  TPolfanOnRead = procedure(Sender: TObject; aRoom, aFrame: string) of object;
+  TPolfanOnRead = procedure(Sender: TObject; aFrame: string) of object;
   TPolfanOnImageFilename = procedure(Sender: TObject; aFilename: string; var aNewFilename: string) of object;
   TPolfanOnDownloadRequest = procedure(Sender: TObject; AFilename, APrive: string) of object;
   TPolfanOnDownloadNow = procedure(Sender: TObject; APrive: string) of object;
-  TPolfanOnUserToList = procedure(Sender: TObject; AUsername, ADescription: string; aAttr: integer) of object;
+  TPolfanOnUserToList = procedure(Sender: TObject; ARoom, AUsername, ADescription: string; aAttr: integer) of object;
   TPolfanOnNewAttr = procedure(Sender: TObject; aAttr: integer) of object;
-  TPolfanOnUserNewAttr = procedure(Sender: TObject; AUsername: string; aAttr: integer) of object;
-  TPolfanOnUserDelFromList = procedure(Sender: TObject; AUsername: string) of object;
+  TPolfanOnUserNewAttr = procedure(Sender: TObject; ARoom, AUsername: string; aAttr: integer) of object;
+  TPolfanOnUserDelFromList = procedure(Sender: TObject; ARoom, AUsername: string) of object;
   TPolfanOnInitUserList = procedure(Sender: TObject; AUsers, ADescriptions, AAttributes: TStrings) of object;
-  TPolfanOnReadDocument = procedure(Sender: TObject; AUser: string; AMessage: string; ADocument: TStrings; ARefresh: boolean) of object;
-  TPolfanOnRoomBeginEnd = procedure(Sender: TObject; ARoom: string) of object;
-  TPolfanOnRoomAdd = procedure(Sender: TObject; AUser: string; var AID: integer; AForceSetRoom: boolean) of object;
+  TPolfanOnReadDocument = procedure(Sender: TObject; AName: string; AMode: TPolfanRoomMode; AMessage: string; ADocument: TStrings; ARefresh: boolean) of object;
+  TPolfanOnRoomBegin = procedure(Sender: TObject; ARoom, AOpis: string) of object;
+  TPolfanOnRoomEnd = procedure(Sender: TObject; ARoom: string) of object;
+  TPolfanOnRoomAdd = procedure(Sender: TObject; AUser: string; var AForceSetRoom: boolean) of object;
   TPolfanOnRoomDel = procedure(Sender: TObject; AUser: string; AID: integer) of object;
   TPolfanOnAutoResponseRequest = procedure(Sender: TObject; AUser, AMessage: string) of object;
+
+  { TPolfanRoom }
+
+  TPolfanRoom = class
+  private
+    FDocument: TStrings;
+    FName,FDescription: string;
+    FMode: TPolfanRoomMode;
+    uzyt,uzyt_opis,uzyt_attr: TStrings;
+    function GetIndex(AName: string): integer;
+  protected
+  public
+    constructor Create(AName,ADescription: string; AMode: TPolfanRoomMode);
+    destructor Destroy; override;
+    procedure Clear;
+    procedure Add(AText: string);
+    procedure AddUser(AName,ADescription: string; AAttr: integer);
+    procedure DelUser(AName: string);
+    procedure UpdateAttr(AName: string; AAttr: integer);
+    procedure Truncate(ACount: integer);
+  published
+    property Name: string read FName;
+    property Description: string read FDescription;
+    property Mode: TPolfanRoomMode read FMode;
+    property Document: TStrings read FDocument;
+    property Users: TStrings read uzyt write uzyt;
+    property UsersInfo: TStrings read uzyt_opis write uzyt_opis;
+    property UsersAttr: TStrings read uzyt_attr write uzyt_attr;
+  end;
+
+  { TPolfanRooms }
+
+  TPolfanRoomsTabs = array of TPolfanRoom;
+
+  TPolfanRooms = class
+  private
+    FCount: integer;
+    FCountRooms,FCountUsers: integer;
+    FRooms: TPolfanRoomsTabs;
+  protected
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function Add(AName, ADescription: string; AMode: TPolfanRoomMode): integer;
+    procedure Delete(AIndex: integer);
+    procedure DeleteAll;
+    function GetIndex(AName: string): integer;
+    function GetIndex(AName: string; AMode: TPolfanRoomMode): integer;
+    function GetIndexRoom(AName: string): integer;
+    function GetIndexUser(AName: string): integer;
+  published
+    property Rooms: TPolfanRoomsTabs read FRooms write FRooms;
+    property Count: integer read FCount;
+    property CountRooms: integer read FCountRooms;
+    property CountUsers: integer read FCountUsers;
+  end;
 
   { TPolfan }
 
@@ -62,8 +115,8 @@ type
     FOnRoomClearRequest: TNotifyEvent;
     FOnRoomDel: TPolfanOnRoomDel;
     FOnRoomDelAll: TNotifyEvent;
-    FOnRoomIn: TPolfanOnRoomBeginEnd;
-    FOnRoomOut: TPolfanOnRoomBeginEnd;
+    FOnRoomIn: TPolfanOnRoomBegin;
+    FOnRoomOut: TPolfanOnRoomEnd;
     FOnSoundRequest: TPolfanOnSoundRequest;
     FOnUserAttr: TPolfanOnUserNewAttr;
     FProgName,FProgVersion: string;
@@ -73,9 +126,7 @@ type
     color_user,color_op: string;
     color_guest: array of string;
     color_guest_count: integer;
-    actual_room: string;
-    pokoje: array of TPolfanPokoje;
-    pokoje_count: integer;
+    pokoje: TPolfanRooms;
     nick: string;
     time_status: integer;
     src_dump: boolean;
@@ -88,12 +139,13 @@ type
       aCloseCode: integer; aCloseReason: string; aClosedByPeer: boolean);
     procedure WebRead(aSender: TWebSocketCustomConnection; aFinal, aRes1,
       aRes2, aRes3: boolean; aCode: integer; aData: TMemoryStream);
+    {$IFDEF WINDOWS}function WindowsOsInfo: string;{$ENDIF}
     function ArchInfo: TPolfanArchOsInfoElements;
     function IsExistImages(aPrive: string; var str: string): boolean;
     function ImagePlusOpis(str: string): string;
     procedure ReadColorsTable(ATable: string);
     procedure ReadFrame(aFrame: string);
-    procedure GoRefresh(aMessage: string = ''; aUser: string = '');
+    procedure GoRefresh(aMessage: string = ''; aName: string = '');
     procedure StartDownloading(APrive: string);
     function indeks_pokoju(nazwa: string): integer;
     function dodaj_pokoj(nazwa: string): integer;
@@ -107,7 +159,8 @@ type
     procedure Disconnect;
     procedure InitUserStatus;
     function SendText(AText: string; AZmianaPokoju: boolean = false): boolean;
-    procedure Refresh(AUser: string = '');
+    procedure Refresh(AName: string = '');
+    procedure RefreshUserList(AName: string);
     function GetLoginNick: string;
     procedure AddNewRoom(ARoom: string);
     procedure DelRoom(ARoom: string);
@@ -115,7 +168,9 @@ type
     function GetSourceDump: TStrings;
     procedure SourceDumpClear;
     procedure RoomClear;
-    function IsRoom: string;
+    function IsRoom(AName: string): boolean;
+    function IsUser(AName: string): boolean;
+    function IsRoomsCount: integer;
     function GetColorUser(aAttr: integer): TColor;
     procedure AddDocument(aText: string);
   published
@@ -165,9 +220,9 @@ type
     {Usuwa wszystkich użytkowników.}
     property OnListUserDeInit: TNotifyEvent read FOnListUserDeInit write FOnListUserDeInit;
     {Wchodzisz do pokoju.}
-    property OnRoomIn: TPolfanOnRoomBeginEnd read FOnRoomIn write FOnRoomIn;
+    property OnRoomIn: TPolfanOnRoomBegin read FOnRoomIn write FOnRoomIn;
     {Opuszczasz pokój.}
-    property OnRoomOut: TPolfanOnRoomBeginEnd read FOnRoomOut write FOnRoomOut;
+    property OnRoomOut: TPolfanOnRoomEnd read FOnRoomOut write FOnRoomOut;
     property OnRoomClearRequest: TNotifyEvent read FOnRoomClearRequest write FOnRoomClearRequest;
     property OnReadDocument: TPolfanOnReadDocument read FOnReadDocument write FOnReadDocument;
     property OnRoomAdd: TPolfanOnRoomAdd read FOnRoomAdd write FOnRoomAdd;
@@ -184,6 +239,9 @@ function SHtmlColorToColor(s: string; out Len: integer; Default: TColor): TColor
 implementation
 
 uses
+  {$IFDEF WINDOWS}
+  dos,
+  {$ENDIF}
   synautil, math, fpjson, jsonparser, strutils;
 
 type
@@ -325,27 +383,209 @@ begin
   Result:= RGBToColor(N1, N2, N3);
 end;
 
+{ TPolfanRooms }
+
+constructor TPolfanRooms.Create;
+begin
+  FCount:=0;
+  FCountRooms:=0;
+  FCountUsers:=0;
+end;
+
+destructor TPolfanRooms.Destroy;
+begin
+  inherited Destroy;
+end;
+
+function TPolfanRooms.Add(AName, ADescription: string; AMode: TPolfanRoomMode
+  ): integer;
+var
+  index: integer;
+begin
+  index:=GetIndex(AName);
+  if index=-1 then
+  begin
+    inc(FCount);
+    if AMode=rmRoom then inc(FCountRooms) else inc(FCountUsers);
+    SetLength(FRooms,FCount);
+    FRooms[FCount-1]:=TPolfanRoom.Create(AName,ADescription,AMode);
+    index:=FCount-1;
+  end;
+  result:=index;
+end;
+
+procedure TPolfanRooms.Delete(AIndex: integer);
+var
+  i: integer;
+begin
+  if FRooms[AIndex].Mode=rmRoom then dec(FCountRooms) else dec(FCountUsers);
+  FRooms[AIndex].Free;
+  for i:=AIndex+1 to FCount-1 do FRooms[i-1]:=FRooms[i];
+  dec(FCount);
+  SetLength(FRooms,FCount);
+end;
+
+procedure TPolfanRooms.DeleteAll;
+var
+  i: integer;
+begin
+  for i:=FCount-1 downto 0 do Delete(i);
+end;
+
+function TPolfanRooms.GetIndex(AName: string): integer;
+var
+  i,a: integer;
+begin
+  a:=-1;
+  for i:=0 to FCount-1 do if FRooms[i].Name=AName then
+  begin
+    a:=i;
+    break;
+  end;
+  result:=a;
+end;
+
+function TPolfanRooms.GetIndex(AName: string; AMode: TPolfanRoomMode): integer;
+var
+  i,a: integer;
+begin
+  a:=-1;
+  for i:=0 to FCount-1 do if (FRooms[i].Mode=AMode) and (FRooms[i].Name=AName) then
+  begin
+    a:=i;
+    break;
+  end;
+  result:=a;
+end;
+
+function TPolfanRooms.GetIndexRoom(AName: string): integer;
+begin
+  result:=GetIndex(AName,rmRoom);
+end;
+
+function TPolfanRooms.GetIndexUser(AName: string): integer;
+begin
+  result:=GetIndex(AName,rmUser);
+end;
+
+{ TPolfanRoom }
+
+function TPolfanRoom.GetIndex(AName: string): integer;
+var
+  a,i: integer;
+begin
+  a:=-1;
+  for i:=0 to uzyt.Count-1 do if uzyt[i]=AName then
+  begin
+    a:=i;
+    break;
+  end;
+  result:=a;
+end;
+
+constructor TPolfanRoom.Create(AName, ADescription: string;
+  AMode: TPolfanRoomMode);
+begin
+  FName:=AName;
+  FDescription:=ADescription;
+  FMode:=AMode;
+  FDocument:=TstringList.Create;
+  if AMode=rmRoom then
+  begin
+    uzyt:=TstringList.Create;
+    uzyt_opis:=TstringList.Create;
+    uzyt_attr:=TstringList.Create;
+  end;
+end;
+
+destructor TPolfanRoom.Destroy;
+begin
+  FDocument.Free;
+  if FMode=rmRoom then
+  begin
+    uzyt.Free;
+    uzyt_opis.Free;
+    uzyt_attr.Free;
+  end;
+  inherited Destroy;
+end;
+
+procedure TPolfanRoom.Clear;
+begin
+  FDocument.Clear;
+  if FMode=rmRoom then
+  begin
+    uzyt.Clear;
+    uzyt_opis.Clear;
+    uzyt_attr.Clear;
+  end;
+end;
+
+procedure TPolfanRoom.Add(AText: string);
+begin
+  FDocument.Add(AText);
+end;
+
+procedure TPolfanRoom.AddUser(AName, ADescription: string; AAttr: integer);
+begin
+  uzyt.Add(AName);
+  uzyt_opis.Add(ADescription);
+  uzyt_attr.Add(IntToStr(AAttr));
+end;
+
+procedure TPolfanRoom.DelUser(AName: string);
+var
+  i,a: integer;
+begin
+  a:=GetIndex(AName);
+  if a>-1 then
+  begin
+    uzyt.Delete(a);
+    uzyt_opis.Delete(a);
+    uzyt_attr.Delete(a);
+  end;
+end;
+
+procedure TPolfanRoom.UpdateAttr(AName: string; AAttr: integer);
+var
+  a: integer;
+begin
+  a:=GetIndex(AName);
+  uzyt_attr.Delete(a);
+  uzyt_attr.Insert(a,IntToStr(AAttr));
+end;
+
+procedure TPolfanRoom.Truncate(ACount: integer);
+begin
+  while FDocument.Count>ACount do FDocument.Delete(0);
+end;
+
 { TPolfan }
 
 procedure TPolfan.WebOpen(ASender: TWebSocketCustomConnection);
 var
-  s,ver: string;
+  s,pom,ver: string;
 begin
   FActive:=true;
   if FProgVersion='' then ver:='' else ver:=' '+FProgVersion;
   sleep(500);
   if (FIdentify<>'<auto>') and (FIdentify<>'') then s:=FIdentify else
-  case ArchInfo of
-    osLinux86:   s:=FProgName+ver+' (Linux 32bit)';
-    osLinux64:   s:=FProgName+ver+' (Linux 64bit)';
-    osWindows86: s:=FProgName+ver+' (Windows 32bit)';
-    osWindows64: s:=FProgName+ver+' (Windows 64bit)';
-    osNone:      s:=FProgName+ver;
-    else         s:=FProgName+ver;
+  begin
+    case ArchInfo of
+      osLinux86:   s:=FProgName+ver+' (Linux i386)';
+      osLinux64:   s:=FProgName+ver+' (Linux x86_64)';
+      osWindows86: s:=FProgName+ver+' (Windows 32bit)';
+      osWindows64: s:=FProgName+ver+' (Windows 64bit)';
+      osNone:      s:=FProgName+ver;
+      else         s:=FProgName+ver;
+    end;
+    {$IFDEF WINDOWS}
+    pom:=WindowsOsInfo;
+    if pom<>'' then s:=FProgName+ver+' (Windows '+pom+')';
+    {$ENDIF}
   end;
-  actual_room:=FRoom;
-  if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+actual_room+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
-  web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+actual_room+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
+  if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
+  web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   if Assigned(FOnOpen) then FOnOpen(self);
 end;
 
@@ -382,10 +622,48 @@ begin
   //InfoMemo.Lines.Insert(0, Format('OnRead %d, final: %d, ext1: %d, ext2: %d, ext3: %d, type: %d, length: %d', [aSender.Index, ord(aFinal), ord(aRes1), ord(aRes2), ord(aRes3), aCode, aData.Size]));
   s:=ReadStrFromStream(c.ReadStream,min(c.ReadStream.size,10*1024));
   ReadFrame(s);
-  if Assigned(FOnRead) then FOnRead(self,actual_room,s);
+  if Assigned(FOnRead) then FOnRead(self,s);
 end;
 
+{$IFDEF WINDOWS}
+function TPolfan.WindowsOsInfo: string;
+var
+  Release: string;
+  Version: string;
+begin
+  Release := IntToStr(Lo(DosVersion))+ '.'+IntToStr(Hi(DosVersion));
+  Version := '';
+  if Release = '1.1'  then Version := '1.01';
+  if Release = '1.2'  then Version := '1.02';
+  if Release = '1.3'  then Version := '1.03';
+  if Release = '1.4'  then Version := '1.04';
+  if Release = '2.3'  then Version := '2.03';
+  if Release = '2.10' then Version := '2.10';
+  if Release = '2.11' then Version := '2.11';
+  if Release = '3.0'  then Version := '3.0';
+  if Release = '3.10' then Version := '3.1 or Windows NT 3.1';
+  if Release = '3.11' then Version := 'for Workgroups 3.11';
+  if Release = '3.2'  then Version := '3.2';
+  if Release = '3.50' then Version := 'NT 3.5';
+  if Release = '3.51' then Version := 'NT 3.51';
+  if Release = '4.0'  then Version := '95 or Windows NT 4.0';
+  if Release = '4.10' then Version := '98';
+  if Release = '5.0'  then Version := '2000';
+  if Release = '4.90' then Version := 'ME';
+  if Release = '5.1'  then Version := 'XP';
+  if Release = '5.2'  then Version := 'XP Professional x64';
+  if Release = '6.0'  then Version := 'Vista';
+  if Release = '6.1'  then Version := '7';
+  if Release = '6.2'  then Version := '8';
+  if Release = '6.3'  then Version := '8.1';
+  if Release = '10.0' then Version := '10';
+  result:=Version;
+end;
+{$ENDIF}
+
 function TPolfan.ArchInfo: TPolfanArchOsInfoElements;
+var
+  s: string;
 begin
   result:=osNone;
   {$IFDEF Windows}
@@ -526,8 +804,8 @@ var
   jData : TJSONData;
   jObject : TJSONObject;
   jArray : TJSONArray;
-  s,nadawca,adresat,uzytkownik,pom,pom2: string;
-  i,ii,ile: integer;
+  s,sroom,opis,nadawca,adresat,pom,pom2: string;
+  i,ii,ile,id: integer;
   kod,kod2,a,b: integer;
   wiadomosc: string;
   u_nick,u_s: string;
@@ -535,7 +813,7 @@ var
   do_mnie: boolean;
 begin
   if FDevOn then src.Add('[Received]: '+AFrame);
-  uzytkownik:='';
+  sroom:='';
   do_mnie:=false;
   jData:=GetJSON(aFrame);
   jObject:=TJSONObject(jData);
@@ -548,6 +826,7 @@ begin
   begin
     jArray:=jObject.Arrays['strings'];
     s:=jArray[0].AsString;
+    sroom:=jArray[1].AsString;
     (* tu kod sprawdzający czy obrazek istnieje, a jak nie, to ściąga obrazek automatycznie *)
     if Assigned(FOnDownloadRequest) then if IsExistImages('',s) then StartDownloading('');
     if FImgAltVisible then s:=ImagePlusOpis(s);
@@ -616,7 +895,7 @@ begin
         time_status:=TimeToInteger;
         wiadomosc:=StringReplace(FUserStatus,'$',pom,[rfReplaceAll]);
         wiadomosc:=StringReplace(wiadomosc,'<#>','<'+SColorToHtmlColor(clGray)+'>',[rfReplaceAll]);
-        web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+actual_room+'"]}');
+        web.SendText('{"numbers":[410],"strings":["<'+SColorToHtmlColor(clGray)+'>'+wiadomosc+'", "'+sroom+'"]}');
       end;
     end;
   end else
@@ -628,10 +907,10 @@ begin
     s:=jArray[0].AsString; {wiadomość}
     nadawca:=jArray[1].AsString; {nadawca}
     if ile>=3 then adresat:=jArray[2].AsString else adresat:=''; {adresat}
-    if (adresat='') or (adresat=nick) then uzytkownik:=nadawca else
-    if (nadawca='') or (nadawca=nick) then uzytkownik:=adresat else
-    uzytkownik:='';
-    if Assigned(FOnDownloadRequest) then if IsExistImages(uzytkownik,s) then StartDownloading(uzytkownik);
+    if (adresat='') or (adresat=nick) then sroom:=nadawca else
+    if (nadawca='') or (nadawca=nick) then sroom:=adresat else
+    sroom:='';
+    if Assigned(FOnDownloadRequest) then if IsExistImages(sroom,s) then StartDownloading(sroom);
     if FImgAltVisible then s:=ImagePlusOpis(s);
     if nadawca<>nick then if Assigned(FOnSoundRequest) then FOnSoundRequest(self,'');
   end else
@@ -639,20 +918,29 @@ begin
   if kod=615 then {ZJAWIA SIĘ NOWY UŻYTKOWNIK}
   begin
     jArray:=jObject.Arrays['strings'];
-    if Assigned(FOnListUserAdd) then FOnListUserAdd(self,jArray[0].AsString,jArray[2].AsString,kod2);
+    sroom:=jArray[1].AsString;
+    id:=pokoje.GetIndex(sroom);
+    pokoje.Rooms[id].AddUser(jArray[0].AsString,jArray[2].AsString,kod2);
+    if Assigned(FOnListUserAdd) then FOnListUserAdd(self,sroom,jArray[0].AsString,jArray[2].AsString,kod2);
     if jArray[0].AsString=nick then if Assigned(FOnNewAttr) then FOnNewAttr(self,kod2);
   end else
 
   if kod=616 then {UŻYTKOWNIK ODCHODZI}
   begin
     jArray:=jObject.Arrays['strings'];
-    if Assigned(FOnListUserDel) then FOnListUserDel(self,jArray[0].AsString);
+    sroom:=jArray[1].AsString;
+    id:=pokoje.GetIndex(sroom);
+    pokoje.Rooms[id].DelUser(jArray[0].AsString);
+    if Assigned(FOnListUserDel) then FOnListUserDel(self,sroom,jArray[0].AsString);
   end else
 
   if kod=617 then {INNY UŻYTKOWNIK DOSTAJE AKTUALIZACJĘ UPRAWNIEŃ}
   begin
     jArray:=jObject.Arrays['strings'];
-    if Assigned(FOnUserAttr) then FOnUserAttr(self,jArray[0].AsString,kod2);
+    sroom:=jArray[1].AsString;
+    id:=pokoje.GetIndex(sroom);
+    pokoje.Rooms[id].UpdateAttr(jArray[0].AsString,kod2);
+    if Assigned(FOnUserAttr) then FOnUserAttr(self,sroom,jArray[0].AsString,kod2);
   end else
 
   if (kod=618) and (kod2=4) then {Jako kto się loguję}
@@ -676,6 +964,7 @@ begin
         inc(i,2);
       end;
       jArray:=jObject.Arrays['strings'];
+      sroom:=jArray[0].AsString;
       i:=1;
       ii:=jArray.Count;
       while i<ii do
@@ -684,6 +973,10 @@ begin
         pom_ss2.Add(jArray[i+1].AsString);
         inc(i,2);
       end;
+      id:=pokoje.GetIndex(sroom);
+      pokoje.Rooms[id].Users.Assign(pom_ss1);
+      pokoje.Rooms[id].UsersInfo.Assign(pom_ss2);
+      pokoje.Rooms[id].UsersAttr.Assign(pom_ss3);
       if Assigned(FOnListUsersInit) then FOnListUsersInit(self,pom_ss1,pom_ss2,pom_ss3);
     finally
       pom_ss1.Free;
@@ -692,45 +985,50 @@ begin
     end;
   end else
 
-  if kod=625 then {NAGŁÓWKI POKOJU}
+  if (kod=625) and (kod2=0) then {WŁAŚNIE WSZEDŁEŚ DO POKOJU - NAGŁÓWKI POKOJU}
   begin
     jArray:=jObject.Arrays['strings'];
-    actual_room:=jArray[0].AsString;
-    if Assigned(FOnRoomIn) then FOnRoomIn(self,actual_room);
+    sroom:=jArray[0].AsString;
+    opis:=jArray[1].AsString;
+    pokoje.Add(sroom,opis,rmRoom);
+    if Assigned(FOnRoomIn) then FOnRoomIn(self,sroom,opis);
   end else
 
   if kod=626 then {MAPY KOLORÓW}
   begin
+    sroom:='';
     jArray:=jObject.Arrays['strings'];
     ReadColorsTable(jArray[0].AsString);
     if FPassword='' then nick:='~'+FUser else nick:=FUser; //Na start, potem i tak zostanie zaktualizowany
     if Assigned(FOnNewAttr) then FOnNewAttr(self,0); //Reset wszystkiego, jak będzie trzeba potem się odświeży
   end else
 
-  if kod=630 then {INFORMACJE SERWERA DO UŻYTKOWNIKA - WAŻNE}
+  if kod=630 then {INFORMACJE SERWERA DO UŻYTKOWNIKA}
   begin
     jArray:=jObject.Arrays['strings'];
     s:=jArray[0].AsString;
+    sroom:=jArray[1].AsString;
+    exit;
   end else
 
   if kod=631 then {OPUSZCZASZ POKÓJ}
   begin
     jArray:=jObject.Arrays['strings'];
-    actual_room:='';
-    document.Clear;
-    if Assigned(FOnRoomOut) then FOnRoomOut(self,jArray[1].AsString);
+    sroom:=jArray[1].AsString;
+    id:=pokoje.GetIndex(sroom);
+    pokoje.Delete(id);
+    if Assigned(FOnRoomOut) then FOnRoomOut(self,sroom);
     if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
-    jData.Free;
     exit;
   end else
 
   if kod=65535 then {ZAMKNIJ POŁĄCZENIE}
     if web.Active then web.Close;
 
-  GoRefresh(s+'<br>',uzytkownik);
+  GoRefresh(s+'<br>',sroom);
 end;
 
-procedure TPolfan.GoRefresh(aMessage: string; aUser: string);
+procedure TPolfan.GoRefresh(aMessage: string; aName: string);
 var
   nazwa: string;
   a,id: integer;
@@ -738,30 +1036,30 @@ begin
   (* ONLY REFRESH *)
   if aMessage='' then
   begin
-    if aUser='' then
+    if aName='' then
     begin
-      if Assigned(FOnReadDocument) then FOnReadDocument(self,aUser,aMessage,document,true);
+      if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,rmService,aMessage,document,true);
     end else begin
-      id:=indeks_pokoju(aUser);
+      id:=pokoje.GetIndex(aName);
       if id=-1 then exit;
-      if Assigned(FOnReadDocument) then FOnReadDocument(self,aUser,aMessage,pokoje[id].doc,true);
+      if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,pokoje.Rooms[id].Mode,aMessage,pokoje.Rooms[id].Document,true);
     end;
     exit;
   end;
   (* NOWA WIADOMOŚĆ *)
-  if aUser='' then
+  if aName='' then
   begin
     (* POKÓJ GŁÓWNY *)
     document.Add(aMessage);
     while document.Count>FMaxLines do document.Delete(0);
-    if Assigned(FOnReadDocument) then FOnReadDocument(self,aUser,aMessage,document,false);
+    if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,rmService,aMessage,document,false);
   end else begin
-    (* PRIVE *)
-    id:=indeks_pokoju(aUser);
-    if id=-1 then id:=dodaj_pokoj(aUser);
-    pokoje[id].doc.Add(aMessage);
-    while pokoje[id].doc.Count>200 do pokoje[id].doc.Delete(0);
-    if Assigned(FOnReadDocument) then FOnReadDocument(self,aUser,aMessage,pokoje[id].doc,false);
+    (* ROOM OR USER *)
+    id:=pokoje.GetIndex(aName);
+    if id=-1 then id:=dodaj_pokoj(aName);
+    pokoje.Rooms[id].Add(aMessage);
+    if FMaxLines>0 then pokoje.Rooms[id].Truncate(FMaxLines);
+    if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,pokoje.Rooms[id].Mode,aMessage,pokoje.Rooms[id].Document,false);
   end;
 end;
 
@@ -771,33 +1069,20 @@ begin
 end;
 
 function TPolfan.indeks_pokoju(nazwa: string): integer;
-var
-  i,a: integer;
 begin
-  a:=-1;
-  for i:=0 to pokoje_count-1 do if pokoje[i].nazwa=nazwa then
-  begin
-    a:=i;
-    break;
-  end;
-  result:=a;
+  result:=pokoje.GetIndex(nazwa);
 end;
 
 function TPolfan.dodaj_pokoj(nazwa: string): integer;
 var
-  id,id_pokoju: integer;
+  id: integer;
 begin
-  id:=indeks_pokoju(nazwa);
+  id:=pokoje.GetIndex(nazwa);
   if id=-1 then
   begin
     (* dodaję pokój *)
-    inc(pokoje_count);
-    SetLength(pokoje,pokoje_count);
-    id:=pokoje_count-1;
-    pokoje[id].nazwa:=nazwa;
-    pokoje[id].doc:=TStringList.Create;
-    if Assigned(FOnRoomAdd) then FOnRoomAdd(self,nazwa,id_pokoju,send_zmiana_pokoju);
-    pokoje[id].id:=id_pokoju;
+    id:=pokoje.Add(nazwa,'',rmUser);
+    if Assigned(FOnRoomAdd) then FOnRoomAdd(self,nazwa,send_zmiana_pokoju);
   end;
   send_zmiana_pokoju:=false;
   result:=id;
@@ -807,30 +1092,24 @@ procedure TPolfan.usun_pokoj(nazwa: string);
 var
   id,id_pokoju,i: integer;
 begin
-  id:=indeks_pokoju(nazwa);
+  id:=pokoje.GetIndex(nazwa);
   if id=-1 then exit;
-  id_pokoju:=pokoje[id].id;
-  pokoje[id].doc.Free;
-  for i:=id+1 to pokoje_count-1 do pokoje[i-1]:=pokoje[i];
-  dec(pokoje_count);
-  SetLength(pokoje,pokoje_count);
-  if Assigned(FOnRoomDel) then FOnRoomDel(self,nazwa,id_pokoju);
+  pokoje.Delete(id);
+  if Assigned(FOnRoomDel) then FOnRoomDel(self,nazwa,id);
 end;
 
 procedure TPolfan.usun_wszystkie_pokoje;
 var
   i: integer;
 begin
-  if pokoje_count=0 then exit;
-  for i:=0 to pokoje_count-1 do pokoje[i].doc.Free;
-  pokoje_count:=0;
-  SetLength(pokoje,pokoje_count);
+  pokoje.DeleteAll;
   if Assigned(FOnRoomDelAll) then FOnRoomDelAll(self);
 end;
 
 constructor TPolfan.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  pokoje:=TPolfanRooms.Create;
   document:=TStringList.Create;
   src:=TStringList.Create;
   src_dump:=false;
@@ -842,7 +1121,6 @@ begin
   web.OnOpen:=@WebOpen;
   web.OnClose:=@WebClose;
   web.OnRead:=@WebRead;
-  pokoje_count:=0;
   color_guest_count:=0;
   FDevOn:=false;
   FActive:=false;
@@ -860,6 +1138,7 @@ begin
   document.Free;
   src.Free;
   usun_wszystkie_pokoje;
+  pokoje.Free;
   inherited Destroy;
 end;
 
@@ -898,9 +1177,17 @@ begin
   result:=web.SendText(AText);
 end;
 
-procedure TPolfan.Refresh(AUser: string);
+procedure TPolfan.Refresh(AName: string);
 begin
-  GoRefresh('',AUser);
+  GoRefresh('',AName);
+end;
+
+procedure TPolfan.RefreshUserList(AName: string);
+var
+  id: integer;
+begin
+  id:=pokoje.GetIndex(AName);
+  if Assigned(FOnListUsersInit) then FOnListUsersInit(self,pokoje.Rooms[id].Users,pokoje.Rooms[id].UsersInfo,pokoje.Rooms[id].UsersAttr);
 end;
 
 function TPolfan.GetLoginNick: string;
@@ -940,9 +1227,25 @@ begin
   if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
 end;
 
-function TPolfan.IsRoom: string;
+function TPolfan.IsRoom(AName: string): boolean;
+var
+  id: integer;
 begin
-  result:=actual_room;
+  id:=pokoje.GetIndex(AName);
+  result:=pokoje.Rooms[id].Mode=rmRoom;
+end;
+
+function TPolfan.IsUser(AName: string): boolean;
+var
+  id: integer;
+begin
+  id:=pokoje.GetIndex(AName);
+  result:=pokoje.Rooms[id].Mode=rmUser;
+end;
+
+function TPolfan.IsRoomsCount: integer;
+begin
+  result:=pokoje.CountRooms;
 end;
 
 function TPolfan.GetColorUser(aAttr: integer): TColor;
