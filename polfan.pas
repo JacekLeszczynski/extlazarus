@@ -13,7 +13,9 @@ type
 
 type
   TPolfanArchOsInfoElements = (osNone,osWindows86,osWindows64,osLinux86,osLinux64,osFreeBSD86,osFreeBSD64);
-  TPolfanOnSoundRequest = procedure(Sender: TObject; aUser: string) of object;
+  TPolfanOnBeforeConnect = procedure(Sender: TObject; aUser, aFingerPrint, aOS: string; var aAccepted: boolean) of object;
+  TPolfanOnClose = procedure(Sender: TObject; aErr: integer; aErrorString: string) of object;
+  TPolfanOnSoundRequest = procedure(Sender: TObject; aUser, aRoom: string) of object;
   TPolfanOnRead = procedure(Sender: TObject; aFrame: string) of object;
   TPolfanOnImageFilename = procedure(Sender: TObject; aFilename: string; var aNewFilename: string) of object;
   TPolfanOnDownloadRequest = procedure(Sender: TObject; AFilename, APrive: string) of object;
@@ -23,6 +25,8 @@ type
   TPolfanOnUserNewAttr = procedure(Sender: TObject; ARoom, AUsername: string; aAttr: integer) of object;
   TPolfanOnUserDelFromList = procedure(Sender: TObject; ARoom, AUsername: string) of object;
   TPolfanOnInitUserList = procedure(Sender: TObject; AUsers, ADescriptions, AAttributes: TStrings) of object;
+  TPolfanOnBeforeReadFrame = procedure(Sender: TObject; aFrame: string; var aDropNow, aNotLogSrc: boolean) of object;
+  TPolfanOnBeforeReadDocument = procedure(Sender: TObject; AName, aNadawca, aAdresat: string; AMode: TPolfanRoomMode; AMessage: string; var aDropNow, aDeleteFromLogSrc: boolean) of object;
   TPolfanOnReadDocument = procedure(Sender: TObject; AName: string; AMode: TPolfanRoomMode; AMessage: string; ADocument: TStrings; ARefresh: boolean) of object;
   TPolfanOnRoomBegin = procedure(Sender: TObject; ARoom, AOpis: string) of object;
   TPolfanOnRoomEnd = procedure(Sender: TObject; ARoom: string) of object;
@@ -95,11 +99,16 @@ type
     FAutoResponseRequest: TPolfanOnAutoResponseRequest;
     FBaseDirectory: string;
     FDevOn: boolean;
+    FFingerPrint: string;
     FIdentify: string;
     FImagesOFF: boolean;
     FImgAltVisible: boolean;
     FMaxLines: integer;
-    FOnClose: TNotifyEvent;
+    FOnAfterConnect: TNotifyEvent;
+    FOnBeforeConnect: TPolfanOnBeforeConnect;
+    FOnBeforeReadDocument: TPolfanOnBeforeReadDocument;
+    FOnBeforeReadFrame: TPolfanOnBeforeReadFrame;
+    FOnClose: TPolfanOnClose;
     FOnDownloadNow: TPolfanOnDownloadNow;
     FOnDownloadRequest: TPolfanOnDownloadRequest;
     FOnImageFilename: TPolfanOnImageFilename;
@@ -120,6 +129,7 @@ type
     FOnSoundRequest: TPolfanOnSoundRequest;
     FOnUserAttr: TPolfanOnUserNewAttr;
     FProgName,FProgVersion: string;
+    FSilentMute: boolean;
     FUser,FPassword,FRoom: string;
     FUserStatus: string;
     web: TNetSynWebSocket;
@@ -131,7 +141,10 @@ type
     time_status: integer;
     src_dump: boolean;
     src,document: TStrings;
+    kategorie_emotek: TStringList;
     send_zmiana_pokoju: boolean;
+    error_connected: integer;
+    error_connected_str: string;
     procedure SetIdentify(AValue: string);
     procedure SetUserStatus(AValue: string);
     procedure WebOpen(ASender: TWebSocketCustomConnection);
@@ -144,8 +157,9 @@ type
     function IsExistImages(aPrive: string; var str: string): boolean;
     function ImagePlusOpis(str: string): string;
     procedure ReadColorsTable(ATable: string);
+    procedure ReadKategorieEmotek(AText: string);
     procedure ReadFrame(aFrame: string);
-    procedure GoRefresh(aMessage: string = ''; aName: string = '');
+    procedure GoRefresh(aMessage: string = ''; aName: string = ''; aNadawca: string = ''; aAdresat: string = ''; aNadawcaWiadomosci: string = ''; aOdbiorcaWiadomosci: string = ''; aSoundNow: boolean = false);
     procedure StartDownloading(APrive: string);
     function indeks_pokoju(nazwa: string): integer;
     function dodaj_pokoj(nazwa: string): integer;
@@ -159,6 +173,7 @@ type
     procedure Disconnect;
     procedure InitUserStatus;
     function SendText(AText: string; AZmianaPokoju: boolean = false): boolean;
+    function SendTextIgnoreSilentMute(AText: string; AZmianaPokoju: boolean = false): boolean;
     procedure Refresh(AName: string = '');
     procedure RefreshUserList(AName: string);
     function GetLoginNick: string;
@@ -172,7 +187,7 @@ type
     function IsUser(AName: string): boolean;
     function IsRoomsCount: integer;
     function GetColorUser(aAttr: integer): TColor;
-    procedure AddDocument(aText: string);
+    procedure AddDocument(aText: string; aRoom: string = '');
   published
     property Active: boolean read FActive;
     property ProgName: string read FProgName write FProgName;
@@ -184,6 +199,8 @@ type
     property BaseDirectory: string read FBaseDirectory write FBaseDirectory;
     property ImgAltVisible: boolean read FImgAltVisible write FImgAltVisible;
     property MaxLines: integer read FMaxLines write FMaxLines default 200;
+    property FingerPrint: string read FFingerPrint write FFingerPrint;
+    property SilentMute: boolean read FSilentMute write FSilentMute default false;
     {Gdy włączone przed połączeniem,
     będzie można zdampować całą komunikację.}
     property DeveloperCodeOn: boolean read FDevOn write FDevOn default false;
@@ -195,8 +212,10 @@ type
     property AutoResponse: boolean read FAutoResponse write FAutoResponse;
     {Wyłącza obsługę obrazków - emotek.}
     property ImagesOFF: boolean read FImagesOFF write FImagesOFF;
+    property OnBeforeConnect: TPolfanOnBeforeConnect read FOnBeforeConnect write FOnBeforeConnect;
     property OnOpen: TNotifyEvent read FOnOpen write FOnOpen;
-    property OnClose: TNotifyEvent read FOnClose write FOnClose;
+    property OnAFterConnect: TNotifyEvent read FOnAfterConnect write FOnAfterConnect;
+    property OnClose: TPolfanOnClose read FOnClose write FOnClose;
     {Została odebrana ramka tekstu.}
     property OnRead: TPolfanOnRead read FOnRead write FOnRead;
     {Polecenie odebrania powiadomienia
@@ -224,6 +243,8 @@ type
     {Opuszczasz pokój.}
     property OnRoomOut: TPolfanOnRoomEnd read FOnRoomOut write FOnRoomOut;
     property OnRoomClearRequest: TNotifyEvent read FOnRoomClearRequest write FOnRoomClearRequest;
+    property OnBeforeReadFrame: TPolfanOnBeforeReadFrame read FOnBeforeReadFrame write FOnBeforeReadFrame;
+    property OnBeforeReadDocument: TPolfanOnBeforeReadDocument read FOnBeforeReadDocument write FOnBeforeReadDocument;
     property OnReadDocument: TPolfanOnReadDocument read FOnReadDocument write FOnReadDocument;
     property OnRoomAdd: TPolfanOnRoomAdd read FOnRoomAdd write FOnRoomAdd;
     property OnRoomDel: TPolfanOnRoomDel read FOnRoomDel write FOnRoomDel;
@@ -565,25 +586,37 @@ end;
 procedure TPolfan.WebOpen(ASender: TWebSocketCustomConnection);
 var
   s,pom,ver: string;
+  vOS: string;
+  vAccepted: boolean;
 begin
-  FActive:=true;
+  vAccepted:=true;
+  error_connected:=0;
+  error_connected_str:='';
   if FProgVersion='' then ver:='' else ver:=' '+FProgVersion;
   sleep(500);
   if (FIdentify<>'<auto>') and (FIdentify<>'') then s:=FIdentify else
   begin
     case ArchInfo of
-      osLinux86:   s:=FProgName+ver+' (Linux i386)';
-      osLinux64:   s:=FProgName+ver+' (Linux x86_64)';
-      osWindows86: s:=FProgName+ver+' (Windows 32bit)';
-      osWindows64: s:=FProgName+ver+' (Windows 64bit)';
-      osNone:      s:=FProgName+ver;
-      else         s:=FProgName+ver;
+      osLinux86:   vOS:='Linux i386';
+      osLinux64:   vOS:='Linux x86_64';
+      osWindows86: vOS:='Windows 32bit';
+      osWindows64: vOS:='Windows 64bit';
+      osNone:      vOS:='_none_';
+      else         vOS:='_none_';
     end;
     {$IFDEF WINDOWS}
-    pom:=WindowsOsInfo;
-    if pom<>'' then s:=FProgName+ver+' (Windows '+pom+')';
+    s:=WindowsOsInfo;
+    if s<>'' then vOS:=s;
     {$ENDIF}
+    s:=FProgName+ver+' ('+vOS+')';
   end;
+  if Assigned(FOnBeforeConnect) then FOnBeforeConnect(self,FUser,FFingerPrint,vOS,vAccepted);
+  if not vAccepted then
+  begin
+    if Assigned(FOnClose) then FOnClose(self,500,'Dostęp zabroniony!^Wszelkie skargi i zażalenia proszę kierować do: kontakt@polfan.pl');
+    exit;
+  end;
+  FActive:=true;
   if FDevOn then src.Add('[Sent]: {"numbers": [1400], "strings":["'+FUser+'","*****","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   web.SendText('{"numbers": [1400], "strings":["'+FUser+'","'+FPassword+'","","'+FRoom+'","'+STR_LOGIN1+'","'+STR_LOGIN2+'","","'+s+'"]}');
   if Assigned(FOnOpen) then FOnOpen(self);
@@ -604,10 +637,11 @@ procedure TPolfan.WebClose(aSender: TWebSocketCustomConnection;
 begin
   FActive:=false;
   document.Clear;
+  kategorie_emotek.Clear;
   usun_wszystkie_pokoje;
   nick:='';
   if Assigned(FOnListUserDeInit) then FOnListUserDeInit(self);
-  if Assigned(FOnClose) then FOnClose(self);
+  if Assigned(FOnClose) then FOnClose(self,error_connected,error_connected_str);
   if Assigned(FOnRoomClearRequest) then FOnRoomClearRequest(self);
 end;
 
@@ -633,30 +667,30 @@ var
 begin
   Release := IntToStr(Lo(DosVersion))+ '.'+IntToStr(Hi(DosVersion));
   Version := '';
-  if Release = '1.1'  then Version := '1.01';
-  if Release = '1.2'  then Version := '1.02';
-  if Release = '1.3'  then Version := '1.03';
-  if Release = '1.4'  then Version := '1.04';
-  if Release = '2.3'  then Version := '2.03';
-  if Release = '2.10' then Version := '2.10';
-  if Release = '2.11' then Version := '2.11';
-  if Release = '3.0'  then Version := '3.0';
-  if Release = '3.10' then Version := '3.1 or Windows NT 3.1';
-  if Release = '3.11' then Version := 'for Workgroups 3.11';
-  if Release = '3.2'  then Version := '3.2';
-  if Release = '3.50' then Version := 'NT 3.5';
-  if Release = '3.51' then Version := 'NT 3.51';
-  if Release = '4.0'  then Version := '95 or Windows NT 4.0';
-  if Release = '4.10' then Version := '98';
-  if Release = '5.0'  then Version := '2000';
-  if Release = '4.90' then Version := 'ME';
-  if Release = '5.1'  then Version := 'XP';
-  if Release = '5.2'  then Version := 'XP Professional x64';
-  if Release = '6.0'  then Version := 'Vista';
-  if Release = '6.1'  then Version := '7';
-  if Release = '6.2'  then Version := '8';
-  if Release = '6.3'  then Version := '8.1';
-  if Release = '10.0' then Version := '10';
+  if Release = '1.1'  then Version := 'Windows 1.01';
+  if Release = '1.2'  then Version := 'Windows 1.02';
+  if Release = '1.3'  then Version := 'Windows 1.03';
+  if Release = '1.4'  then Version := 'Windows 1.04';
+  if Release = '2.3'  then Version := 'Windows 2.03';
+  if Release = '2.10' then Version := 'Windows 2.10';
+  if Release = '2.11' then Version := 'Windows 2.11';
+  if Release = '3.0'  then Version := 'Windows 3.0';
+  if Release = '3.10' then Version := 'Windows 3.1 or Windows NT 3.1';
+  if Release = '3.11' then Version := 'Windows for Workgroups 3.11';
+  if Release = '3.2'  then Version := 'Windows 3.2';
+  if Release = '3.50' then Version := 'Windows NT 3.5';
+  if Release = '3.51' then Version := 'Windows NT 3.51';
+  if Release = '4.0'  then Version := 'Windows 95 or Windows NT 4.0';
+  if Release = '4.10' then Version := 'Windows 98';
+  if Release = '5.0'  then Version := 'Windows 2000';
+  if Release = '4.90' then Version := 'Windows ME';
+  if Release = '5.1'  then Version := 'Windows XP';
+  if Release = '5.2'  then Version := 'Windows XP x86_64';
+  if Release = '6.0'  then Version := 'Windows Vista';
+  if Release = '6.1'  then Version := 'Windows 7';
+  if Release = '6.2'  then Version := 'Windows 8';
+  if Release = '6.3'  then Version := 'Windows 8.1';
+  if Release = '10.0' then Version := 'Windows 10';
   result:=Version;
 end;
 {$ENDIF}
@@ -799,6 +833,21 @@ begin
   end;
 end;
 
+procedure TPolfan.ReadKategorieEmotek(AText: string);
+var
+  i: integer;
+  s: string;
+begin
+  i:=1;
+  while true do
+  begin
+    s:=GetLineToStr(AText,i,' ');
+    if s='' then break;
+    kategorie_emotek.Add(s);
+    inc(i);
+  end;
+end;
+
 procedure TPolfan.ReadFrame(aFrame: string);
 var
   jData : TJSONData;
@@ -807,14 +856,21 @@ var
   s,sroom,opis,nadawca,adresat,pom,pom2: string;
   i,ii,ile,id: integer;
   kod,kod2,a,b: integer;
-  wiadomosc: string;
+  wiadomosc,nadawca_wiadomosci,odbiorca_wiadomosci: string;
   u_nick,u_s: string;
   pom_ss1,pom_ss2,pom_ss3: TStrings;
-  do_mnie: boolean;
+  vDropNow,vNotLogSrc,do_mnie,sound_now: boolean;
 begin
-  if FDevOn then src.Add('[Received]: '+AFrame);
+  vDropNow:=false;
+  vNotLogSrc:=false;
+  if Assigned(FOnBeforeReadFrame) then FOnBeforeReadFrame(self,AFrame,vDropNow,vNotLogSrc);
+  if vDropNow then exit;
+  if FDevOn and (not vNotLogSrc) then src.Add('[Received]: '+AFrame);
   sroom:='';
   do_mnie:=false;
+  sound_now:=false;
+  nadawca_wiadomosci:='';
+  odbiorca_wiadomosci:='';
   jData:=GetJSON(aFrame);
   jObject:=TJSONObject(jData);
   jArray:=jObject.Arrays['numbers'];
@@ -828,7 +884,7 @@ begin
     s:=jArray[0].AsString;
     sroom:=jArray[1].AsString;
     (* tu kod sprawdzający czy obrazek istnieje, a jak nie, to ściąga obrazek automatycznie *)
-    if Assigned(FOnDownloadRequest) then if IsExistImages('',s) then StartDownloading('');
+    if Assigned(FOnDownloadRequest) then if IsExistImages('',s) then StartDownloading(sroom);
     if FImgAltVisible then s:=ImagePlusOpis(s);
     u_nick:=upcase(nick);
     u_s:=upcase(s);
@@ -855,7 +911,11 @@ begin
     end;
     (* powiadomienie dźwiękowe przy wiadomości nadchodzącej do ciebie *)
     //   '><b>Samusia</b></font>:';
-    if Assigned(FOnSoundRequest) then if do_mnie and (pom<>'') then FOnSoundRequest(self,pom);
+    if Assigned(FOnSoundRequest) then if do_mnie and (pom<>'') then
+    begin
+      nadawca_wiadomosci:=pom;
+      sound_now:=true;
+    end;
     (* gdy autoresponse jest aktywne, każda wiadomość wędruje do analizy *)
     if do_mnie and FAutoResponse and (pom<>'') then if Assigned(FAutoResponseRequest) then
     begin
@@ -912,7 +972,8 @@ begin
     sroom:='';
     if Assigned(FOnDownloadRequest) then if IsExistImages(sroom,s) then StartDownloading(sroom);
     if FImgAltVisible then s:=ImagePlusOpis(s);
-    if nadawca<>nick then if Assigned(FOnSoundRequest) then FOnSoundRequest(self,'');
+    odbiorca_wiadomosci:=sroom;
+    sound_now:=true;
   end else
 
   if kod=615 then {ZJAWIA SIĘ NOWY UŻYTKOWNIK}
@@ -994,11 +1055,12 @@ begin
     if Assigned(FOnRoomIn) then FOnRoomIn(self,sroom,opis);
   end else
 
-  if kod=626 then {MAPY KOLORÓW}
+  if kod=626 then {MAPY KOLORÓW i KATEGORIE EMOTKÓW}
   begin
     sroom:='';
     jArray:=jObject.Arrays['strings'];
     ReadColorsTable(jArray[0].AsString);
+    if kategorie_emotek.Count=0 then ReadKategorieEmotek(jArray[1].AsString);
     if FPassword='' then nick:='~'+FUser else nick:=FUser; //Na start, potem i tak zostanie zaktualizowany
     if Assigned(FOnNewAttr) then FOnNewAttr(self,0); //Reset wszystkiego, jak będzie trzeba potem się odświeży
   end else
@@ -1023,16 +1085,27 @@ begin
   end else
 
   if kod=65535 then {ZAMKNIJ POŁĄCZENIE}
+  begin
+    jArray:=jObject.Arrays['strings'];
+    error_connected_str:=jArray[0].AsString;
+    if error_connected_str<>'' then error_connected:=100;
     if web.Active then web.Close;
+    exit;
+  end;
 
-  GoRefresh(s+'<br>',sroom);
+  GoRefresh(s+'<br>',sroom,nadawca,adresat,nadawca_wiadomosci,odbiorca_wiadomosci,sound_now);
 end;
 
-procedure TPolfan.GoRefresh(aMessage: string; aName: string);
+procedure TPolfan.GoRefresh(aMessage: string; aName: string; aNadawca: string;
+  aAdresat: string; aNadawcaWiadomosci: string; aOdbiorcaWiadomosci: string;
+  aSoundNow: boolean);
 var
-  nazwa: string;
-  a,id: integer;
+  id: integer;
+  vDropNow,vDelFromLogSrc: boolean;
 begin
+  vDropNow:=false;
+  vDelFromLogSrc:=false;
+  if aName<>'' then id:=pokoje.GetIndex(aName);
   (* ONLY REFRESH *)
   if aMessage='' then
   begin
@@ -1040,10 +1113,16 @@ begin
     begin
       if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,rmService,aMessage,document,true);
     end else begin
-      id:=pokoje.GetIndex(aName);
       if id=-1 then exit;
       if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,pokoje.Rooms[id].Mode,aMessage,pokoje.Rooms[id].Document,true);
     end;
+    exit;
+  end;
+  (* BEFORE ANALIZE *)
+  if Assigned(FOnBeforeReadDocument) and (aName<>'') then FOnBeforeReadDocument(self,aName,aNadawca,aAdresat,rmUser,aMessage,vDropNow,vDelFromLogSrc);
+  if vDropNow then
+  begin
+    if vDelFromLogSrc then src.Delete(src.Count-1);
     exit;
   end;
   (* NOWA WIADOMOŚĆ *)
@@ -1055,11 +1134,11 @@ begin
     if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,rmService,aMessage,document,false);
   end else begin
     (* ROOM OR USER *)
-    id:=pokoje.GetIndex(aName);
     if id=-1 then id:=dodaj_pokoj(aName);
     pokoje.Rooms[id].Add(aMessage);
     if FMaxLines>0 then pokoje.Rooms[id].Truncate(FMaxLines);
     if Assigned(FOnReadDocument) then FOnReadDocument(self,aName,pokoje.Rooms[id].Mode,aMessage,pokoje.Rooms[id].Document,false);
+    if aSoundNow and Assigned(FOnSoundRequest) then FOnSoundRequest(self,aNadawcaWiadomosci,aOdbiorcaWiadomosci);
   end;
 end;
 
@@ -1090,7 +1169,7 @@ end;
 
 procedure TPolfan.usun_pokoj(nazwa: string);
 var
-  id,id_pokoju,i: integer;
+  id: integer;
 begin
   id:=pokoje.GetIndex(nazwa);
   if id=-1 then exit;
@@ -1113,6 +1192,7 @@ begin
   document:=TStringList.Create;
   src:=TStringList.Create;
   src_dump:=false;
+  kategorie_emotek:=TStringList.Create;
   web:=TNetSynWebSocket.Create(self);
   web.Host:=STR_HOST;
   web.PingText:=STR_PING;
@@ -1129,6 +1209,8 @@ begin
   FIdentify:='<auto>';
   FMaxLines:=200;
   FImagesOFF:=false;
+  FFingerPrint:='';
+  FSilentMute:=false;
 end;
 
 destructor TPolfan.Destroy;
@@ -1137,6 +1219,7 @@ begin
   web.Free;
   document.Free;
   src.Free;
+  kategorie_emotek.Free;
   usun_wszystkie_pokoje;
   pokoje.Free;
   inherited Destroy;
@@ -1171,6 +1254,19 @@ begin
 end;
 
 function TPolfan.SendText(AText: string; AZmianaPokoju: boolean): boolean;
+begin
+  if FDevOn then src.Add('[Sent]: '+AText);
+  if FSilentMute then
+  begin
+    result:=true;
+    exit;
+  end;
+  send_zmiana_pokoju:=AZmianaPokoju;
+  result:=web.SendText(AText);
+end;
+
+function TPolfan.SendTextIgnoreSilentMute(AText: string; AZmianaPokoju: boolean
+  ): boolean;
 begin
   if FDevOn then src.Add('[Sent]: '+AText);
   send_zmiana_pokoju:=AZmianaPokoju;
@@ -1261,10 +1357,19 @@ begin
   else result:=SHtmlColorToColor(color_user,dlugosc,clBlack); //USER
 end;
 
-procedure TPolfan.AddDocument(aText: string);
+procedure TPolfan.AddDocument(aText: string; aRoom: string);
+var
+  id: integer;
 begin
-  document.Add(aText+'<br>');
-  Refresh;
+  if aRoom='' then
+  begin
+    document.Add(aText+'<br>');
+    Refresh;
+  end else begin
+    id:=pokoje.GetIndex(aRoom);
+    pokoje.Rooms[id].Add(aText+'<br>');
+    Refresh(aRoom);
+  end;
 end;
 
 end.
