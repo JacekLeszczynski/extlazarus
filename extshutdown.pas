@@ -11,15 +11,19 @@ type
 
   { TExtShutdown }
 
+  TExtShutdownOnShutdownMode = (smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom);
   TExtShutdown = class(TComponent)
   private
-
+    FCustomCommand: string;
+    FMode: TExtShutdownOnShutdownMode;
   protected
-
   public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
     procedure execute;
   published
-
+    property Mode: TExtShutdownOnShutdownMode read FMode write FMode;
+    property CustomCommand: string read FCustomCommand write FCustomCommand;
   end;
 
 procedure Register;
@@ -75,30 +79,51 @@ end;
 
 { TExtShutdown }
 
+constructor TExtShutdown.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  {$IFDEF UNIX}
+  FMode:=smShutdownP1;
+  {$ENDIF}
+  {$IFDEF WINDOWS}
+  FMode:=smWindows;
+  {$ENDIF}
+end;
+
+destructor TExtShutdown.Destroy;
+begin
+  inherited Destroy;
+end;
+
 procedure TExtShutdown.execute;
 var
   proc: TProcess;
 begin
-  {$IFDEF LINUX}
+  {$IFDEF UNIX}
   proc:=TProcess.Create(self);
-  try
-    proc.CommandLine:='qdbus org.kde.ksmserver /KSMServer logout 0 2 2';
-    proc.Execute;
-  finally
-    proc.Free;
-  end;
-  {$ENDIF}
-  {$IFDEF FREEBSD}
-  proc:=TProcess.Create(self);
-  try
-    proc.CommandLine:='shutdown -p now';
+  try //(smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom)
+    case FMode of
+      smQDbusKDE: proc.CommandLine:='qdbus org.kde.ksmserver /KSMServer logout 0 2 2';
+      smShutdownP1: proc.CommandLine:='shutdown -p now';
+      smShutdownP2: proc.CommandLine:='shutdown -P now';
+      smCustom: proc.CommandLine:=FCustomCommand;
+    end;
     proc.Execute;
   finally
     proc.Free;
   end;
   {$ENDIF}
   {$IFDEF MSWINDOWS}
-  LazarusExitWindows(EWX_FORCE or EWX_POWEROFF);
+  if FMode=smWindows then LazarusExitWindows(EWX_FORCE or EWX_POWEROFF) else
+  begin
+    proc:=TProcess.Create(self);
+    try
+      proc.CommandLine:=FCustomCommand;
+      proc.Execute;
+    finally
+      proc.Free;
+    end;
+  end;
   {$ENDIF}
 end;
 

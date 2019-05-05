@@ -70,13 +70,13 @@ type
     procedure GetMeter(var ALeft,ARight: single);
     procedure GetMeter(var ALeft,ARight: double);
     procedure GetMeter(var ALeft,ARight: integer);
-    function GetLength: longint;
+    function GetLength: longword;
     function GetLengthSeconds: single;
     function GetLengthTime: TTime;
-    function Position: longint;
+    function Position: longword;
     function PositionSeconds: single;
     function PositionTime: TTime;
-    procedure Seek(ASample: longint);
+    procedure Seek(ASample: longword);
     procedure SeekSeconds(ASeconds: single);
     procedure SeekTime(ATime: TTime);
     function GetTag(Filename: TFileName; var aTag: TIDTag): boolean;
@@ -365,7 +365,7 @@ begin
   end;
 end;
 
-function TUOSPlayer.GetLength: longint;
+function TUOSPlayer.GetLength: longword;
 begin
   result:=uos_InputLength(FDevIndex,InIndex);
 end;
@@ -380,7 +380,7 @@ begin
   result:=uos_InputLengthTime(FDevIndex,InIndex);
 end;
 
-function TUOSPlayer.Position: longint;
+function TUOSPlayer.Position: longword;
 begin
   result:=uos_InputPosition(FDevIndex,InIndex);
 end;
@@ -395,7 +395,7 @@ begin
   result:=uos_InputPositionTime(FDevIndex,InIndex);
 end;
 
-procedure TUOSPlayer.Seek(ASample: longint);
+procedure TUOSPlayer.Seek(ASample: longword);
 begin
   uos_InputSeek(FDevIndex,InIndex,ASample);
 end;
@@ -426,7 +426,7 @@ begin
       aTag.Title:=strpas(uos_InputGetTagTitle(FDevIndex,InIndex));
       aTag.Artist:=strpas(uos_InputGetTagArtist(FDevIndex,InIndex));
       aTag.Album:=strpas(uos_InputGetTagAlbum(FDevIndex,InIndex));
-      if aTag.Title='' then result:=false else result:=true;
+      if trim(aTag.Title)='' then result:=false else result:=true;
     end else result:=false;
   end else result:=false;
 end;
