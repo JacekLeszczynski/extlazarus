@@ -104,7 +104,7 @@ uses
   ;
 
 type
-  TMPlayerEngine = (meMplayer,meMPV);
+  TMPlayerCtrlEngine = (meMplayer,meMPV);
   TVideoInfo = record
     Codec: string;
     Format: string;
@@ -123,31 +123,36 @@ type
 
   { TCustomMPlayerControl }
   
-  TOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
-  TOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
-  TOnPlaying = procedure(ASender: TObject; APosition: single) of object;
-  TOnGrabImage = procedure(ASender: TObject; AFilename: String) of object;
-  TOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
-  TOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
+  TMplayerCtrlOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
+  TMplayerCtrlOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
+  TMplayerCtrlOnBeforePlay = procedure(ASender: TObject; AFilename: string) of object;
+  TMplayerCtrlOnPlaying = procedure(ASender: TObject; APosition: single) of object;
+  TMplayerCtrlOnGrabImage = procedure(ASender: TObject; AFilename: String) of object;
+  TMplayerCtrlOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
+  TMplayerCtrlOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
+  TMplayerCtrlOnString = procedure(ASender: TObject; AText: String) of object;
 
   TCustomMPlayerControl = class(TWinControl)
   private
     FCache: integer;
     FCacheMin: integer;
+    FOnBeforePlay: TMplayerCtrlOnBeforePlay;
+    FOnTimerDump: TMplayerCtrlOnString;
+    FTimerDump: boolean;
     icyName,icyGenre,icyWebsite: string;
     icyPublic: boolean;
     icyBitrate,icyStreamTitle,icyStreamURL: string;
     vIsDump: boolean;
     FActiveTimer: boolean;
     FCapture: boolean;
-    FEngine: TMPlayerEngine;
+    FEngine: TMPlayerCtrlEngine;
     FFilename: string;
     FImagePath: string;
     FLastImageFilename: string;
     FNoSound: boolean;
-    FOnCapture: TOnCaptureDump;
-    FOnGrabImage: TOnGrabImage;
-    FOnICYRadio: TOnICYRadio;
+    FOnCapture: TMplayerCtrlOnCaptureDump;
+    FOnGrabImage: TMplayerCtrlOnGrabImage;
+    FOnICYRadio: TMplayerCtrlOnICYRadio;
     FRadio: boolean;
     FRate: single;
     FStartParam:string;
@@ -166,14 +171,15 @@ type
     FRequestVolume: boolean;
     FStartTime: single;
     FDuration: single;
-    FOnError: TOnError;
-    FOnFeedback: TOnFeedback;
+    FOnError: TMplayerCtrlOnError;
+    FOnFeedback: TMplayerCtrlOnFeedback;
     FOnPlay: TNotifyEvent;
-    FOnPlaying: TOnPlaying;
+    FOnPlaying: TMplayerCtrlOnPlaying;
     FOnStop: TNotifyEvent;
     FOutList: TStringList;
     FVideoInfo: TVideoInfo;
     FAudioInfo: TAudioInfo;
+    FormatSettings: TFormatSettings;
     function GetPosition: single;
     function GetRate: single;
     procedure SetImagePath(AValue: string);
@@ -212,7 +218,7 @@ type
     procedure GrabImage;
     property LastImageFilename: String read FLastImageFilename;
 
-    property Engine: TMPlayerEngine read FEngine write FEngine;
+    property Engine: TMPlayerCtrlEngine read FEngine write FEngine;
     property NoSound: boolean read FNoSound write FNoSound default false;
     property Cache: integer read FCache write FCache default 0; //0=default
     property CacheMin: integer read FCacheMin write FCacheMin default 0; //0=default
@@ -226,6 +232,7 @@ type
     property ICYRadio: boolean read FRadio write FRadio;
     property CaptureDump: boolean read FCapture write FCapture;
     property ActiveTimer: boolean read FActiveTimer write FActiveTimer;
+    property TimerDump: boolean read FTimerDump write FTimerDump default false;
 
     property ImagePath: string read FImagePath write SetImagePath;
 
@@ -236,14 +243,16 @@ type
     property VideoInfo: TVideoInfo read FVideoInfo; // this isn't fully populated until OnPlay recieved
     property AudioInfo: TAudioInfo read FAudioInfo; // this isn't fully populated until OnPlay received
 
-    property OnFeedback: TOnFeedback read FOnFeedback write FOnFeedback;
-    property OnError: TOnError read FOnError write FOnError;
-    property OnPlaying: TOnPlaying read FOnPlaying write FOnPlaying;
+    property OnFeedback: TMplayerCtrlOnFeedback read FOnFeedback write FOnFeedback;
+    property OnError: TMplayerCtrlOnError read FOnError write FOnError;
+    property OnPlaying: TMplayerCtrlOnPlaying read FOnPlaying write FOnPlaying;
+    property OnBeforePlay: TMplayerCtrlOnBeforePlay read FOnBeforePlay write FOnBeforePlay;
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
-    property OnGrabImage: TOnGrabImage read FOnGrabImage write FOnGrabImage;
-    property OnICYRadio: TOnICYRadio read FOnICYRadio write FOnICYRadio;
-    property OnCapture: TOnCaptureDump read FOnCapture write FOnCapture;
+    property OnGrabImage: TMplayerCtrlOnGrabImage read FOnGrabImage write FOnGrabImage;
+    property OnICYRadio: TMplayerCtrlOnICYRadio read FOnICYRadio write FOnICYRadio;
+    property OnCapture: TMplayerCtrlOnCaptureDump read FOnCapture write FOnCapture;
+    property OnTimerDump: TMplayerCtrlOnString read FOnTimerDump write FOnTimerDump;
   end;
 
   TMPlayerControl = class(TCustomMPlayerControl)
@@ -263,6 +272,7 @@ type
     property ICYRadio;
     property CaptureDump;
     property ActiveTimer;
+    property TimerDump;
     property OnChangeBounds;
     property OnConstrainedResize;
     property OnResize;
@@ -275,11 +285,13 @@ type
     property OnFeedback; // Provides standard console output from mplayer
     property OnError;    // Provides stderr console output from mplayer
     property OnPlaying;  // When not paused, an event every 250ms to 500ms with Position
+    property OnBeforePlay;
     property OnPlay;     // Sent after mplayer initialises the current video file
     property OnStop;     // Sent sometime (up to approx 250ms) after mplayer finishes current video
     property OnGrabImage; // Fired when mplayer reports the filename of the image grab
     property OnICYRadio;
     property OnCapture;
+    property OnTimerDump;
   end;
 
   { TWSMPlayerControl }
@@ -402,6 +414,7 @@ begin
     for i:=FOutList.Count-1 downto 0 do
     begin
       temp:=FOutList[i];
+      if Assigned(FOnTimerDump) and FTimerDump then FOnTimerDump(self,temp);
       sTemp:=Lowercase(temp);
       iPosEquals:=Pos('=',sTemp);
 
@@ -478,7 +491,7 @@ begin
 
           FLastPosition := sValue;
 
-          FPosition := StrToFloatDef(sValue, 0) - FStartTime;
+          FPosition := StrToFloatDef(sValue,0,FormatSettings)-FStartTime;
 
           // Don't remove any further ANS_Time_Positions, they're not ours...
           FRequestingPosition := False;
@@ -490,21 +503,21 @@ begin
           case sProperty Of
             'volume' :
               begin
-                FVolume := Trunc(0.5 + StrToFloatDef(sValue, 100));
+                FVolume := Trunc(0.5 + StrToFloatDef(sValue,100,FormatSettings));
                 FRequestVolume := False;
 
                 // clear this response from the queue
                 FOutList.Delete(i);
                end;
-            'length'       : FDuration := StrToFloatDef(sValue, -1);
+            'length'       : FDuration := StrToFloatDef(sValue,-1,FormatSettings);
             'pause'        : FPaused := (sValue = 'yes');
             'video_codec'  : FVideoInfo.Codec:=sValue;
             'video_format' : FVideoInfo.Format:=sValue;
             'video_bitrate': FVideoInfo.Bitrate:=StrToIntDef(sValue, 0);
             'video_width'  : FVideoInfo.Width:=StrToIntDef(sValue, 0);
             'video_height' : FVideoInfo.Height:=StrToIntDef(sValue, 0);
-            'video_fps'    : FVideoInfo.FPS:=StrToFloatDef(sValue, 0);
-            'start_time'   : FStartTime:=StrToFloatDef(sValue, 0);
+            'video_fps'    : FVideoInfo.FPS:=StrToFloatDef(sValue,0,FormatSettings);
+            'start_time'   : FStartTime:=StrToFloatDef(sValue,0,FormatSettings);
             //'seekable'     : FSeekable:=(sValue='1');
             'audio_codec'  : FAudioInfo.Codec:=sValue;
             'audio_format' : FAudioInfo.Format:=sValue;
@@ -668,12 +681,14 @@ end;
 constructor TCustomMPlayerControl.Create(TheOwner: TComponent);
 begin
   inherited Create(TheOwner);
+  FormatSettings.DecimalSeparator:='.';
   FEngine:=meMplayer;
   FNoSound:=false;
   FRadio:=false;
   FCapture:=false;
   FVolume:=-1;
   FActiveTimer:=false;
+  FTimerDump:=false;
   ControlStyle:=ControlStyle-[csSetCaption];
   FCanvas := TControlCanvas.Create;
   TControlCanvas(FCanvas).Control := Self;
@@ -798,6 +813,8 @@ begin
       Rate := 1;
     exit;
   end;
+
+  if Assigned(FOnBeforePlay) then FOnBeforePlay(self,FFilename);
 
   {$IFDEF Linux}
   if (not HandleAllocated) then exit;
