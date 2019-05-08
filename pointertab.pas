@@ -18,6 +18,13 @@ uses
   Forms, Controls, Graphics, Dialogs;
 
 type
+  t_wskaznik = ^t_element;
+  t_element = record
+    wsk: t_wskaznik;
+    body: pointer;
+  end;
+
+type
 
   TPointerTabRodzaj = (roStos, roLista, roKolejka);
   TPointerTabOperationEvent = procedure(Sender: TObject; var AWskaznik: Pointer) of object;
@@ -27,6 +34,7 @@ type
 
   TPointerTab = class(TComponent)
   private
+    ww,koniec: t_wskaznik;
     FOnCreateElement: TPointerTabOperationEvent;
     FOnDestroyElement: TPointerTabOperationEvent;
     FOnReadElement: TPointerTabOperationEvent;
@@ -77,16 +85,6 @@ type
 procedure Register;
 
 implementation
-
-type
-  t_wskaznik = ^t_element;
-  t_element = record
-    wsk: t_wskaznik;
-    body: pointer;
-  end;
-
-var
-  ww,koniec: t_wskaznik;
 
 procedure Register;
 begin
