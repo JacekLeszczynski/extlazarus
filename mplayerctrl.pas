@@ -136,6 +136,7 @@ type
   private
     FCache: integer;
     FCacheMin: integer;
+    FMPVNoOsc: boolean;
     FOnBeforePlay: TMplayerCtrlOnBeforePlay;
     FOnTimerDump: TMplayerCtrlOnString;
     FTimerDump: boolean;
@@ -233,6 +234,7 @@ type
     property CaptureDump: boolean read FCapture write FCapture;
     property ActiveTimer: boolean read FActiveTimer write FActiveTimer;
     property TimerDump: boolean read FTimerDump write FTimerDump default false;
+    property MpvNoOSC: boolean read FMPVNoOsc write FMPVNoOsc default false;
 
     property ImagePath: string read FImagePath write SetImagePath;
 
@@ -273,6 +275,7 @@ type
     property CaptureDump;
     property ActiveTimer;
     property TimerDump;
+    property MpvNoOSC;
     property OnChangeBounds;
     property OnConstrainedResize;
     property OnResize;
@@ -416,6 +419,11 @@ begin
       temp:=FOutList[i];
       if Assigned(FOnTimerDump) and FTimerDump then FOnTimerDump(self,temp);
       sTemp:=Lowercase(temp);
+      if FEngine=meMPV then
+      begin
+        if pos('playing:',sTemp)=1 then bPostOnPlay:=true;
+        if sTemp='exiting... (end of file)' then bPostOnStop:=true;
+      end;
       iPosEquals:=Pos('=',sTemp);
 
       (* CAPTURING *)
@@ -527,7 +535,7 @@ begin
             'exit'         : bPostOnStop:=True;
         end;
       end // ID_ or ANS_
-      else if Assigned(FOnPlay) and (sTemp = 'starting playback...') then
+      else if Assigned(FOnPlay) and (sTemp = 'starting playback...') then  //starting playback...
         bPostOnPlay:=True
       else if (Pos('*** screenshot', sTemp)=1) Then
       begin
@@ -689,6 +697,7 @@ begin
   FVolume:=-1;
   FActiveTimer:=false;
   FTimerDump:=false;
+  FMPVNoOsc:=false;
   ControlStyle:=ControlStyle-[csSetCaption];
   FCanvas := TControlCanvas.Create;
   TControlCanvas(FCanvas).Control := Self;
@@ -880,9 +889,12 @@ begin
   end;
   if FEngine=meMPV then
   begin
-    FPlayerProcess.Parameters.Add('-player-operation-mode');
-    FPlayerProcess.Parameters.Add('pseudo-gui');
-    FPlayerProcess.Parameters.Add('-no-osc');
+    FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer');
+    //FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
+    if FMPVNoOsc then FPlayerProcess.Parameters.Add('-no-osc');
+    FPlayerProcess.Parameters.Add('--script-opts=timetotal=yes,timems=yes');
+    //FPlayerProcess.Parameters.Add('--input-test');
+    //FPlayerProcess.Parameters.Add('--idle');
   end;
   FPlayerProcess.Parameters.Add('-quiet');     // supress most messages
   if FVolume>-1 then
@@ -938,6 +950,7 @@ begin
 
   // Start the timer that handles feedback from mplayer
   FTimer.Enabled:=FActiveTimer;
+  //if FPLayerProcess.Running and Assigned(FOnPlay) then FOnPlay(Self); //to nie jest potrzebne...
 end;
 
 procedure TCustomMPlayerControl.Stop;

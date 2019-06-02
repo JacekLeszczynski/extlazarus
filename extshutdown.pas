@@ -16,6 +16,8 @@ type
   private
     FCustomCommand: string;
     FMode: TExtShutdownOnShutdownMode;
+    FOnAfterShutdown: TNotifyEvent;
+    FOnBeforeShutdown: TNotifyEvent;
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -24,6 +26,8 @@ type
   published
     property Mode: TExtShutdownOnShutdownMode read FMode write FMode;
     property CustomCommand: string read FCustomCommand write FCustomCommand;
+    property OnBeforeShutdown: TNotifyEvent read FOnBeforeShutdown write FOnBeforeShutdown;
+    property OnAfterShutdown: TNotifyEvent read FOnAfterShutdown write FOnAfterShutdown;
   end;
 
 procedure Register;
@@ -99,6 +103,7 @@ procedure TExtShutdown.execute;
 var
   proc: TProcess;
 begin
+  if Assigned(FOnBeforeShutdown) then FOnBeforeShutdown(self);
   {$IFDEF UNIX}
   proc:=TProcess.Create(self);
   try //(smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom)
@@ -125,6 +130,7 @@ begin
     end;
   end;
   {$ENDIF}
+  if Assigned(FOnAfterShutdown) then FOnAfterShutdown(self);
 end;
 
 end.
