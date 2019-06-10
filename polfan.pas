@@ -5,8 +5,7 @@ unit Polfan;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  netsynwebsocket, WebSocket2;
+  Classes, SysUtils, LResources, Graphics, netsynwebsocket, WebSocket2;
 
 type
   TPolfanRoomMode = (rmService,rmRoom,rmUser);
@@ -263,7 +262,7 @@ uses
   {$IFDEF WINDOWS}
   dos,
   {$ENDIF}
-  synautil, math, fpjson, jsonparser, strutils;
+  synautil, math, fpjson, strutils;
 
 type
   TIm = record
