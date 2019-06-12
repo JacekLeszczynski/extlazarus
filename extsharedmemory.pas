@@ -34,6 +34,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function Execute: boolean; //Wykonaj całą procedurę! Zaleca się wykonać jeden raz zaraz po uruchomieniu aplikacji.
+    procedure Uninstall;
   published
     { Published declarations }
     property ApplicationKey: string read FAppKey write FAppKey; //Unique Key Application
@@ -90,8 +91,8 @@ destructor TExtSharedMemory.Destroy;
 begin
   if cc.Active then cc.Disconnect;
   if ss.Active then ss.StopServer;
-  ss.Free;
   cc.Free;
+  ss.Free;
   inherited Destroy;
 end;
 
@@ -118,6 +119,12 @@ begin
     result:=true;
   end;
   FActive:=true;
+end;
+
+procedure TExtSharedMemory.Uninstall;
+begin
+  if cc.Active then cc.Disconnect;
+  if ss.Active then ss.StopServer;
 end;
 
 end.
