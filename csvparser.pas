@@ -96,7 +96,7 @@ end;
 function ConvertISO(s: string): string;
 begin
   {$IFDEF LAZARUS}
-  result:=CP1250ToUTF8(s);
+  result:=s;
   {$ELSE}
   result:=UTF8Encode(s);
   {$ENDIF}
@@ -272,4 +272,4 @@ begin
   result:=true;
 end;
 
-end.
+end.

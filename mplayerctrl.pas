@@ -126,7 +126,7 @@ type
   TMplayerCtrlOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnBeforePlay = procedure(ASender: TObject; AFilename: string) of object;
-  TMplayerCtrlOnPlaying = procedure(ASender: TObject; APosition: single) of object;
+  TMplayerCtrlOnPlaying = procedure(ASender: TObject; APosition,ADuration: single) of object;
   TMplayerCtrlOnGrabImage = procedure(ASender: TObject; AFilename: String) of object;
   TMplayerCtrlOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
   TMplayerCtrlOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
@@ -136,10 +136,13 @@ type
   private
     FCache: integer;
     FCacheMin: integer;
+    FMpvIpcDevFile: string;
+    FMpvIpcServer: boolean;
     FMPVNoOsc: boolean;
     FOnBeforePlay: TMplayerCtrlOnBeforePlay;
     FOnTimerDump: TMplayerCtrlOnString;
     FTimerDump: boolean;
+    FUniqueKey: string;
     icyName,icyGenre,icyWebsite: string;
     icyPublic: boolean;
     icyBitrate,icyStreamTitle,icyStreamURL: string;
@@ -181,9 +184,12 @@ type
     FVideoInfo: TVideoInfo;
     FAudioInfo: TAudioInfo;
     FormatSettings: TFormatSettings;
+    function GetFileMpvSocket: string;
     function GetPosition: single;
+    function GetDuration: single;
     function GetRate: single;
     procedure SetImagePath(AValue: string);
+    procedure SetMpvIpcDevFile(AValue: string);
     procedure SetPosition(AValue: single);
     procedure SetFilename(const AValue: string);
     procedure SetLoop(const AValue: integer);
@@ -194,6 +200,9 @@ type
     procedure SetStartParam(const AValue: string);
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
+  private
+    FOnSetPosition: TNotifyEvent;
+    function ExecuteSockProcess(command: string; device_file: string = ''): string;
   protected
     procedure WMPaint(var Message: TLMPaint); message LM_PAINT;
     procedure WMSize(var Message: TLMSize); message LM_SIZE;
@@ -202,6 +211,7 @@ type
   public
     constructor Create(TheOwner: TComponent); override;
     destructor Destroy; override;
+    function GetMpvIpcDevFile: string;
     procedure SendMPlayerCommand(Cmd: string); // see: mplayer -input cmdlist and http://www.mplayerhq.hu/DOCS/tech/slave.txt
     function Running: boolean;
     procedure Play(sBaseDirectory: string = '');
@@ -212,6 +222,7 @@ type
     procedure Capturing;
     procedure Pause;
     procedure Replay;
+    function GetPositionOnlyRead: single;
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -219,6 +230,9 @@ type
     procedure GrabImage;
     property LastImageFilename: String read FLastImageFilename;
 
+    property UniqueKey: string read FUniqueKey; //Unikalny kod, można wykorzystać do tworzenia plików rurek
+    property MpvIpcServer: boolean read FMpvIpcServer write FMpvIpcServer default false;
+    property MpvIpcDevFile: string read FMpvIpcDevFile write SetMpvIpcDevFile; //'{$UniqueKey}' zamieniany jest na UniqueKey
     property Engine: TMPlayerCtrlEngine read FEngine write FEngine;
     property NoSound: boolean read FNoSound write FNoSound default false;
     property Cache: integer read FCache write FCache default 0; //0=default
@@ -239,7 +253,7 @@ type
     property ImagePath: string read FImagePath write SetImagePath;
 
     property Rate: single read GetRate write SetRate; // mplayer only supports 0.1 to 100
-    property Duration: single read FDuration; // seconds
+    property Duration: single read GetDuration; // seconds
     property Position: single read GetPosition write SetPosition; // seconds
 
     property VideoInfo: TVideoInfo read FVideoInfo; // this isn't fully populated until OnPlay recieved
@@ -255,10 +269,14 @@ type
     property OnICYRadio: TMplayerCtrlOnICYRadio read FOnICYRadio write FOnICYRadio;
     property OnCapture: TMplayerCtrlOnCaptureDump read FOnCapture write FOnCapture;
     property OnTimerDump: TMplayerCtrlOnString read FOnTimerDump write FOnTimerDump;
+    property OnSetPosition: TNotifyEvent read FOnSetPosition write FOnSetPosition;
   end;
 
   TMPlayerControl = class(TCustomMPlayerControl)
   published
+    property UniqueKey;
+    property MpvIpcServer;
+    property MpvIpcDevFile;
     property Align;
     property Anchors;
     property BorderSpacing;
@@ -295,6 +313,7 @@ type
     property OnICYRadio;
     property OnCapture;
     property OnTimerDump;
+    property OnSetPosition;
   end;
 
   { TWSMPlayerControl }
@@ -316,7 +335,7 @@ procedure Register;
 implementation
 
 Uses
-  Forms;
+  Forms, fpjson, jsonparser;
 
 procedure Register;
 begin
@@ -371,20 +390,36 @@ end;
 { TCustomMPlayerControl }
 
 procedure TCustomMPlayerControl.TimerEvent(Sender: TObject);
+var
+  a,b: single;
 begin
   if FPlayerProcess<>nil then
   begin
-    If Running And ((Now-FLastTimer)>ON_PLAYING_INTERVAL) Then
+    if FEngine=meMplayer then
     begin
-      // Inject a request for current position
-      if Assigned(FOnPlaying) and not FPaused then
+      If Running And ((Now-FLastTimer)>ON_PLAYING_INTERVAL) Then
       begin
-        SendMPlayerCommand('get_time_pos');
-        FRequestingPosition:=True;
+        if Assigned(FOnPlaying) and not FPaused then
+        begin
+          SendMPlayerCommand('get_time_pos');
+          FRequestingPosition:=True;
+        end;
+        if FRequestVolume then SendMPlayerCommand('get_property volume');
       end;
-      // Inject a request for Volume level
-      if FRequestVolume then
-        SendMPlayerCommand('get_property volume');
+    end else begin
+      //if Running and ((Now-FLastTimer)>ON_PLAYING_INTERVAL) then
+      if Playing then
+      begin
+        if Assigned(FOnPlaying) then
+        begin
+          b:=GetDuration;
+          if b>-1 then
+          begin
+            a:=GetPosition;
+            FOnPlaying(self,a,b);
+          end;
+        end;
+      end;
     end;
   end;
 end;
@@ -585,9 +620,36 @@ begin
 
   // don't post the OnPlay until all the data above is processed
   if Assigned(FOnPlay) and bPostOnPlay then FOnPlay(Self);
-  If Assigned(FOnPlaying) and bPostOnPlaying then FOnPlaying(Self, FPosition);
+  If Assigned(FOnPlaying) and bPostOnPlaying then FOnPlaying(Self,FPosition,FDuration);
   if Assigned(FOnICYRadio) then FOnICYRadio(Self,icyName,icyGenre,icyWebsite,icyPublic,icyBitrate,icyStreamTitle,icyStreamURL);
   If (not Running) Or bPostOnStop Then Stop;
+end;
+
+function TCustomMPlayerControl.ExecuteSockProcess(command: string;
+  device_file: string): string;
+var
+  SockProcess: TAsyncProcess;
+  oo: TStringList;
+  s: string;
+begin
+  result:='';
+  if not FMpvIpcServer then exit;
+  if device_file='' then s:=GetFileMpvSocket else s:=device_file;
+  SockProcess:=TAsyncProcess.Create(nil);
+  oo:=TStringList.Create;
+  try
+    SockProcess.Executable:='/bin/sh';
+    SockProcess.Parameters.Add('-c');
+    SockProcess.Parameters.Add('echo '''+command+''' | socat - '+s);
+    SockProcess.Options:=[poWaitOnExit,poUsePipes];
+    SockProcess.Execute;
+    oo.LoadFromStream(SockProcess.Output);
+    result:=oo.Text;
+    SockProcess.Terminate(0);
+  finally
+    SockProcess.Free;
+    oo.Free;
+  end;
 end;
 
 procedure TCustomMPlayerControl.WMPaint(var Message: TLMPaint);
@@ -687,9 +749,17 @@ begin
 end;
 
 constructor TCustomMPlayerControl.Create(TheOwner: TComponent);
+var
+  vKey: TGuid;
 begin
   inherited Create(TheOwner);
   FormatSettings.DecimalSeparator:='.';
+  CreateGUID(vKey);
+  FMpvIpcServer:=false;
+  FMpvIpcDevFile:='<auto>';
+  FUniqueKey:=StringReplace(GUIDToString(vKey),'{','',[rfReplaceAll]);
+  FUniqueKey:=StringReplace(FUniqueKey,'}','',[rfReplaceAll]);
+  FUniqueKey:=StringReplace(FUniqueKey,'-','',[rfReplaceAll]);
   FEngine:=meMplayer;
   FNoSound:=false;
   FRadio:=false;
@@ -721,6 +791,11 @@ begin
   FreeAndNil(FTimer);
   FreeAndNil(FOutList);
   inherited Destroy;
+end;
+
+function TCustomMPlayerControl.GetMpvIpcDevFile: string;
+begin
+  result:=GetFileMpvSocket;
 end;
 
 procedure TCustomMPlayerControl.SendMPlayerCommand(Cmd: string);
@@ -845,6 +920,7 @@ begin
     if not FindMPlayerPath then
       raise Exception.Create(MPlayerPath+' not found');
   end else begin
+    FDuration:=-1;
     if not FindMPVPath then
       raise Exception.Create(FMPVPath+' not found');
   end;
@@ -895,6 +971,7 @@ begin
     FPlayerProcess.Parameters.Add('--script-opts=timetotal=yes,timems=yes');
     //FPlayerProcess.Parameters.Add('--input-test');
     //FPlayerProcess.Parameters.Add('--idle');
+    if FMpvIpcServer then FPlayerProcess.Parameters.Add('--input-ipc-server='+GetFileMpvSocket);
   end;
   FPlayerProcess.Parameters.Add('-quiet');     // supress most messages
   if FVolume>-1 then
@@ -950,10 +1027,12 @@ begin
 
   // Start the timer that handles feedback from mplayer
   FTimer.Enabled:=FActiveTimer;
-  //if FPLayerProcess.Running and Assigned(FOnPlay) then FOnPlay(Self); //to nie jest potrzebne...
+  if FEngine=meMPV then if FPLayerProcess.Running and Assigned(FOnPlay) then FOnPlay(Self); //to nie jest potrzebne...
 end;
 
 procedure TCustomMPlayerControl.Stop;
+var
+  s: string;
 begin
   if FPlayerProcess=nil then
     exit;
@@ -977,6 +1056,13 @@ begin
   icyPublic:=false;
   icyBitrate:=''; icyStreamTitle:=''; icyStreamURL:='';
 
+  if FMpvIpcServer then
+  begin
+    s:=GetFileMpvSocket;
+    if FileExists(s) then DeleteFile(s);
+  end;
+
+  if Assigned(FOnPlaying) then FOnPlaying(self,0,0);
   if Assigned(FOnStop) then FOnStop(Self);
 
   // repaint the control
@@ -1015,21 +1101,52 @@ begin
 end;
 
 procedure TCustomMPlayerControl.Pause;
+var
+  s: string;
 begin
-  if Running and Playing then
+  if FEngine=meMplayer then
   begin
-    FPaused:=true;
-    SendMPlayerCommand('pause');
+    if Running and Playing then
+    begin
+      FPaused:=true;
+      SendMPlayerCommand('pause');
+    end;
+  end else if FEngine=meMPV then
+  begin
+    if Running and Playing then
+    begin
+      s:=ExecuteSockProcess('{ "command": ["set_property", "pause", true] }');
+      FPaused:=pos('"success"',s)>0;
+    end;
   end;
 end;
 
 procedure TCustomMPlayerControl.Replay;
+var
+  s: string;
 begin
-  if Running and (not Playing) then
+  if FEngine=meMplayer then
   begin
-    FPaused:=false;
-    SendMPlayerCommand('pause');
+    if Running and Playing then
+    begin
+      FPaused:=false;
+      SendMPlayerCommand('pause');
+    end;
+  end else if FEngine=meMPV then
+  begin
+    //if Running and Playing then
+    if FPaused then
+    begin
+      FPaused:=false;
+      s:=ExecuteSockProcess('{ "command": ["set_property", "pause", false] }');
+      FPaused:=not pos('"success"',s)>0;
+    end;
   end;
+end;
+
+function TCustomMPlayerControl.GetPositionOnlyRead: single;
+begin
+  result:=FPosition;
 end;
 
 procedure TCustomMPlayerControl.InitialiseInfo;
@@ -1057,12 +1174,80 @@ begin
   end;
 end;
 
-function TCustomMPlayerControl.GetPosition: single;
+function TCustomMPlayerControl.GetFileMpvSocket: string;
+var
+  s: string;
 begin
-  {$IFDEF DEBUG}
-  DebugLn(Format('Get Position %.3f', [FPosition]));
-  {$ENDIF}
-  Result := FPosition;
+  if (MpvIpcDevFile='') or (MpvIpcDevFile='<auto>') then
+    s:='/tmp/mpv-'+FUniqueKey+'.socket'
+  else
+    s:=MpvIpcDevFile;
+  s:=StringReplace(s,'{$UniqueKey}',FUniqueKey,[]);
+  result:=s;
+end;
+
+function TCustomMPlayerControl.GetPosition: single;
+var
+  s,s2: string;
+  jData: TJSONData;
+  jObject: TJSONObject;
+begin
+  if FEngine=meMplayer then
+  begin
+    {$IFDEF DEBUG}
+    DebugLn(Format('Get Position %.3f', [FPosition]));
+    {$ENDIF}
+    Result := FPosition;
+  end else begin
+    if Playing then
+    begin
+      s:=ExecuteSockProcess('{ "command": ["get_property", "playback-time"] }');
+      jData:=GetJSON(s);
+      jObject:=TJSONObject(jData);
+      try s2:=jObject.Strings['error']; except s2:=''; end;
+      if s2='success' then
+      begin
+        jObject.Floats['data'];
+        FPosition:=jObject.Floats['data'];
+      end else begin
+        result:=0;
+        exit;
+      end;
+    end;
+    result:=FPosition;
+  end;
+end;
+
+function TCustomMPlayerControl.GetDuration: single;
+var
+  s,s2: string;
+  jData: TJSONData;
+  jObject: TJSONObject;
+begin
+  if FEngine=meMplayer then
+  begin
+    {$IFDEF DEBUG}
+    DebugLn(Format('Get Position %.3f', [FDuration]));
+    {$ENDIF}
+    Result := FDuration;
+  end else begin
+    if FDuration=-1 then
+    begin
+      s:=ExecuteSockProcess('{ "command": ["get_property", "duration"] }');
+      jData:=GetJSON(s);
+      jObject:=TJSONObject(jData);
+      try s2:=jObject.Strings['error']; except s2:=''; end;
+      if s2='success' then
+      begin
+        jObject.Floats['data'];
+        FDuration:=jObject.Floats['data'];
+      end else begin
+        result:=0;
+        exit;
+      end;
+    end;
+    result:=FDuration;
+  end;
 end;
 
 function TCustomMPlayerControl.GetRate: single;
@@ -1084,19 +1269,34 @@ begin
   end;
 end;
 
+procedure TCustomMPlayerControl.SetMpvIpcDevFile(AValue: string);
+begin
+  if FMpvIpcDevFile=AValue then Exit;
+  if AValue='' then FMpvIpcDevFile:='<auto>' else FMpvIpcDevFile:=AValue;
+end;
+
 procedure TCustomMPlayerControl.SetPosition(AValue: single);
+var
+  s: string;
 begin
   if Running then
   begin
-    if AValue>0 Then
-      FPosition := AValue
-    Else
-      FPosition := 0;
+    if FEngine=meMplayer then
+    begin
+      if AValue>0 Then
+        FPosition := AValue
+      Else
+        FPosition := 0;
 
-    {$IFDEF DEBUG}
-    DebugLn(Format('Set Position to  %.3f', [FPosition]));
-    {$ENDIF}
-    SendMPlayerCommand(Format('pausing_keep seek %.3f 2', [FPosition]));
+      {$IFDEF DEBUG}
+      DebugLn(Format('Set Position to  %.3f', [FPosition]));
+      {$ENDIF}
+      SendMPlayerCommand(Format('pausing_keep seek %.3f 2', [FPosition]));
+    end else begin
+      s:=StringReplace(FormatFloat('0.000000',AValue),',','.',[]);
+      ExecuteSockProcess('{ "command": ["set_property", "playback-time", '+s+'] }');
+    end;
+    if Assigned(FOnSetPosition) then FOnSetPosition(Self);
   end;
 end;
 
