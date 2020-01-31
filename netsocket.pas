@@ -72,7 +72,7 @@ type
     property Mode: TNetSocketMode read FMode write FMode;
     property Security: TNetSocketSecurity read FSecurity write FSecurity;
     property BinaryMode: boolean read FBinary write FBinary;
-    property Active: boolean read FActive;
+    property Active: boolean read FActive; //Po połączeniu w kliencie wykonaj: Application.ProcessMessage!
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort;
     property ReuseAddress: boolean read FReuseAddress write FReuseAddress;
@@ -212,8 +212,7 @@ begin
             wektor_czasu:=round(ntp_srednia/ntp_count);
             if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
           end;
-        end;
-        FOnReceiveString(s,aSocket);
+        end else FOnReceiveString(s,aSocket);
       end;
     end;
   end;
