@@ -65,7 +65,7 @@ type
     destructor Destroy; override;
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
-    procedure SendString(const aMessage: string);
+    procedure SendString(const aMessage: string; aSocket: TLSocket = nil);
     function SendBinary(const aBinary; aSize: integer): integer;
     procedure GetTimeVector;
   published
@@ -194,7 +194,7 @@ begin
         if s='' then break;
         inc(ll);
         if (FSecurity=ssCrypt) and Assigned(FOnDecryptString) then FOnDecryptString(s);
-        if (FMode=smServer) and (s='{NTP}') then aSocket.SendMessage('NTP$'+IntToStr(TimeToInteger(time))) else
+        if (FMode=smServer) and (s='{NTP}') then SendString('NTP$'+IntToStr(TimeToInteger(time)),aSocket) else
         if (FMode=smClient) and (GetLineToStr(s,1,'$')='NTP') then
         begin
           t1:=ntp_t1;
@@ -295,7 +295,7 @@ begin
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
 
-procedure TNetSocket.SendString(const aMessage: string);
+procedure TNetSocket.SendString(const aMessage: string; aSocket: TLSocket);
 var
   s: string;
 begin
@@ -303,8 +303,11 @@ begin
   if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
   if FMode=smServer then
   begin
-    tcp.IterReset;
-    while tcp.IterNext do tcp.SendMessage(s+#10,tcp.Iterator);
+    if aSocket=nil then
+    begin
+      tcp.IterReset;
+      while tcp.IterNext do tcp.SendMessage(s+#10,tcp.Iterator);
+    end else aSocket.SendMessage(s+#10);
   end else tcp.SendMessage(s+#10);
 end;
 
