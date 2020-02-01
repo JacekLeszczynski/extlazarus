@@ -201,6 +201,8 @@ type
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
   private
+    FOnPause: TNotifyEvent;
+    FOnReplay: TNotifyEvent;
     FOnSetPosition: TNotifyEvent;
     function ExecuteSockProcess(command: string; device_file: string = ''): string;
   protected
@@ -265,6 +267,8 @@ type
     property OnBeforePlay: TMplayerCtrlOnBeforePlay read FOnBeforePlay write FOnBeforePlay;
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
+    property OnPause: TNotifyEvent read FOnPause write FOnPause;
+    property OnReplay: TNotifyEvent read FOnReplay write FOnReplay;
     property OnGrabImage: TMplayerCtrlOnGrabImage read FOnGrabImage write FOnGrabImage;
     property OnICYRadio: TMplayerCtrlOnICYRadio read FOnICYRadio write FOnICYRadio;
     property OnCapture: TMplayerCtrlOnCaptureDump read FOnCapture write FOnCapture;
@@ -308,6 +312,8 @@ type
     property OnPlaying;  // When not paused, an event every 250ms to 500ms with Position
     property OnBeforePlay;
     property OnPlay;     // Sent after mplayer initialises the current video file
+    property OnPause;
+    property OnReplay;
     property OnStop;     // Sent sometime (up to approx 250ms) after mplayer finishes current video
     property OnGrabImage; // Fired when mplayer reports the filename of the image grab
     property OnICYRadio;
@@ -1119,6 +1125,7 @@ begin
       FPaused:=pos('"success"',s)>0;
     end;
   end;
+  if Assigned(FOnPause) then FOnPause(self);
 end;
 
 procedure TCustomMPlayerControl.Replay;
@@ -1142,6 +1149,7 @@ begin
       FPaused:=not pos('"success"',s)>0;
     end;
   end;
+  if Assigned(FOnReplay) then FOnReplay(self);
 end;
 
 function TCustomMPlayerControl.GetPositionOnlyRead: single;
