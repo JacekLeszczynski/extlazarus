@@ -743,14 +743,23 @@ begin
 end;
 
 procedure TCustomMPlayerControl.SetVolume(const AValue: integer);
+var
+  s: string;
 begin
   if FVolume=AValue then exit;
   FVolume:=AValue;
   if FVolume=-1 then exit;
   if Running then
   begin
-    SendMPlayerCommand('volume ' + IntToStr(FVolume) + ' 1');
-    FRequestVolume := True;
+    if FEngine=meMplayer then
+    begin
+      {mplayer}
+      SendMPlayerCommand('volume ' + IntToStr(FVolume) + ' 1');
+      FRequestVolume := True;
+    end else begin
+      {mpv}
+      s:=ExecuteSockProcess('{ "command": ["set_property", "volume", '+IntToStr(AValue)+'] }');
+    end;
   end;
 end;
 
