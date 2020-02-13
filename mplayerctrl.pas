@@ -201,6 +201,8 @@ type
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
   private
+    FBostVolume: boolean;
+    FOnBeforeStop: TNotifyEvent;
     FOnPause: TNotifyEvent;
     FOnReplay: TNotifyEvent;
     FOnSetPosition: TNotifyEvent;
@@ -246,6 +248,7 @@ type
     property Paused: boolean read FPaused write SetPaused;
     property Loop: integer read FLoop write SetLoop; // -1 no, 0 forever, 1 once, 2 twice, ...
     property Volume: integer read FVolume write SetVolume;
+    property BostVolume: boolean read FBostVolume write FBostVolume default false;
     property ICYRadio: boolean read FRadio write FRadio;
     property CaptureDump: boolean read FCapture write FCapture;
     property ActiveTimer: boolean read FActiveTimer write FActiveTimer;
@@ -265,6 +268,7 @@ type
     property OnError: TMplayerCtrlOnError read FOnError write FOnError;
     property OnPlaying: TMplayerCtrlOnPlaying read FOnPlaying write FOnPlaying;
     property OnBeforePlay: TMplayerCtrlOnBeforePlay read FOnBeforePlay write FOnBeforePlay;
+    property OnBeforeStop: TNotifyEvent read FOnBeforeStop write FOnBeforeStop;
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
     property OnPause: TNotifyEvent read FOnPause write FOnPause;
@@ -307,10 +311,12 @@ type
     property OnMouseWheel;
     property Visible;
     property Volume;     // 0 to 100 and -1 is deactivated
+    property BostVolume;
     property OnFeedback; // Provides standard console output from mplayer
     property OnError;    // Provides stderr console output from mplayer
     property OnPlaying;  // When not paused, an event every 250ms to 500ms with Position
     property OnBeforePlay;
+    property OnBeforeStop;
     property OnPlay;     // Sent after mplayer initialises the current video file
     property OnPause;
     property OnReplay;
@@ -772,6 +778,7 @@ begin
   CreateGUID(vKey);
   FMpvIpcServer:=false;
   FMpvIpcDevFile:='<auto>';
+  FBostVolume:=false;
   FUniqueKey:=StringReplace(GUIDToString(vKey),'{','',[rfReplaceAll]);
   FUniqueKey:=StringReplace(FUniqueKey,'}','',[rfReplaceAll]);
   FUniqueKey:=StringReplace(FUniqueKey,'-','',[rfReplaceAll]);
@@ -980,6 +987,7 @@ begin
   end;
   if FEngine=meMPV then
   begin
+    if FBostVolume then FPlayerProcess.Parameters.Add('--af=lavfi=[acompressor=24]');
     FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer');
     //FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
     if FMPVNoOsc then FPlayerProcess.Parameters.Add('-no-osc');
@@ -1051,6 +1059,8 @@ var
 begin
   if FPlayerProcess=nil then
     exit;
+
+  if Assigned(FOnBeforeStop) then FOnBeforeStop(self);
 
   {$IFDEF DEBUG}
   DebugLn(Format('ExitStatus=%d',[fPlayerProcess.ExitStatus]));
