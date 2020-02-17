@@ -122,7 +122,8 @@ type
   end;
 
   { TCustomMPlayerControl }
-  
+
+  TMplayerCtrlModeMPV = (mmNone, mmCPlayer, mmPseudoGui);
   TMplayerCtrlOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnBeforePlay = procedure(ASender: TObject; AFilename: string) of object;
@@ -202,11 +203,14 @@ type
     procedure PlayerProcessReadData(Sender: TObject);
   private
     FBostVolume: boolean;
+    FModeMPV: TMplayerCtrlModeMPV;
     FOnBeforeStop: TNotifyEvent;
     FOnPause: TNotifyEvent;
     FOnReplay: TNotifyEvent;
     FOnSetPosition: TNotifyEvent;
+    FscDir: string;
     function ExecuteSockProcess(command: string; device_file: string = ''): string;
+    procedure SetscDir(AValue: string);
   protected
     procedure WMPaint(var Message: TLMPaint); message LM_PAINT;
     procedure WMSize(var Message: TLMSize); message LM_SIZE;
@@ -237,8 +241,10 @@ type
     function FindMPVPath : Boolean;
 
     procedure GrabImage;
+    property ScreenshotDirectory: string read FscDir write SetscDir;
     property LastImageFilename: String read FLastImageFilename;
 
+    property ModeMPV: TMplayerCtrlModeMPV read FModeMPV write FModeMPV default mmNone;
     property UniqueKey: string read FUniqueKey; //Unikalny kod, można wykorzystać do tworzenia plików rurek
     property MpvIpcServer: boolean read FMpvIpcServer write FMpvIpcServer default false;
     property MpvIpcDevFile: string read FMpvIpcDevFile write SetMpvIpcDevFile; //'{$UniqueKey}' zamieniany jest na UniqueKey
@@ -287,6 +293,8 @@ type
 
   TMPlayerControl = class(TCustomMPlayerControl)
   published
+    property ModeMPV;
+    property ScreenshotDirectory;
     property UniqueKey;
     property MpvIpcServer;
     property MpvIpcDevFile;
@@ -669,6 +677,15 @@ begin
   end;
 end;
 
+procedure TCustomMPlayerControl.SetscDir(AValue: string);
+var
+  s: string;
+begin
+  if AValue='' then s:='<auto>' else s:=AValue;
+  if FscDir=s then Exit;
+  FscDir:=s;
+end;
+
 procedure TCustomMPlayerControl.WMPaint(var Message: TLMPaint);
 begin
   Include(FControlState, csCustomPaint);
@@ -781,6 +798,8 @@ begin
   inherited Create(TheOwner);
   FormatSettings.DecimalSeparator:='.';
   CreateGUID(vKey);
+  FModeMPV:=mmNone;
+  FscDir:='<auto>';
   FMpvIpcServer:=false;
   FMpvIpcDevFile:='<auto>';
   FBostVolume:=false;
@@ -903,8 +922,7 @@ end;
 
 procedure TCustomMPlayerControl.GrabImage;
 begin
-  if Running then
-    SendMPlayerCommand('screenshot 0')
+  if Running then if FEngine=meMplayer then SendMPlayerCommand('screenshot 0') else ExecuteSockProcess('{ "command": ["screenshot"] }');
 end;
 
 procedure TCustomMPlayerControl.Play(sBaseDirectory: string);
@@ -992,9 +1010,10 @@ begin
   end;
   if FEngine=meMPV then
   begin
+    if (FscDir<>'') and (FscDir<>'<auto>') then FPlayerProcess.Parameters.Add('--screenshot-directory='+FscDir);
     if FBostVolume then FPlayerProcess.Parameters.Add('--af=lavfi=[acompressor=24]');
-    FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer');
-    //FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
+    if FModeMPV=mmCPlayer then FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer') else
+    if FModeMPV=mmPseudoGui then FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
     if FMPVNoOsc then FPlayerProcess.Parameters.Add('-no-osc');
     FPlayerProcess.Parameters.Add('--script-opts=timetotal=yes,timems=yes');
     //FPlayerProcess.Parameters.Add('--input-test');
