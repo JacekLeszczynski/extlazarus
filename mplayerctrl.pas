@@ -124,6 +124,7 @@ type
   { TCustomMPlayerControl }
 
   TMplayerCtrlModeMPV = (mmNone, mmCPlayer, mmPseudoGui);
+  TMplayerCtrlScreenShotFormat = (ssNone,ssJPG,ssPNG);
   TMplayerCtrlOnFeedback = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnBeforePlay = procedure(ASender: TObject; AFilename: string) of object;
@@ -209,6 +210,7 @@ type
     FOnReplay: TNotifyEvent;
     FOnSetPosition: TNotifyEvent;
     FscDir: string;
+    FSSFormat: TMplayerCtrlScreenShotFormat;
     function ExecuteSockProcess(command: string; device_file: string = ''): string;
     procedure SetscDir(AValue: string);
   protected
@@ -242,6 +244,7 @@ type
 
     procedure GrabImage;
     property ScreenshotDirectory: string read FscDir write SetscDir;
+    property ScreenshotFormat: TMplayerCtrlScreenShotFormat read FSSFormat write FSSFormat default ssNone;
     property LastImageFilename: String read FLastImageFilename;
 
     property ModeMPV: TMplayerCtrlModeMPV read FModeMPV write FModeMPV default mmNone;
@@ -295,6 +298,7 @@ type
   published
     property ModeMPV;
     property ScreenshotDirectory;
+    property ScreenshotFormat;
     property UniqueKey;
     property MpvIpcServer;
     property MpvIpcDevFile;
@@ -800,6 +804,7 @@ begin
   CreateGUID(vKey);
   FModeMPV:=mmNone;
   FscDir:='<auto>';
+  FSSFormat:=ssNone;
   FMpvIpcServer:=false;
   FMpvIpcDevFile:='<auto>';
   FBostVolume:=false;
@@ -922,7 +927,14 @@ end;
 
 procedure TCustomMPlayerControl.GrabImage;
 begin
-  if Running then if FEngine=meMplayer then SendMPlayerCommand('screenshot 0') else ExecuteSockProcess('{ "command": ["screenshot"] }');
+  if Running and (FSSFormat<>ssNone) then
+  begin
+    if FEngine=meMplayer then SendMPlayerCommand('screenshot 0') else
+    begin
+      ExecuteSockProcess('{ "command": ["screenshot"] }');
+      if Assigned(FOnGrabImage) then FOnGrabImage(self,FscDir);
+    end;
+  end;
 end;
 
 procedure TCustomMPlayerControl.Play(sBaseDirectory: string);
@@ -1010,7 +1022,14 @@ begin
   end;
   if FEngine=meMPV then
   begin
-    if (FscDir<>'') and (FscDir<>'<auto>') then FPlayerProcess.Parameters.Add('--screenshot-directory='+FscDir);
+    if FSSFormat<>ssNone then
+    begin
+      if (FscDir<>'') and (FscDir<>'<auto>') then FPlayerProcess.Parameters.Add('--screenshot-directory='+FscDir);
+      case FSSFormat of
+        ssJPG: FPlayerProcess.Parameters.Add('--screenshot-format=jpg');
+        ssPNG: FPlayerProcess.Parameters.Add('--screenshot-format=png');
+      end;
+    end;
     if FBostVolume then FPlayerProcess.Parameters.Add('--af=lavfi=[acompressor=24]');
     if FModeMPV=mmCPlayer then FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer') else
     if FModeMPV=mmPseudoGui then FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
