@@ -227,6 +227,11 @@ type
     procedure Pause;
     procedure Replay;
     function GetPositionOnlyRead: single;
+    procedure SetOSDLevel(aLevel: word);
+    procedure SetMute(aMute: boolean = true);
+    procedure SetChannels(aChannels: word);
+    function GetAudioSamplerate: integer;
+    procedure SetAudioSamplerate(aSamplerate: integer);
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -1176,6 +1181,56 @@ begin
   result:=FPosition;
 end;
 
+procedure TCustomMPlayerControl.SetOSDLevel(aLevel: word);
+begin
+  ExecuteSockProcess('{ "command": ["set_property", "osd-level", '+IntToStr(aLevel)+'] }');
+end;
+
+procedure TCustomMPlayerControl.SetMute(aMute: boolean);
+var
+  s: string;
+begin
+  if aMute then s:='yes' else s:='no';
+  ExecuteSockProcess('{ "command": ["set_property", "mute", "'+s+'"] }');
+end;
+
+procedure TCustomMPlayerControl.SetChannels(aChannels: word);
+begin
+  case aChannels of
+    0: SetMute;
+    1: begin
+         ExecuteSockProcess('{ "command": ["set_property", "audio-channels", "mono"] }');
+         SetMute(false);
+       end;
+    2: begin
+         ExecuteSockProcess('{ "command": ["set_property", "audio-channels", "stereo"] }');
+         SetMute(false);
+       end;
+  end;
+end;
+
+function TCustomMPlayerControl.GetAudioSamplerate: integer;
+var
+  s,s2: string;
+  jData: TJSONData;
+  jObject: TJSONObject;
+begin
+  s:=ExecuteSockProcess('{ "command": ["get_property", "audio-samplerate"] }');
+  jData:=GetJSON(s);
+  jObject:=TJSONObject(jData);
+  try s2:=jObject.Strings['error']; except s2:=''; end;
+  if s2='success' then
+  begin
+    jObject.Floats['data'];
+    result:=jObject.Integers['data'];
+  end else result:=0;
+end;
+
+procedure TCustomMPlayerControl.SetAudioSamplerate(aSamplerate: integer);
+begin
+  ExecuteSockProcess('{ "command": ["set_property", "audio-samplerate", '+IntToStr(aSamplerate)+'] }');
+end;
+
 procedure TCustomMPlayerControl.InitialiseInfo;
 begin
   FLastPosition := '';
@@ -1226,7 +1281,7 @@ begin
     {$ENDIF}
     Result := FPosition;
   end else begin
-    if Playing then
+    if Running then
     begin
       s:=ExecuteSockProcess('{ "command": ["get_property", "playback-time"] }');
       jData:=GetJSON(s);
