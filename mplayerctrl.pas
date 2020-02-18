@@ -203,6 +203,7 @@ type
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
   private
+    FPLAYF: boolean;
     FBostVolume: boolean;
     FModeMPV: TMplayerCtrlModeMPV;
     FOnBeforeStop: TNotifyEvent;
@@ -238,6 +239,7 @@ type
     procedure SetChannels(aChannels: word);
     function GetAudioSamplerate: integer;
     procedure SetAudioSamplerate(aSamplerate: integer);
+    procedure SetAudioEQ(s: string = '');
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -448,7 +450,7 @@ begin
             FOnPlaying(self,a,b);
           end;
         end;
-      end;
+      end else if FPLAYF then stop;
     end;
   end;
 end;
@@ -800,6 +802,7 @@ var
   vKey: TGuid;
 begin
   inherited Create(TheOwner);
+  FPLAYF:=false;
   FormatSettings.DecimalSeparator:='.';
   CreateGUID(vKey);
   FModeMPV:=mmNone;
@@ -1092,6 +1095,7 @@ begin
   FPlayerProcess.Execute;
 
   // Start the timer that handles feedback from mplayer
+  FPLAYF:=true;
   FTimer.Enabled:=FActiveTimer;
   if FEngine=meMPV then if FPLayerProcess.Running and Assigned(FOnPlay) then FOnPlay(Self); //to nie jest potrzebne...
 end;
@@ -1112,6 +1116,7 @@ begin
   FPaused:=False;
   FDuration:=-1;
   FTimer.Enabled:=False;
+  FPLAYF:=false;
 
   SendMPlayerCommand('quit');
 
@@ -1183,6 +1188,7 @@ begin
   begin
     if Running and Playing then
     begin
+      FPLAYF:=false;
       s:=ExecuteSockProcess('{ "command": ["set_property", "pause", true] }');
       FPaused:=pos('"success"',s)>0;
     end;
@@ -1209,6 +1215,7 @@ begin
       FPaused:=false;
       s:=ExecuteSockProcess('{ "command": ["set_property", "pause", false] }');
       FPaused:=not pos('"success"',s)>0;
+      FPLAYF:=true;
     end;
   end;
   if Assigned(FOnReplay) then FOnReplay(self);
@@ -1267,6 +1274,14 @@ end;
 procedure TCustomMPlayerControl.SetAudioSamplerate(aSamplerate: integer);
 begin
   ExecuteSockProcess('{ "command": ["set_property", "audio-samplerate", '+IntToStr(aSamplerate)+'] }');
+end;
+
+procedure TCustomMPlayerControl.SetAudioEQ(s: string);
+begin
+  if s='' then
+    ExecuteSockProcess('{ "command": ["set_property", "af", "superequalizer"] }')
+  else
+    ExecuteSockProcess('{ "command": ["set_property", "af", "superequalizer='+s+'"] }');
 end;
 
 procedure TCustomMPlayerControl.InitialiseInfo;
