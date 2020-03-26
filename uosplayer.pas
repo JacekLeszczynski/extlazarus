@@ -193,6 +193,7 @@ begin
   if FVolume<0 then FVolume:=0;
   if FVolume>1 then FVolume:=1;
   if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
+  //if a<0.001 then a:=0.001;
   if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,True);
 end;
 

@@ -10,9 +10,9 @@ interface
 uses
   XmlParser, CsvParser, SymfoniaParser, ExtEventLog, LogStringGrid, 
   ExtMessage, ExtParams, PointerTab, ExtLazarusTypes, extmessage_form, 
-  frReportPlus, DBSchemaSync, ZEncodedDBConf, ZMasterVersionDB, 
-  ZQueryRelative, lazgradient, lazflogin, LazLogin, ColorProgress, 
-  DBSchemaSync_postgres, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
+  frReportPlus, ZEncodedDBConf, ZMasterVersionDB, ZQueryRelative, lazgradient, 
+  lazflogin, LazLogin, ColorProgress, DBSchemaSync_postgres, DBSchemaSync, 
+  DBSchemaSyncSqlite, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
@@ -31,7 +31,6 @@ begin
   RegisterUnit('ExtParams', @ExtParams.Register);
   RegisterUnit('PointerTab', @PointerTab.Register);
   RegisterUnit('frReportPlus', @frReportPlus.Register);
-  RegisterUnit('DBSchemaSync', @DBSchemaSync.Register);
   RegisterUnit('ZEncodedDBConf', @ZEncodedDBConf.Register);
   RegisterUnit('ZMasterVersionDB', @ZMasterVersionDB.Register);
   RegisterUnit('ZQueryRelative', @ZQueryRelative.Register);
@@ -39,6 +38,8 @@ begin
   RegisterUnit('LazLogin', @LazLogin.Register);
   RegisterUnit('ColorProgress', @ColorProgress.Register);
   RegisterUnit('DBSchemaSync_postgres', @DBSchemaSync_postgres.Register);
+  RegisterUnit('DBSchemaSync', @DBSchemaSync.Register);
+  RegisterUnit('DBSchemaSyncSqlite', @DBSchemaSyncSqlite.Register);
   RegisterUnit('DBSourceCopyToExcel', @DBSourceCopyToExcel.Register);
   RegisterUnit('Gradpan', @Gradpan.Register);
   RegisterUnit('ExtSharedMemory', @ExtSharedMemory.Register);

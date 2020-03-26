@@ -943,7 +943,9 @@ end;
 procedure TCustomMPlayerControl.Play(sBaseDirectory: string);
 var
   CurWindowID: PtrUInt;
-  slStartParams : TStringList;
+  slStartParams: TStringList;
+  i: integer;
+  s: string;
 begin
   if (csDesigning in ComponentState) then exit;
 
@@ -1033,7 +1035,15 @@ begin
         ssPNG: FPlayerProcess.Parameters.Add('--screenshot-format=png');
       end;
     end;
-    if FBostVolume then FPlayerProcess.Parameters.Add('--af=lavfi=[acompressor=24]');
+    if not FNoSound then
+    begin
+      if FBostVolume then FPlayerProcess.Parameters.Add('--af=lavfi=[acompressor=24]');
+      if FVolume>-1 then
+      begin
+        FPlayerProcess.Parameters.Add('-volume');    // Set initial volume
+        FPlayerProcess.Parameters.Add(IntToStr(FVolume));
+      end;
+    end;
     if FModeMPV=mmCPlayer then FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer') else
     if FModeMPV=mmPseudoGui then FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
     if FMPVNoOsc then FPlayerProcess.Parameters.Add('-no-osc');
@@ -1043,18 +1053,9 @@ begin
     if FMpvIpcServer then FPlayerProcess.Parameters.Add('--input-ipc-server='+GetFileMpvSocket);
   end;
   FPlayerProcess.Parameters.Add('-quiet');     // supress most messages
-  if FVolume>-1 then
-  begin
-    FPlayerProcess.Parameters.Add('-volume');    // Set initial volume
-    FPlayerProcess.Parameters.Add(IntToStr(FVolume));
-  end;
   case FEngine of
     meMplayer: if FNoSound then FPlayerProcess.Parameters.Add('-nosound');
-    meMPV:     if FNoSound then
-    begin
-      FPlayerProcess.Parameters.Add('-mute');
-      FPlayerProcess.Parameters.Add('yes');
-    end;
+    meMPV:     if FNoSound then begin FPlayerProcess.Parameters.Add('-mute'); FPlayerProcess.Parameters.Add('yes'); end;
   end;
 
   FPlayerProcess.Parameters.Add('-wid');       // sets Window ID (display video in our control)
@@ -1066,6 +1067,11 @@ begin
     slStartParams := TStringList.Create;
     try
       CommandToList(StartParam, slStartParams);
+      if FNoSound then for i:=slStartParams.Count-1 downto 0 do
+      begin
+        s:=slStartParams[i];
+        if s='--mute=no' then slStartParams.Delete(i);
+      end;
       FPlayerProcess.Parameters.AddStrings(slStartParams);
     finally
       slStartParams.Free;
@@ -1235,12 +1241,14 @@ procedure TCustomMPlayerControl.SetMute(aMute: boolean);
 var
   s: string;
 begin
+  if FNosound then exit;
   if aMute then s:='yes' else s:='no';
   ExecuteSockProcess('{ "command": ["set_property", "mute", "'+s+'"] }');
 end;
 
 procedure TCustomMPlayerControl.SetChannels(aChannels: word);
 begin
+  if FNosound then exit;
   case aChannels of
     0: SetMute;
     1: begin
@@ -1260,6 +1268,7 @@ var
   jData: TJSONData;
   jObject: TJSONObject;
 begin
+  if FNosound then exit;
   s:=ExecuteSockProcess('{ "command": ["get_property", "audio-samplerate"] }');
   jData:=GetJSON(s);
   jObject:=TJSONObject(jData);
@@ -1273,11 +1282,13 @@ end;
 
 procedure TCustomMPlayerControl.SetAudioSamplerate(aSamplerate: integer);
 begin
+  if FNosound then exit;
   ExecuteSockProcess('{ "command": ["set_property", "audio-samplerate", '+IntToStr(aSamplerate)+'] }');
 end;
 
 procedure TCustomMPlayerControl.SetAudioEQ(s: string);
 begin
+  if FNosound then exit;
   if s='' then
     ExecuteSockProcess('{ "command": ["set_property", "af", "superequalizer"] }')
   else
