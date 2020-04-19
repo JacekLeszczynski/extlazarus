@@ -607,12 +607,12 @@ type
     property OnFilenameExpanded: TFilenameExpanded read FOnFilenameExpanded write FOnFilenameExpanded;
     property OnFormSubmit: TFormSubmitEvent read FOnFormSubmit write SetOnFormSubmit;
     property OnHistoryChange;
-    property OnHotSpotClick: THotSpotClickEvent read FOnHotSpotClick write FOnHotSpotClick;
+    property OnHotSpotClick: THotSpotClickEvent read FOnHotSpotClick write FOnHotSpotClick; //Odpalanie linków
     property OnHotSpotCovered: THotSpotEvent read FOnHotSpotCovered write FOnHotSpotCovered;
     property OnhtStreamRequest: TGetStreamEvent read FOnhtStreamRequest write FOnhtStreamRequest;
     property OnhtStreamRequested: TGottenStreamEvent read FOnhtStreamRequested write FOnhtStreamRequested;
     property OnLoadHistoryItem: TLoadHistoryItem read FOnLoadHistoryItem write FOnLoadHistoryItem;
-    property OnImageClick;
+    property OnImageClick; //TImageObj(Obj).Alt
     property OnImageOver;
     property OnImageRequest;
     property OnImageRequested;
@@ -620,7 +620,7 @@ type
     property OnLink;
     property OnMeta;
     property OnMetaRefresh: TMetaRefreshType read FOnMetaRefresh write FOnMetaRefresh;
-    property OnMouseDouble;
+    property OnMouseDouble; //Podwójne kliknięcie zwraca namiar myszy
     property OnObjectBlur;
     property OnObjectChange;
     property OnObjectClick;
@@ -639,7 +639,7 @@ type
     property OnPrinting;
     property OnProcessing;
     property OnProgress;
-    property OnRightClick: TRightClickEvent read FOnRightClick write FOnRightClick;
+    property OnRightClick: TRightClickEvent read FOnRightClick write FOnRightClick; //Prawy klik myszy
     property OnScript;
     // BG, 15.10.2012: TODO: PtInObject not yet working correctly with horizontal scrolling (especially TSizeableObj.DrawYY seems to be wrong).
     // BG, 15.10.2012: TODO: Add events OnSectionClick and OnSectionOver to TFrameViewer and TFrameBrowser.
@@ -671,9 +671,9 @@ type
     property OnKeyDown;
     property OnKeyPress;
     property OnKeyUp;
-    property OnMouseMove;
-    property OnMouseUp;
-    property OnMouseDown;
+    property OnMouseMove; //Zwraca namiar przesuwającej się myszy
+    property OnMouseUp; //Zwraca namiar odkliknięcia myszy
+    property OnMouseDown; //Zwaraca namiar pojedyńczego kliku myszy
     property OnMouseWheel;
 {$ifdef HasGestures}
     property Touch;

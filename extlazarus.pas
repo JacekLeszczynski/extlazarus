@@ -16,7 +16,7 @@ uses
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
-  DirectoryPack, LazarusPackageIntf;
+  DirectoryPack, Presentation, DSMaster, LazarusPackageIntf;
 
 implementation
 
@@ -60,6 +60,8 @@ begin
   RegisterUnit('Polfan', @Polfan.Register);
   RegisterUnit('GoogleTranslator', @GoogleTranslator.Register);
   RegisterUnit('DirectoryPack', @DirectoryPack.Register);
+  RegisterUnit('Presentation', @Presentation.Register);
+  RegisterUnit('DSMaster', @DSMaster.Register);
 end;
 
 initialization

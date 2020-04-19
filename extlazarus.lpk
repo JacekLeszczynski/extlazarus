@@ -6,11 +6,11 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <OtherUnitFiles Value="../../lib"/>
+        <OtherUnitFiles Value="../../lib;../mouseandkeyinput"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="41">
+    <Files Count="43">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -214,6 +214,16 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="DirectoryPack"/>
       </Item41>
+      <Item42>
+        <Filename Value="presentation.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="Presentation"/>
+      </Item42>
+      <Item43>
+        <Filename Value="dsmaster.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="DSMaster"/>
+      </Item43>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>

@@ -15,7 +15,7 @@ type
   TDBSchemaSyncSqlite = class(TComponent)
   private
     dbsql: string;
-    list: TStringList;
+    //list: TStringList;
     FDB: TZConnection;
     sdb,sdb2: TZConnection;
     sq1,sq2: TZQuery;
@@ -27,11 +27,12 @@ type
     function wewn_delete_dolars(aCialo: string): string;
     procedure wewn_delete_dolars(aCialo: TStrings);
     function sync_delete:boolean;
+    function sync_delete2:boolean;
     function sync_table:boolean;
-    function test_ref(nazwa:string;cialo:TStrings):boolean;
-    function test_table(indeks:integer;nazwa:string;cialo:TStrings):boolean;
     function akt_table(nazwa:string;s1,s2:TStrings):boolean;
-    function akt_restrukturyzacja(cialo:TStrings;nazwa:string): boolean;
+    function akt_restrukturyzacja(cialo,stare:TStrings;nazwa:string): boolean;
+    function PragmaForeignKeys: boolean;
+    procedure PragmaForeignKeys(aOn: boolean);
   protected
   public
     err: integer;
@@ -45,7 +46,9 @@ type
     function ShowAutoIndexName(aTable: string; aNr: integer): string;
     procedure ShowViews(aBody: TStrings);
     procedure ShowCreateTable(aTable: string; aBody: TStrings);
+    procedure ShowCreateIndex(aIndex: string; var aWektor: string; aBody: TStrings);
     procedure ShowCreateIndex(aIndex: string; aBody: TStrings);
+    procedure ShowCreateView(aView: string; var aWektor: string; aBody: TStrings);
     procedure ShowCreateView(aView: string; aBody: TStrings);
     procedure SaveSchema;
     function SyncSchema:boolean;
@@ -65,6 +68,41 @@ procedure Register;
 begin
   {$I dbschemasyncsqlite_icon.lrs}
   RegisterComponents('System',[TDBSchemaSyncSqlite]);
+end;
+
+function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
+const
+  textseparator = '"';
+var
+  i,ll,dl: integer;
+  b: boolean;
+begin
+  b:=false;
+  dl:=length(s);
+  ll:=1;
+  s:=s+separator;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then inc(ll);
+    if ll=l then break;
+  end;
+  if ll=1 then dec(i);
+  delete(s,1,i);
+  b:=false;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then break;
+  end;
+  delete(s,i,dl);
+  if (s<>'') and (s[1]=textseparator) then
+  begin
+    delete(s,1,1);
+    delete(s,length(s),1);
+  end;
+  if s='' then s:=wynik;
+  result:=s;
 end;
 
 procedure StrToListItems(s: string; list: TStrings);
@@ -224,7 +262,8 @@ begin
     begin
       a:=pos(')',ss);
       s:=trim(copy(ss,1,a));
-      aDest.Add(' '+s+'$'+ShowAutoIndexName(nazwa,nr)+'$');
+      //aDest.Add(' '+s+'$'+ShowAutoIndexName(nazwa,nr)+'$');
+      aDest.Add(' '+s);
       delete(ss,1,a);
       inc(nr);
       continue;
@@ -289,12 +328,11 @@ end;
 function TDBSchemaSyncSqlite.sync_delete: boolean;
 var
   i: integer;
-  v1,v2: TStringList;
+  v1: TStringList;
   s: string;
 begin
   (* usuwamy ze struktury objekty nie istniejące w bazie wzorcowej *)
   v1:=TStringList.Create;
-  v2:=TStringList.Create;
   try
     (* widoki *)
     ShowViews(v1);
@@ -368,6 +406,71 @@ begin
     (* WSZYSTKO *)
   finally
     v1.Free;
+  end;
+  result:=true;
+end;
+
+function TDBSchemaSyncSqlite.sync_delete2: boolean;
+var
+  i: integer;
+  v1,v2: TStringList;
+  s: string;
+begin
+  (* usuwamy ze struktury objekty nie istniejące w bazie wzorcowej *)
+  v1:=TStringList.Create;
+  v2:=TStringList.Create;
+  try
+    (* widoki *)
+    ShowViews(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select definicja from tabele where nazwa=:nazwa and typ=3');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      ShowCreateView(v1[i],v2);
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsString<>v2.Text then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop view '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania podglądu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* indeksy *)
+    ShowIndexes(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select definicja from tabele where nazwa=:nazwa and typ=2');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      ShowCreateIndex(v1[i],v2);
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsString<>v2.Text then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop index '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania indeksu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* WSZYSTKO *)
+  finally
+    v1.Free;
     v2.Free;
   end;
   result:=true;
@@ -376,21 +479,19 @@ end;
 function TDBSchemaSyncSqlite.sync_table: boolean;
 var
   i: integer;
-  v1,v2,defs: TStringList;
+  list,defs,v1: TStringList;
   nazwa,def: string;
   b: boolean;
 begin
   (* aktualizacja tabel *)
   b:=true;
-  list.Clear;
-  v1:=TStringList.Create;
-  v2:=TStringList.Create;
+  list:=TStringList.Create;
   defs:=TStringList.Create;
+  v1:=TStringList.Create;
   try
     (* tabele *)
-    ShowTables(v1);
     sq1.SQL.Clear;
-    sq1.SQL.Add('select nazwa from tabele where typ=1 order by id desc');
+    sq1.SQL.Add('select nazwa from tabele where typ=1 order by id');
     sq1.Open;
     while not sq1.EOF do
     begin
@@ -402,75 +503,26 @@ begin
     sq1.SQL.Clear;
     sq1.SQL.Add('select definicja from tabele where typ=1 and nazwa=:nazwa');
     sq1.Prepare;
-    while list.Count>0 do
+    for i:=0 to list.Count-1 do
     begin
-      for i:=list.Count-1 downto 0 do
-      begin
-        nazwa:=list[i];
-        sq1.ParamByName('nazwa').AsString:=nazwa;
-        sq1.Open;
-        def:=sq1.FieldByName('definicja').AsString;
-        sq1.Close;
-        StrToListItems(def,defs);
-        (* sprawdzamy referencje i wykonujemy aktualizację jeśli trzeba *)
-        if test_ref(nazwa,defs) then b:=test_table(i,nazwa,defs);
-      end;
-      if not b then break;
+      nazwa:=list[i];
+      sq1.ParamByName('nazwa').AsString:=nazwa;
+      sq1.Open;
+      def:=sq1.FieldByName('definicja').AsString;
+      sq1.Close;
+      StrToListItems(def,defs);
+      (* sprawdzamy referencje i wykonujemy aktualizację jeśli trzeba *)
+      ShowCreateTable(nazwa,v1);
+      writeln(1,' ',nazwa,': ',v1.Text);
+      writeln(2,' ',nazwa,': ',defs.Text);
+      //if v1.Text<>defs.Text then b:=akt_table(nazwa,defs,v1);
+      if v1.Text<>defs.Text then writeln('DO ZMIANY!');
     end;
   finally
-    v1.Free;
-    v2.Free;
+    list.Free;
     defs.Free;
+    v1.Free;
   end;
-  result:=b;
-end;
-
-function TDBSchemaSyncSqlite.test_ref(nazwa: string; cialo: TStrings): boolean;
-var
-  b: boolean;
-  i,j,a1,a2,a3: integer;
-  s: string;
-begin
-  b:=true;
-  for i:=0 to cialo.Count-1 do
-  begin
-    s:=cialo[i];
-    a1:=pos('UNIQUE',uppercase(s));
-    a2:=pos('FOREIGN KEY',uppercase(s));
-    a3:=pos('REFERENCES',uppercase(s));
-    if (a2>0) and (a3>0) then
-    begin
-      delete(s,1,a3+10);
-      j:=pos(' ',s);
-      delete(s,j,255);
-      j:=pos('(',s);
-      delete(s,j,255);
-      s:=trim(s);
-      if StringToItemIndex(list,s,-1)<>-1 then
-      begin
-        b:=false;
-        break;
-      end;
-    end;
-  end;
-  result:=b;
-end;
-
-function TDBSchemaSyncSqlite.test_table(indeks: integer; nazwa: string;
-  cialo: TStrings): boolean;
-var
-  ss: TStringList;
-  b: boolean;
-begin
-  b:=true;
-  ss:=TStringList.Create;
-  try
-    ShowCreateTable(nazwa,ss);
-    if wewn_delete_dolars(cialo.Text)<>wewn_delete_dolars(ss.Text) then b:=akt_table(nazwa,cialo,ss);
-  finally
-    ss.Free;
-  end;
-  if b then list.Delete(indeks);
   result:=b;
 end;
 
@@ -481,13 +533,13 @@ var
   p1,p2,pp: TStringList;
   i,a: integer;
   s: string;
+  d1,d2,e1,e2: string;
 begin
   result:=true;
   if s2.Count=0 then
   begin
     (* tej tabeli nie ma - tworzę ją *)
     q1.SQL.Assign(s1);
-    wewn_delete_dolars(q1.SQL);
     try
       q1.ExecSQL;
       result:=true;
@@ -497,6 +549,56 @@ begin
     end;
     exit;
   end;
+  (* zmiany dot. zmiany nazw kolumn jeśli istnieją różnice tylko w nazwach *)
+  for i:=0 to s1.Count-1 do
+  begin
+    d1:=s1[i];
+    d2:=s2[i];
+    if d1=d2 then continue;
+    e1:=GetLineToStr(d1,1,' ');
+    e2:=GetLineToStr(d2,1,' ');
+    d2:=StringReplace(d2,e2,e1,[]);
+    if d1=d2 then
+    begin
+      q1.SQL.Clear;
+      q1.SQL.Add('ALTER TABLE '+nazwa+' RENAME COLUMN '+e2+' TO '+e1);
+      try
+        q1.ExecSQL;
+      except
+        log.Add('SYNC-ALTER: Błąd podczas zmiany nazwy kolumny z tabeli: ['+nazwa+']:'+#10#13+q1.SQL.Text);
+        exit;
+      end;
+    end else break;
+  end;
+  (* cokolwiek jest inaczej z kolumnami - wykonujemy restrukturyzację *)
+  for i:=0 to s1.Count-1 do
+  begin
+    if s1[i]<>s2[i] then
+    begin
+      b_restrukturyzacja:=true;
+      break;
+    end;
+  end;
+  for i:=0 to s2.Count-1 do
+  begin
+    if s1[i]<>s2[i] then
+    begin
+      b_restrukturyzacja:=true;
+      break;
+    end;
+  end;
+  (* Jeśli zarządano restrukturyzacji *)
+  if b_restrukturyzacja then if akt_restrukturyzacja(s1,s2,nazwa) then
+  begin
+    result:=true;
+    exit;
+  end else begin
+    log.Add('SYNC-ALTER: Błąd wykonania restrukturyzacji, tabela: ['+nazwa+']:'+#10#13);
+    result:=false;
+    exit;
+  end;
+
+
 
   result:=false;
   b_restrukturyzacja:=false;
@@ -513,7 +615,7 @@ begin
       b_restrukturyzacja:=true;
       break;
     end;
-    (* usuwam gotowe do usunięcia indeksy *)
+    (* usuwam gotowe do usunięcia indeksy definiowane wewnątrz tabeli *)
     if not b_restrukturyzacja then
     begin
       pola_to_indeksy(s1,p1,2);
@@ -549,7 +651,7 @@ begin
       end;
     end;
     (* Jeśli zarządano restrukturyzacji *)
-    if b_restrukturyzacja then if akt_restrukturyzacja(s1,nazwa) then
+    if b_restrukturyzacja then if akt_restrukturyzacja(s1,s2,nazwa) then
     begin
       result:=true;
       exit;
@@ -601,7 +703,7 @@ begin
       end;
     end;
     (* aktualizuję kolejność pól tabeli, jeśli istnieje inna kolejność *)
-    pola_to_indeksy(s1,pp,0);
+    {pola_to_indeksy(s1,pp,0);
     pola_to_indeksy(s1,p1,0,true);
     pola_to_indeksy(s2,p2,0,true);
     for i:=0 to p1.Count-1 do if p1[i]<>p2[i] then
@@ -617,49 +719,49 @@ begin
       end;
       ShowCreateTable(nazwa,s2);
       pola_to_indeksy(s2,p2,0,true);
-    end;
+    end;}
     (* dodaję brakujący indeks pierwszy *)
     pola_to_indeksy(s1,p1,1);
     pola_to_indeksy(s2,p2,1);
-    if (p1.Count=1) and (p2.Count=0) then
-    begin
-      q1.SQL.Clear;
-      q1.SQL.Add('ALTER TABLE '+nazwa+' ADD '+p1[0]);
-      try
-        q1.ExecSQL;
-      except
-        log.Add('SYNC-ADD: Błąd podczas dodawania indeksu podstawowego w tabeli: ['+nazwa+']:'+#10#13+q1.SQL.Text);
-        exit;
-      end;
-    end;
+    if not b_restrukturyzacja then if (p1.Count=1) and (p2.Count=0) then b_restrukturyzacja:=true;
     (* dodaję brakujące indeksy *)
-    pola_to_indeksy(s1,p1,2);
-    pola_to_indeksy(s2,p2,2);
-    for i:=0 to p1.Count-1 do if StringToItemIndex(p2,p1[i],-1)=-1 then
+    if not b_restrukturyzacja then
     begin
-      q1.SQL.Clear;
-      q1.SQL.Add('ALTER TABLE '+nazwa+' ADD '+p1[i]);
-      try
-        q1.ExecSQL;
-      except
-        log.Add('SYNC-ADD: Błąd podczas dodawania indeksu do tabeli: ['+nazwa+']:'+#10#13+q1.SQL.Text);
-        exit;
+      pola_to_indeksy(s1,p1,2);
+      pola_to_indeksy(s2,p2,2);
+      for i:=0 to p1.Count-1 do if StringToItemIndex(p2,p1[i],-1)=-1 then
+      begin
+        begin
+          b_restrukturyzacja:=true;
+          break;
+        end;
       end;
     end;
     (* dodaję brakujące klucze obce *)
-    pola_to_indeksy(s1,p1,3);
-    pola_to_indeksy(s2,p2,3);
-    for i:=0 to p1.Count-1 do if StringToItemIndex(p2,p1[i],-1)=-1 then
+    if not b_restrukturyzacja then
     begin
-      q1.SQL.Clear;
-      q1.SQL.Add('ALTER TABLE '+nazwa+' ADD '+p1[i]);
-      try
-        q1.ExecSQL;
-      except
-        log.Add('SYNC-ADD: Błąd podczas dodawania indeksu obcego do tabeli: ['+nazwa+']:'+#10#13+q1.SQL.Text);
-        exit;
+      pola_to_indeksy(s1,p1,3);
+      pola_to_indeksy(s2,p2,3);
+      for i:=0 to p1.Count-1 do if StringToItemIndex(p2,p1[i],-1)=-1 then
+      begin
+        begin
+          b_restrukturyzacja:=true;
+          break;
+        end;
       end;
     end;
+    (* Jeśli zarządano restrukturyzacji *)
+    if b_restrukturyzacja then if akt_restrukturyzacja(s1,s2,nazwa) then
+    begin
+      result:=true;
+      exit;
+    end else begin
+      log.Add('SYNC-ALTER: Błąd wykonania restrukturyzacji, tabela: ['+nazwa+']:'+#10#13);
+      result:=false;
+      exit;
+    end;
+    (* Dodaję brakujące indeksy zewnętrzne *)
+    {TU MA BYĆ TEN KOD}
   finally
     pp.Free;
     p1.Free;
@@ -668,21 +770,22 @@ begin
   result:=true;
 end;
 
-function TDBSchemaSyncSqlite.akt_restrukturyzacja(cialo: TStrings; nazwa: string
-  ): boolean;
+function TDBSchemaSyncSqlite.akt_restrukturyzacja(cialo, stare: TStrings;
+  nazwa: string): boolean;
 begin
   try
     q1.SQL.Clear;
     q1.SQL.Add('alter table '+nazwa+' rename to '+nazwa+'_old');
     q1.ExecSQL;
     q1.SQL.Assign(cialo);
-    wewn_delete_dolars(q1.SQL);
     q1.ExecSQL;
     q1.SQL.Clear;
+
     q1.SQL.Add('insert into '+nazwa);
     q1.SQL.Add('values');
     q1.SQL.Add('select * from '+nazwa+'_old');
     q1.ExecSQL;
+
     q1.SQL.Clear;
     q1.SQL.Add('drop table '+nazwa+'_old');
     q1.ExecSQL;
@@ -692,10 +795,29 @@ begin
   end;
 end;
 
+function TDBSchemaSyncSqlite.PragmaForeignKeys: boolean;
+var
+  a: integer;
+begin
+  q1.SQL.Clear;
+  q1.SQL.Add('PRAGMA foreign_keys');
+  q1.Open;
+  a:=q1.Fields[0].AsInteger;
+  q1.Close;
+  result:=a=1;
+end;
+
+procedure TDBSchemaSyncSqlite.PragmaForeignKeys(aOn: boolean);
+begin
+  q1.SQL.Clear;
+  if aOn then q1.SQL.Add('PRAGMA foreign_keys = on')
+         else q1.SQL.Add('PRAGMA foreign_keys = off');
+  q1.ExecSQL;
+end;
+
 constructor TDBSchemaSyncSqlite.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  list:=TStringList.Create;
   log:=TStringList.Create;
   sdb:=TZConnection.Create(nil);
   sdb2:=TZConnection.Create(nil);
@@ -710,7 +832,6 @@ end;
 
 destructor TDBSchemaSyncSqlite.Destroy;
 begin
-  list.Free;
   log.Free;
   q1.Free;
   q2.Free;
@@ -796,6 +917,7 @@ var
   b: boolean;
 begin
   b:=false;
+  aBody.Clear;
   ss:=TStringList.Create;
   try
     q1.SQL.Clear;
@@ -819,36 +941,54 @@ begin
   end;
 end;
 
-procedure TDBSchemaSyncSqlite.ShowCreateIndex(aIndex: string; aBody: TStrings);
+procedure TDBSchemaSyncSqlite.ShowCreateIndex(aIndex: string;
+  var aWektor: string; aBody: TStrings);
 begin
   aBody.Clear;
   q1.SQL.Clear;
-  q1.SQL.Add('select sql from sqlite_master where type=:typ and name=:name');
+  q1.SQL.Add('select tbl_name,sql from sqlite_master where type=:typ and name=:name');
   q1.ParamByName('typ').AsString:='index';
   q1.ParamByName('name').AsString:=aIndex;
   q1.Open;
+  aWektor:=q1.FieldByName('tbl_name').AsString;
   while not q1.EOF do
   begin
-    aBody.Add(q1.Fields[0].AsString);
+    aBody.Add(q1.FieldByName('sql').AsString);
+    q1.Next;
+  end;
+  q1.Close;
+end;
+
+procedure TDBSchemaSyncSqlite.ShowCreateIndex(aIndex: string; aBody: TStrings);
+var
+  wektor: string;
+begin
+  ShowCreateIndex(aIndex,wektor,aBody);
+end;
+
+procedure TDBSchemaSyncSqlite.ShowCreateView(aView: string;
+  var aWektor: string; aBody: TStrings);
+begin
+  aBody.Clear;
+  q1.SQL.Clear;
+  q1.SQL.Add('select tbl_name,sql from sqlite_master where type=:typ and name=:name');
+  q1.ParamByName('typ').AsString:='view';
+  q1.ParamByName('name').AsString:=aView;
+  q1.Open;
+  aWektor:=q1.FieldByName('tbl_name').AsString;
+  while not q1.EOF do
+  begin
+    aBody.Add(q1.FieldByName('sql').AsString);
     q1.Next;
   end;
   q1.Close;
 end;
 
 procedure TDBSchemaSyncSqlite.ShowCreateView(aView: string; aBody: TStrings);
+var
+  wektor: string;
 begin
-  aBody.Clear;
-  q1.SQL.Clear;
-  q1.SQL.Add('select sql from sqlite_master where type=:typ and name=:name');
-  q1.ParamByName('typ').AsString:='view';
-  q1.ParamByName('name').AsString:=aView;
-  q1.Open;
-  while not q1.EOF do
-  begin
-    aBody.Add(q1.Fields[0].AsString);
-    q1.Next;
-  end;
-  q1.Close;
+  ShowCreateView(aView,wektor,aBody);
 end;
 
 procedure TDBSchemaSyncSqlite.SaveSchema;
@@ -856,6 +996,7 @@ var
   i: integer;
   pom,vv: TStringList;
   czas: TDateTime;
+  wektor: string;
 begin
   pom:=TStringList.Create;
   vv:=TStringList.Create;
@@ -866,10 +1007,13 @@ begin
     sdb.Connect;
     (* przygotowanie bazy do zapisu struktury *)
     sq1.SQL.Clear;
-    sq1.SQL.Add('create table tabele (id integer primary key autoincrement,nazwa text,typ integer,znacznik_czasu datetime,definicja blob)');
+    sq1.SQL.Add('create table tabele (id integer primary key autoincrement,nazwa text,wektor text,typ integer,znacznik_czasu datetime,definicja blob)');
     sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_nazwa on tabele(nazwa)'); sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_wektor on tabele(wektor)'); sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_typ on tabele(typ)'); sq1.ExecSQL;
     sq1.SQL.Clear;
-    sq1.SQL.Add('insert into tabele (nazwa,typ,znacznik_czasu,definicja) values (:nazwa,:typ,:z_czasu,:definicja)');
+    sq1.SQL.Add('insert into tabele (nazwa,wektor,typ,znacznik_czasu,definicja) values (:nazwa,:wektor,:typ,:z_czasu,:definicja)');
     sq1.Prepare;
     (* tabele *)
     ShowTables(vv);
@@ -878,6 +1022,7 @@ begin
     begin
       ShowCreateTable(vv[i],pom);
       sq1.ParamByName('nazwa').AsString:=vv[i];
+      sq1.ParamByName('wektor').Clear;
       sq1.ParamByName('typ').AsInteger:=1;
       sq1.ParamByName('z_czasu').Clear;
       sq1.ParamByName('definicja').AsString:=pom.Text;
@@ -887,8 +1032,9 @@ begin
     ShowIndexes(vv);
     for i:=0 to vv.Count-1 do
     begin
-      ShowCreateIndex(vv[i],pom);
+      ShowCreateIndex(vv[i],wektor,pom);
       sq1.ParamByName('nazwa').AsString:=vv[i];
+      sq1.ParamByName('wektor').AsString:=wektor;
       sq1.ParamByName('typ').AsInteger:=2;
       sq1.ParamByName('z_czasu').Clear;
       sq1.ParamByName('definicja').AsString:=pom.Text;
@@ -898,8 +1044,9 @@ begin
     ShowViews(vv);
     for i:=0 to vv.Count-1 do
     begin
-      ShowCreateView(vv[i],pom);
+      ShowCreateView(vv[i],wektor,pom);
       sq1.ParamByName('nazwa').AsString:=vv[i];
+      sq1.ParamByName('wektor').AsString:=wektor;
       sq1.ParamByName('typ').AsInteger:=3;
       sq1.ParamByName('z_czasu').Clear;
       sq1.ParamByName('definicja').AsString:=pom.Text;
@@ -915,6 +1062,7 @@ end;
 
 function TDBSchemaSyncSqlite.SyncSchema: boolean;
 var
+  pragma_fk: boolean;
   b: boolean;
   ee: integer;
 begin
@@ -929,12 +1077,23 @@ begin
   sdb.Database:=dbsql;
   sdb.Connect;
   try
-    ee:=101;
-    b:=sync_delete;
-    ee:=102;
-    if b then b:=sync_table;
-    ee:=103;
-//    if b then b:=sync_event;
+    try
+      pragma_fk:=PragmaForeignKeys;
+      if pragma_fk then PragmaForeignKeys(false);
+      (* usuwamy obiekty nieistniejące w bazie *)
+      ee:=101;
+      b:=sync_delete;
+      (* usuwamy obiekty istniejące w bazie, lecz tylko te o zmienionej definicji (dot. widoków i indeksów) *)
+      ee:=102;
+      if b then b:=sync_delete2;
+      (* aktualizujemy strukturę samych tabel *)
+      ee:=103;
+      if b then b:=sync_table;
+      ee:=104;
+  //    if b then b:=sync_event;
+    finally
+      if pragma_fk then PragmaForeignKeys(true);
+    end;
   except
     err:=ee;
     b:=false;
