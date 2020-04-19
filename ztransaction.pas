@@ -25,6 +25,7 @@ type
     procedure StartTransaction;
     procedure Commit;
     procedure Rollback;
+    procedure State(Sender: TObject; var aActive,aNoEmpty,aEdited: boolean);
   published
     property Database: TZConnection read FDatabase write FDatabase;
     property IsolationLevel: TZTransactIsolationLevel read FTransactIsolationLevel write FTransactIsolationLevel default tiReadCommitted;
@@ -33,6 +34,9 @@ type
 procedure Register;
 
 implementation
+
+uses
+  db;
 
 var
   przed_transakcja: TZTransactIsolationLevel;
@@ -78,6 +82,19 @@ procedure TZTransaction.Rollback;
 begin
   FDatabase.Rollback;
   FDatabase.TransactIsolationLevel:=przed_transakcja;
+end;
+
+procedure TZTransaction.State(Sender: TObject; var aActive, aNoEmpty,
+  aEdited: boolean);
+var
+  a: TDataSource;
+  b: TDataSet;
+begin
+  a:=TDataSource(Sender);
+  b:=a.DataSet;
+  aActive:=b.Active and (not (a.State in [dsEdit,dsInsert]));
+  aNoEmpty:=aActive and (not b.IsEmpty);
+  aEdited:=b.Active and (a.State in [dsEdit,dsInsert]);
 end;
 
 { TZTransaction }
