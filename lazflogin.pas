@@ -10,8 +10,9 @@ uses
 
 type
 
-  TTestLoginEvent = procedure(Sender: TObject; Login,Password: string; var IsLogin: boolean) of object;
+  TTestLoginEvent = procedure(Sender: TObject; aLogin, aPassword: string; aIndex: integer; aItem: string; var IsLogin: boolean) of object;
   TTestMaxLogins = procedure(Sender: TObject; var IsOK: boolean) of object;
+  TLazLoginChangeIndexEvent = procedure(aIndex: integer; aItem: string) of object;
 
   { TLazFormLogin }
 
@@ -32,6 +33,7 @@ type
     Panel2: TPanel;
     uzytkownik: TLabeledEdit;
     procedure anulujClick(Sender: TObject);
+    procedure c2Change(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure okClick(Sender: TObject);
@@ -42,6 +44,7 @@ type
     { public declarations }
     FTestLogin: ^TTestLoginEvent;
     FTestMaxLogins: ^TTestMaxLogins;
+    FLazLoginChangeIndex: ^TLazLoginChangeIndexEvent;
     HOST,DATABASE: string;
     ADM_LOGIN,ADM_PASSWORD: string;
     sDialogError: string;
@@ -54,7 +57,7 @@ type
   end;
 
 {$IFDEF WINDOWS}
-function PwdVerify(server,baza,LazFormLogin,haslo:PChar;integrated:boolean;programtype,connectiontype:integer):integer; stdcall; external 'PWD_WB.DLL' name 'PwdVerify';
+//function PwdVerify(server,baza,LazFormLogin,haslo:PChar;integrated:boolean;programtype,connectiontype:integer):integer; stdcall; external 'PWD_WB.DLL' name 'PwdVerify';
 {$ENDIF}
 
 var
@@ -81,7 +84,7 @@ begin
     begin
       b:=true;
       if Assigned(FTestMaxLogins^) then FTestMaxLogins^(Sender,b);
-      if b then if Assigned(FTestLogin^) then FTestLogin^(Sender,s1,s2,BB) else BB:=test(s1,s2);
+      if b then if Assigned(FTestLogin^) then FTestLogin^(Sender,s1,s2,c2.ItemIndex,c2.Text,BB) else BB:=test(s1,s2);
     end;
   except on E : Exception do
     begin
@@ -122,11 +125,13 @@ begin
     if _RES[i] then
     begin
       {$IFDEF WINDOWS}
-      if PwdVerify(pchar(s1),pchar(s2),pchar(s3),pchar(s4),false,i,3)<>0 then
+      {if PwdVerify(pchar(s1),pchar(s2),pchar(s3),pchar(s4),false,i,3)<>0 then
       begin
         b:=true;
         break;
-      end;
+      end;}
+      b:=false;
+      break;
       {$ELSE}
       b:=false;
       break;
@@ -144,6 +149,11 @@ begin
   _INDEXRETURN:=-1;
   _ITEMRETURN:='';
   Close;
+end;
+
+procedure TLazFormLogin.c2Change(Sender: TObject);
+begin
+  if Assigned(FLazLoginChangeIndex^) then FLazLoginChangeIndex^(c2.ItemIndex,c2.Text);
 end;
 
 procedure TLazFormLogin.FormCreate(Sender: TObject);

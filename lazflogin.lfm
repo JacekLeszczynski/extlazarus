@@ -16,7 +16,7 @@ object LazFormLogin: TLazFormLogin
   OnCreate = FormCreate
   OnShow = FormShow
   Position = poOwnerFormCenter
-  LCLVersion = '1.7'
+  LCLVersion = '2.0.6.0'
   object Panel1: TPanel
     Left = 0
     Height = 64
@@ -63,10 +63,10 @@ object LazFormLogin: TLazFormLogin
     ParentFont = False
     TabOrder = 2
     object Label2: TLabel
-      Left = 360
-      Height = 14
-      Top = 2
-      Width = 34
+      Left = 367
+      Height = 15
+      Top = 1
+      Width = 27
       Anchors = [akRight, akBottom]
       Caption = 'Enter'
       Font.Color = clSilver
@@ -85,10 +85,10 @@ object LazFormLogin: TLazFormLogin
       TabOrder = 0
     end
     object Label3: TLabel
-      Left = 438
-      Height = 14
-      Top = 2
-      Width = 46
+      Left = 448
+      Height = 15
+      Top = 1
+      Width = 36
       Anchors = [akRight, akBottom]
       Caption = 'Escape'
       Font.Color = clSilver
@@ -132,19 +132,12 @@ object LazFormLogin: TLazFormLogin
     end
     object haslo: TLabeledEdit
       Left = 171
-      Height = 22
+      Height = 23
       Top = 37
       Width = 152
       EchoMode = emPassword
-      EditLabel.AnchorSideTop.Control = haslo
-      EditLabel.AnchorSideTop.Side = asrCenter
-      EditLabel.AnchorSideRight.Control = haslo
-      EditLabel.AnchorSideBottom.Control = haslo
-      EditLabel.AnchorSideBottom.Side = asrBottom
-      EditLabel.Left = 124
       EditLabel.Height = 13
-      EditLabel.Top = 42
-      EditLabel.Width = 44
+      EditLabel.Width = 38
       EditLabel.Caption = 'Hasło:  '
       EditLabel.ParentColor = False
       Font.CharSet = EASTEUROPE_CHARSET
@@ -162,15 +155,8 @@ object LazFormLogin: TLazFormLogin
       Height = 21
       Top = 10
       Width = 152
-      EditLabel.AnchorSideTop.Control = uzytkownik
-      EditLabel.AnchorSideTop.Side = asrCenter
-      EditLabel.AnchorSideRight.Control = uzytkownik
-      EditLabel.AnchorSideBottom.Control = uzytkownik
-      EditLabel.AnchorSideBottom.Side = asrBottom
-      EditLabel.Left = 95
       EditLabel.Height = 13
-      EditLabel.Top = 14
-      EditLabel.Width = 73
+      EditLabel.Width = 69
       EditLabel.Caption = 'Użytkownik:  '
       EditLabel.ParentColor = False
       LabelPosition = lpLeft
@@ -178,10 +164,11 @@ object LazFormLogin: TLazFormLogin
     end
     object c2: TComboBox
       Left = 171
-      Height = 26
+      Height = 21
       Top = 66
       Width = 152
-      ItemHeight = 0
+      ItemHeight = 13
+      OnChange = c2Change
       Style = csDropDownList
       TabOrder = 2
       Visible = False

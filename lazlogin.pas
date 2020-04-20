@@ -21,9 +21,10 @@ type
   { Zdarzenia }
 
   TReturnEvent = procedure(Sender: TObject; IsLogin: boolean; User: string; vIndex: integer; vItem: string) of object;
-  TTestLoginEvent = procedure(Sender: TObject; Login,Password: string; var IsLogin: boolean) of object;
+  TTestLoginEvent = procedure(Sender: TObject; Login, Password: string; aIndex: integer; aItem: string; var IsLogin: boolean) of object;
   TTestMaxLogins = procedure(Sender: TObject; var IsOK: boolean) of object;
   TTestUserEvent = procedure(Sender: TObject; Login: string; var IsLogin: boolean) of object;
+  TLazLoginChangeIndexEvent = procedure(aIndex: integer; aItem: string) of object;
 
   { TLazLogin }
 
@@ -34,6 +35,7 @@ type
     FButtonHeight: integer;
     FCancelWidth: integer;
     FCCancel: string;
+    FChangeIndex: TLazLoginChangeIndexEvent;
     FCLogin: string;
     FCOK: string;
     FCPassw: string;
@@ -79,6 +81,7 @@ type
     function Execute(SuperLogin:string='';SuperPassword:string=''):boolean;
     function ExecuteForceLogin(Login:string):boolean;
     function GetLogin:string;
+    procedure RefreshColors;
   published
     { Published declarations }
     property Host: string read FHost write FHost;
@@ -121,6 +124,7 @@ type
     property OnTestLogin: TTestLoginEvent read FTestLogin write FTestLogin;
     property OnTestUser: TTestUserEvent read FTestUser write FTestUser;
     property OnTestMaxLogins: TTestMaxLogins read FTestMaxLogins write FTestMaxLogins;
+    property OnChangeIndex: TLazLoginChangeIndexEvent read FChangeIndex write FChangeIndex;
   end;
 
 procedure Register;
@@ -328,6 +332,7 @@ begin
     { procedura alternatywna i testująca }
     LazFormLogin.FTestLogin:=@FTestLogin;
     LazFormLogin.FTestMaxLogins:=@FTestMaxLogins;
+    LazFormLogin.FLazLoginChangeIndex:=@FChangeIndex;
     { wywołanie formularza }
     LazFormLogin.ShowModal;
     zm_logowania:=LazFormLogin.BB;
@@ -340,6 +345,7 @@ begin
     end;
   finally
     LazFormLogin.Free;
+    Application.ProcessMessages;
   end;
   if (not zm_logowania) and FNL then halt;
   result:=zm_logowania;
@@ -360,6 +366,13 @@ end;
 function TLazLogin.GetLogin: string;
 begin
   result:=zm_user;
+end;
+
+procedure TLazLogin.RefreshColors;
+begin
+  LazFormLogin.Panel1.Color:=FColorPan1;
+  LazFormLogin.Panel2.Color:=FColorPan2;
+  LazFormLogin.Panel3.Color:=FColorPan3;
 end;
 
 initialization
