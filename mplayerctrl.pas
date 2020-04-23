@@ -133,6 +133,7 @@ type
   TMplayerCtrlOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
   TMplayerCtrlOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
   TMplayerCtrlOnString = procedure(ASender: TObject; AText: String) of object;
+  TMplayerCtrlProcessPriority = (mpHigh,mpIdle,mpNormal,mpRealTime);
 
   TCustomMPlayerControl = class(TWinControl)
   private
@@ -203,6 +204,7 @@ type
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
   private
+    FAccel: string;
     FPLAYF: boolean;
     FBostVolume: boolean;
     FModeMPV: TMplayerCtrlModeMPV;
@@ -210,9 +212,11 @@ type
     FOnPause: TNotifyEvent;
     FOnReplay: TNotifyEvent;
     FOnSetPosition: TNotifyEvent;
+    FPP: TMplayerCtrlProcessPriority;
     FscDir: string;
     FSSFormat: TMplayerCtrlScreenShotFormat;
     function ExecuteSockProcess(command: string; device_file: string = ''): string;
+    procedure SetAccel(AValue: string);
     procedure SetscDir(AValue: string);
   protected
     procedure WMPaint(var Message: TLMPaint); message LM_PAINT;
@@ -249,6 +253,8 @@ type
     property ScreenshotFormat: TMplayerCtrlScreenShotFormat read FSSFormat write FSSFormat default ssNone;
     property LastImageFilename: String read FLastImageFilename;
 
+    property ProcessPriority: TMplayerCtrlProcessPriority read FPP write FPP default mpNormal;
+    property AccelType: string read FAccel write SetAccel;
     property ModeMPV: TMplayerCtrlModeMPV read FModeMPV write FModeMPV default mmNone;
     property UniqueKey: string read FUniqueKey; //Unikalny kod, można wykorzystać do tworzenia plików rurek
     property MpvIpcServer: boolean read FMpvIpcServer write FMpvIpcServer default false;
@@ -298,6 +304,8 @@ type
 
   TMPlayerControl = class(TCustomMPlayerControl)
   published
+    property ProcessPriority;
+    property AccelType;
     property ModeMPV;
     property ScreenshotDirectory;
     property ScreenshotFormat;
@@ -683,6 +691,11 @@ begin
   end;
 end;
 
+procedure TCustomMPlayerControl.SetAccel(AValue: string);
+begin
+  if AValue='' then FAccel:='<auto>' else FAccel:=AValue;
+end;
+
 procedure TCustomMPlayerControl.SetscDir(AValue: string);
 var
   s: string;
@@ -802,6 +815,8 @@ var
   vKey: TGuid;
 begin
   inherited Create(TheOwner);
+  FPP:=mpNormal;
+  FAccel:='<auto>';
   FPLAYF:=false;
   FormatSettings.DecimalSeparator:='.';
   CreateGUID(vKey);
@@ -1061,6 +1076,18 @@ begin
   FPlayerProcess.Parameters.Add('-wid');       // sets Window ID (display video in our control)
   FPlayerProcess.Parameters.Add(IntToStr(CurWindowID));
 
+  if FAccel='<auto>' then
+  begin
+    FPlayerProcess.Parameters.Add('-vo');
+    {$IFDEF LINUX}
+    FPlayerProcess.Parameters.Add('xv');
+    {$ELSE}
+    {$ENDIF}
+  end else begin
+    FPlayerProcess.Parameters.Add('-vo');
+    FPlayerProcess.Parameters.Add(FAccel);
+  end;
+
   // Add the user defined start params
   if (Trim(FStartParam)<>'') then
   begin
@@ -1098,6 +1125,12 @@ begin
   // Populate defaults
   InitialiseInfo;
 
+  case FPP of
+    mpHigh:     FPlayerProcess.Priority:=ppHigh;
+    mpIdle:     FPlayerProcess.Priority:=ppIdle;
+    mpNormal:   FPlayerProcess.Priority:=ppNormal;
+    mpRealTime: FPlayerProcess.Priority:=ppRealTime;
+  end;
   FPlayerProcess.Execute;
 
   // Start the timer that handles feedback from mplayer
