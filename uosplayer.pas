@@ -15,7 +15,7 @@ type
   {$IFDEF SHOUT}
   TUOSPlayerMode = (moPlay, moRecord, moShout);
   {$ELSE}
-  TUOSPlayerMode = (moPlay, moRecord, moInfo, moURL);
+  TUOSPlayerMode = (moPlay, moPlayLoop, moRecord, moInfo, moURL);
   {$ENDIF}
 
   TIDTag = record
