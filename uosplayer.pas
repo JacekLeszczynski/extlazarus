@@ -6,7 +6,8 @@ unit UOSPlayer;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, UOSEngine;
+  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ExtCtrls,
+  UOSEngine;
 
 type
 
@@ -45,11 +46,19 @@ type
     FMute: boolean;
     FOnLoop: TNotifyEvent;
     FOnStop: TNotifyEvent;
-    FPause: boolean;
+    FPause,FPausing: boolean;
+    FPauseing: boolean;
     FPosition: boolean;
+    FPPS: boolean;
     FVolume: double;
     FVolumeGlobal: double;
     InIndex,OutIndex : integer;
+    QPOS: TTime;
+    QMEM: TMemoryStream;
+    QFORCE,QFORCEEXIT,QFORCEFPPS: boolean;
+    QTimer: TTimer;
+    QVolume: double;
+    QTT: integer;
     procedure SetMode(AValue: TUOSPlayerMode);
     procedure SetMute(AValue: boolean);
     function GetMixVolume: double;
@@ -58,12 +67,13 @@ type
     procedure _init;
     procedure ClosePlayer;
     procedure LoopPlayer;
+    procedure QPetla(Sender: TObject);
   protected
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Start(aMemoryStream: TMemoryStream = nil);
-    procedure Stop;
+    procedure Stop(aForce: boolean = false);
     procedure Pause;
     procedure Replay;
     function GetStatus: integer;
@@ -86,9 +96,12 @@ type
   published
     property DeviceEngine: TUOSEngine read FDevEngine write FDevEngine; //Engine Component
     property Busy: boolean read FBusy default false; //Is Active Player
-    property Paused: boolean read FPause default false; //Player is paused
+    property Paused: boolean read FPause default false; //Player zatrzymany
+    property Pausing: boolean read FPauseing default false; //Player w trakcie zatrzymywania
     property FileName: string read FFileName write FFileName; //Plik lub adres URL
-    property Mode: TUOSPlayerMode read FMode write SetMode; //Tryb działania kontrolki
+    //Tryb działania kontrolki
+    //Przy moPlayLoop wymagany CalcPosition!
+    property Mode: TUOSPlayerMode read FMode write SetMode;
     property ListenMic: boolean read FListenMic write FListenMic default false; //Mik idzie na głośniki gdy włączone
     property DeviceIndex: cardinal read FDevIndex write FDevIndex default 0; //Dla każdej kontrolki wartość unikatowa
     //property IntoDeviceIndex: TUOSPlayer read FIntoPlayer write FIntoPlayer;
@@ -98,6 +111,9 @@ type
     property CalcLoop: boolean read FCalcLoop write FCalcLoop default false; //Uruchamia wyzwalacz do sterowania wskaźnikami wysterowania czy pozycji
     property CalcMeter: boolean read FMeter write FMeter default false; //Uruchamia rejestrowanie wysterowania
     property CalcPosition: boolean read FPosition write FPosition default false; //Uruchamia rejestrowanie pozycji
+    //Wyciszaj automatycznie zanim zatrzymasz utwór wewnątrz
+    //i rób to samo, gdy wykonujesz Replay wewnątrz utworu!
+    property AutoVolPPS: boolean read FPPS write FPPS default false;
     property BeforeStart: TNotifyEvent read FBeforeStart write FBeforeStart;
     property AfterStart: TNotifyEvent read FAfterStart write FAfterStart;
     property BeforeStop: TNotifyEvent read FBeforeStop write FBeforeStop;
@@ -113,7 +129,7 @@ procedure Register;
 implementation
 
 uses
-  uos_flat;
+  uos_flat, math;
 
 var
   server_data: record
@@ -134,6 +150,7 @@ procedure TUOSPlayer._init;
 begin
   FBusy:=false;
   FPause:=false;
+  FPauseing:=false;
   FDevIndex:=0;
   FMode:=moPlay;
   FListenMic:=false;
@@ -143,18 +160,57 @@ begin
   FMute:=false;
   FMeter:=false;
   FPosition:=false;
+  FPPS:=false;
 end;
 
 procedure TUOSPlayer.ClosePlayer;
 begin
+  if QFORCE then exit;
   FBusy:=false;
   FPause:=false;
+  FPauseing:=false;
   if Assigned(FOnStop) then FOnStop(self);
 end;
 
 procedure TUOSPlayer.LoopPlayer;
 begin
   if Assigned(FOnLoop) then FOnLoop(self);
+end;
+
+procedure TUOSPlayer.QPetla(Sender: TObject);
+var
+  bstop: boolean;
+begin
+  bstop:=false;
+  if QTT=1 then
+  begin
+    QVolume:=QVolume+0.0005;
+    if QVolume>=1 then
+    begin
+      QVolume:=1;
+      bstop:=true;
+    end;
+    SetVolume(-1);
+    if bstop then QTimer.Enabled:=false;
+  end else begin
+    QVolume:=QVolume-0.0005;
+    if QVolume<=0 then
+    begin
+      QVolume:=0;
+      bstop:=true;
+    end;
+    SetVolume(-1);
+    if bstop then QTimer.Enabled:=false;
+  end;
+  if bstop then
+  begin
+    QFORCEFPPS:=QTT>1;
+    case QTT of
+      2: Pause;
+      3: Stop;
+    end;
+    QTT:=0;
+  end;
 end;
 
 procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
@@ -181,7 +237,7 @@ end;
 
 function TUOSPlayer.GetMixVolume: double;
 begin
-  result:=FVolume*FVolumeGlobal;
+  result:=FVolume*FVolumeGlobal*QVolume;
 end;
 
 procedure TUOSPlayer.SetVolume(AValue: double);
@@ -189,11 +245,10 @@ var
   a: double;
 begin
   if FVolume=AValue then Exit;
-  FVolume:=AValue;
+  if AValue>-0.5 then FVolume:=AValue;
   if FVolume<0 then FVolume:=0;
   if FVolume>1 then FVolume:=1;
   if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
-  //if a<0.001 then a:=0.001;
   if FBusy and (not FMute) then uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,True);
 end;
 
@@ -202,7 +257,7 @@ var
   a: double;
 begin
   if FVolumeGlobal=AValue then Exit;
-  FVolumeGlobal:=AValue;
+  if AValue>-0.5 then FVolumeGlobal:=AValue;
   if FVolumeGlobal<0 then FVolumeGlobal:=0;
   if FVolumeGlobal>1 then FVolumeGlobal:=1;
   if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
@@ -213,11 +268,17 @@ constructor TUOSPlayer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   _init;
+  QTimer:=TTimer.Create(nil);
+  QTimer.Enabled:=false;
+  QTimer.Interval:=1;
+  QTimer.OnTimer:=@QPetla;
 end;
 
 destructor TUOSPlayer.Destroy;
 begin
+  QFORCEEXIT:=true;
   if FBusy then Stop;
+  QTimer.Free;
   inherited Destroy;
 end;
 
@@ -227,12 +288,17 @@ var
 begin
   if Assigned(FBeforeStart) then FBeforeStart(Self);
   if not FDevEngine.Loaded then exit;
-  if FBusy then exit;
+  if ((FMode<>moPlayLoop) and FBusy) or ((FMode=moPlayLoop) and FBusy and (not FPause)) then exit;
+  QFORCE:=false;
+  QFORCEEXIT:=false;
+  QFORCEFPPS:=false;
   uos_CreatePlayer(FDevIndex);
   if FMute then a:=0 else a:=GetMixVolume;
   if FMode=moPlay then       //moShout
   begin
     (* PLAY *)
+    QVolume:=1;
+    QTT:=0;
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(FDevIndex,aMemoryStream,-1,-1,-1,-1);
 
@@ -245,6 +311,29 @@ begin
     if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
     uos_EndProc(FDevIndex,@ClosePlayer);
     uos_Play(FDevIndex);  /////// everything is ready to play...
+  end else if FMode=moPlayLoop then
+  begin
+    (* PLAY LOOP *)
+    if FBusy and FPPS then QVolume:=0 else QVolume:=1;
+    QMEM:=aMemoryStream;
+    if aMemoryStream=nil then InIndex:=uos_AddFromFile(FDevIndex,Pchar(FFileName))
+    else InIndex:=uos_AddFromMemoryStream(FDevIndex,aMemoryStream,-1,-1,-1,-1);
+
+    OutIndex:=uos_AddIntoDevOut(FDevIndex,-1,-1,uos_InputGetSampleRate(FDevIndex,InIndex),uos_InputGetChannels(FDevIndex,InIndex),-1,-1,-1);
+    uos_InputAddDSP1ChanTo2Chan(FDevIndex,InIndex);
+    uos_InputAddDSPVolume(FDevIndex,InIndex,1,1);
+    uos_InputSetDSPVolume(FDevIndex,InIndex,a,a,true); /// Set volume
+    if FMeter then uos_InputSetLevelEnable(FDevIndex,InIndex,1);
+    if FPosition then uos_InputSetPositionEnable(FDevIndex,InIndex,1);
+    if FCalcLoop then uos_LoopProcIn(FDevIndex,InIndex,@LoopPlayer);
+    uos_EndProc(FDevIndex,@ClosePlayer);
+    uos_Play(FDevIndex,-1);  /////// everything is ready to play...
+    if FPPS then
+    begin
+      SetVolume(-1);
+      QTT:=1;
+      QTimer.Enabled:=true;
+    end;
   end else if FMode=moURL then
   begin
     (* PLAY FOR INTERNET STREAMING *)
@@ -293,36 +382,87 @@ begin
   if Assigned(FAfterStart) then FAfterStart(Self);
 end;
 
-procedure TUOSPlayer.Stop;
+procedure TUOSPlayer.Stop(aForce: boolean);
 begin
+  if (not aForce) and (not FPause) and (not QFORCEEXIT) and (not QFORCEFPPS) and FPPS then
+  begin
+    QTT:=3;
+    QTimer.Enabled:=true;
+    exit;
+  end;
+  QTimer.Enabled:=false;
   if Assigned(FBeforeStop) then FBeforeStop(Self);
   if not FDevEngine.Loaded then exit;
   if not FBusy then exit;
   if FMode=moInfo then
   begin
     uos_FreePlayer(FDevIndex);
+  end else
+  if FMode=moPlayLoop then
+  begin
+    QMEM:=nil;
+    QPOS:=0;
+    QFORCE:=false;
+    if not FPause then uos_Stop(FDevIndex);
   end else begin
     uos_Stop(FDevIndex);
   end;
   FBusy:=false;
   if Assigned(FOnStop) then FOnStop(self);
   if Assigned(FAfterStop) then FAfterStop(Self);
+  QFORCEFPPS:=false;
 end;
 
 procedure TUOSPlayer.Pause;
 begin
+  FPauseing:=true;
   if not FBusy then exit;
   if FPause then exit;
-  uos_Pause(FDevIndex);
+  if (not QFORCEFPPS) and FPPS then
+  begin
+    QTT:=2;
+    QTimer.Enabled:=true;
+    exit;
+  end;
+  QTimer.Enabled:=false;
+  if FMode=moPlayLoop then
+  begin
+    QPOS:=PositionTime;
+    QFORCE:=true;
+    uos_Stop(FDevIndex);
+  end else uos_Pause(FDevIndex);
   FPause:=true;
+  FPauseing:=true;
+  QFORCEFPPS:=false;
 end;
 
 procedure TUOSPlayer.Replay;
 begin
+  if not FPauseing then exit;
+  QTT:=1;
+  FPauseing:=false;
   if not FBusy then exit;
   if not FPause then exit;
-  uos_RePlay(FDevIndex);
+  if FMode=moPlayLoop then
+  begin
+    QFORCE:=false;
+    QTT:=1;
+    if not QTimer.Enabled then
+    begin
+      Start(QMEM);
+      SeekTime(QPOS);
+    end;
+  end else begin
+    if FPPS then
+    begin
+      SetVolume(-1);
+      QTT:=1;
+      QTimer.Enabled:=true;
+    end;
+    uos_RePlay(FDevIndex);
+  end;
   FPause:=false;
+  FPauseing:=false;
 end;
 
 function TUOSPlayer.GetStatus: integer;

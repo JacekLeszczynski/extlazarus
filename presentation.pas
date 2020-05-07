@@ -46,6 +46,7 @@ type
     destructor Destroy; override;
     procedure Execute(aKey: Word); //Adding to OnkKeyDown method for End-Code!
     procedure SendKey(vkey: word);
+    procedure SendKeyEx(vkey: word);
   published
     property Device: TPresentationDevice read FDevice write FDevice;
     property OnCustom: TPresentationCustom read FCustom write FCustom;
@@ -211,6 +212,11 @@ begin
     pbufor.Add;
   end;
   timer_pbufor.Enabled:=true;
+end;
+
+procedure TPresentation.SendKeyEx(vkey: word);
+begin
+  KeyInput.Press(vkey);
 end;
 
 { TPresentation }
