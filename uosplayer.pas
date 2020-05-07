@@ -401,7 +401,6 @@ end;
 procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 begin
   if FBusy then exit;
-  writeln('S1');
   wewnStart(aMemoryStream);
 end;
 
@@ -463,7 +462,6 @@ end;
 procedure TUOSPlayer.Replay;
 begin
   if not FPauseing then exit;
-  writeln('S2');
   QTT:=1;
   FPauseing:=false;
   if not FBusy then exit;
