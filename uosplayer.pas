@@ -231,11 +231,11 @@ begin
   QFORCEEXIT:=false;
   QFORCEFPPS:=false;
   uos_CreatePlayer(xindex);
-  if FMute then a:=0 else a:=GetMixVolume;
   if FMode=moPlay then       //moShout
   begin
     (* PLAY *)
     QVolume:=1;
+    if FMute then a:=0 else a:=GetMixVolume;
     QTT:=0;
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
@@ -253,6 +253,7 @@ begin
   begin
     (* PLAY LOOP *)
     if FBusy and FPPS then QVolume:=0 else QVolume:=1;
+    if FMute then a:=0 else a:=GetMixVolume;
     QMEM:=aMemoryStream;
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
@@ -268,13 +269,15 @@ begin
     uos_Play(xindex,-1);  /////// everything is ready to play...
     if FPPS then
     begin
-      SetVolume(-1);
+//      SetVolume(-1);
       QTT:=1;
       QTimer.Enabled:=true;
     end;
   end else if FMode=moURL then
   begin
     (* PLAY FOR INTERNET STREAMING *)
+    QVolume:=1;
+    if FMute then a:=0 else a:=GetMixVolume;
     inindex:=uos_AddFromURL(xindex,PChar(FFileName),-1,-1,-1,-1,true);
     //outindex:=uos_AddIntoDevOut(xindex);
     outindex:=uos_AddIntoDevOut(xindex,-1,-1,uos_InputGetSampleRate(xindex,inindex),uos_InputGetChannels(xindex,inindex),-1,1024,-1);
@@ -289,6 +292,8 @@ begin
   end else if FMode=moRecord then
   begin
     (* RECORD *)
+    QVolume:=1;
+    if FMute then a:=0 else a:=GetMixVolume;
     uos_AddIntoFile(xindex,Pchar(FFileName));
     outindex:=uos_AddIntoDevOut(xindex);
     uos_outputsetenable(xindex,outindex,FListenMic);
@@ -305,6 +310,8 @@ begin
   end else begin
     {$IFDEF SHOUT}
     (* SHOUT *)
+    QVolume:=1;
+    if FMute then a:=0 else a:=GetMixVolume;
     uos_AddIntoIceServer(xindex,44100,2,0,0,server_data.port,pchar(server_data.server),nil,pchar(server_data.password),nil);
     uos_InputAddDSP1ChanTo2Chan(xindex,InIndex);
     uos_InputAddDSPVolume(xindex,InIndex,1,1);
