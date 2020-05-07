@@ -70,6 +70,7 @@ type
     procedure ClosePlayer;
     procedure LoopPlayer;
     procedure QPetla(Sender: TObject);
+    procedure wewnStart(aMemoryStream: TMemoryStream = nil);
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -219,83 +220,7 @@ begin
   end;
 end;
 
-procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
-begin
-  if FBusy or (FMode=AValue) then Exit;
-  FMode:=AValue;
-end;
-
-procedure TUOSPlayer.SetDevIndex(AValue: cardinal);
-begin
-  if FDevIndex=AValue then Exit;
-  FDevIndex:=AValue;
-  xindex:=FDevIndex;
-end;
-
-procedure TUOSPlayer.SetMute(AValue: boolean);
-var
-  a,b: double;
-begin
-  if Assigned(FBeforeMute) then FBeforeMute(self);
-  if FMute=AValue then Exit;
-  FMute:=AValue;
-  if FBusy then
-  begin
-    if FMode=moRecord then b:=FVolume else b:=GetMixVolume;
-    if FMute then a:=0 else a:=b;
-    uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
-  end;
-  if Assigned(FAfterMute) then FAfterMute(self);
-end;
-
-function TUOSPlayer.GetMixVolume: double;
-begin
-  result:=FVolume*FVolumeGlobal*QVolume;
-end;
-
-procedure TUOSPlayer.SetVolume(AValue: double);
-var
-  a: double;
-begin
-  if FVolume=AValue then Exit;
-  if AValue>-0.5 then FVolume:=AValue;
-  if FVolume<0 then FVolume:=0;
-  if FVolume>1 then FVolume:=1;
-  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
-  if FBusy and (not FMute) then uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
-end;
-
-procedure TUOSPlayer.SetVolumeGlobal(AValue: double);
-var
-  a: double;
-begin
-  if FVolumeGlobal=AValue then Exit;
-  if AValue>-0.5 then FVolumeGlobal:=AValue;
-  if FVolumeGlobal<0 then FVolumeGlobal:=0;
-  if FVolumeGlobal>1 then FVolumeGlobal:=1;
-  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
-  if FBusy and (not FMute) then uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
-end;
-
-constructor TUOSPlayer.Create(AOwner: TComponent);
-begin
-  inherited Create(AOwner);
-  _init;
-  QTimer:=TTimer.Create(nil);
-  QTimer.Enabled:=false;
-  QTimer.Interval:=1;
-  QTimer.OnTimer:=@QPetla;
-end;
-
-destructor TUOSPlayer.Destroy;
-begin
-  QFORCEEXIT:=true;
-  if FBusy then Stop;
-  QTimer.Free;
-  inherited Destroy;
-end;
-
-procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
+procedure TUOSPlayer.wewnStart(aMemoryStream: TMemoryStream);
 var
   a: double;
 begin
@@ -392,7 +317,92 @@ begin
     {$ENDIF}
   end;
   FBusy:=true;
+  FPause:=false;
+  FPauseing:=false;
   if Assigned(FAfterStart) then FAfterStart(Self);
+end;
+
+procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
+begin
+  if FBusy or (FMode=AValue) then Exit;
+  FMode:=AValue;
+end;
+
+procedure TUOSPlayer.SetDevIndex(AValue: cardinal);
+begin
+  if FDevIndex=AValue then Exit;
+  FDevIndex:=AValue;
+  xindex:=FDevIndex;
+end;
+
+procedure TUOSPlayer.SetMute(AValue: boolean);
+var
+  a,b: double;
+begin
+  if Assigned(FBeforeMute) then FBeforeMute(self);
+  if FMute=AValue then Exit;
+  FMute:=AValue;
+  if FBusy then
+  begin
+    if FMode=moRecord then b:=FVolume else b:=GetMixVolume;
+    if FMute then a:=0 else a:=b;
+    uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
+  end;
+  if Assigned(FAfterMute) then FAfterMute(self);
+end;
+
+function TUOSPlayer.GetMixVolume: double;
+begin
+  result:=FVolume*FVolumeGlobal*QVolume;
+end;
+
+procedure TUOSPlayer.SetVolume(AValue: double);
+var
+  a: double;
+begin
+  if FVolume=AValue then Exit;
+  if AValue>-0.5 then FVolume:=AValue;
+  if FVolume<0 then FVolume:=0;
+  if FVolume>1 then FVolume:=1;
+  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
+  if FBusy and (not FMute) then uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
+end;
+
+procedure TUOSPlayer.SetVolumeGlobal(AValue: double);
+var
+  a: double;
+begin
+  if FVolumeGlobal=AValue then Exit;
+  if AValue>-0.5 then FVolumeGlobal:=AValue;
+  if FVolumeGlobal<0 then FVolumeGlobal:=0;
+  if FVolumeGlobal>1 then FVolumeGlobal:=1;
+  if FMode=moRecord then a:=FVolume else a:=GetMixVolume;
+  if FBusy and (not FMute) then uos_InputSetDSPVolume(xindex,InIndex,a,a,True);
+end;
+
+constructor TUOSPlayer.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  _init;
+  QTimer:=TTimer.Create(nil);
+  QTimer.Enabled:=false;
+  QTimer.Interval:=1;
+  QTimer.OnTimer:=@QPetla;
+end;
+
+destructor TUOSPlayer.Destroy;
+begin
+  QFORCEEXIT:=true;
+  if FBusy then Stop;
+  QTimer.Free;
+  inherited Destroy;
+end;
+
+procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
+begin
+  if FBusy then exit;
+  writeln('S1');
+  wewnStart(aMemoryStream);
 end;
 
 procedure TUOSPlayer.Stop(aForce: boolean);
@@ -453,6 +463,7 @@ end;
 procedure TUOSPlayer.Replay;
 begin
   if not FPauseing then exit;
+  writeln('S2');
   QTT:=1;
   FPauseing:=false;
   if not FBusy then exit;
@@ -463,7 +474,7 @@ begin
     QTT:=1;
     if not QTimer.Enabled then
     begin
-      Start(QMEM);
+      wewnStart(QMEM);
       SeekTime(QPOS);
     end;
   end else begin
