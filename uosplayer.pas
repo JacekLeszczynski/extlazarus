@@ -19,6 +19,8 @@ type
   TUOSPlayerMode = (moPlay, moPlayLoop, moRecord, moInfo, moURL);
   {$ENDIF}
 
+  TUOSPlauerOnStop = procedure(Sender: TObject; aBusy,aPlaying,aPauseing,aPause: boolean) of object;
+
   TIDTag = record
     Title,Artist,Album: string[30];
     Year: string[4];
@@ -45,7 +47,7 @@ type
     FMode: TUOSPlayerMode;
     FMute: boolean;
     FOnLoop: TNotifyEvent;
-    FOnStop: TNotifyEvent;
+    FOnStop: TUOSPlauerOnStop;
     FPause,FPausing: boolean;
     FPauseing: boolean;
     FPosition: boolean;
@@ -123,7 +125,7 @@ type
     property AfterStop: TNotifyEvent read FAfterStop write FAfterStop;
     property BeforeMute: TNotifyEvent read FBeforeMute write FBeforeMute;
     property AfterMute: TNotifyEvent read FAfterMute write FAfterMute;
-    property OnStop: TNotifyEvent read FOnStop write FOnStop;
+    property OnStop: TUOSPlauerOnStop read FOnStop write FOnStop;
     property OnLoop: TNotifyEvent read FOnLoop write FOnLoop;  //Wyzwalacz do wyświetlania pozycji i poziomu sygnału
   end;
 
@@ -176,7 +178,7 @@ begin
   FBusy:=a>0;
   FPause:=a=2;
   FPauseing:=a=2;
-  if Assigned(FOnStop) then FOnStop(self);
+  if Assigned(FOnStop) then FOnStop(self,FBusy,not FPause,FPauseing,FPause);
 end;
 
 procedure TUOSPlayer.LoopPlayer;
@@ -224,7 +226,6 @@ procedure TUOSPlayer.wewnStart(aMemoryStream: TMemoryStream);
 var
   a: double;
 begin
-  if Assigned(FBeforeStart) then FBeforeStart(Self);
   if not FDevEngine.Loaded then exit;
   if ((FMode<>moPlayLoop) and FBusy) or ((FMode=moPlayLoop) and FBusy and (not FPause)) then exit;
   QFORCE:=false;
@@ -326,7 +327,6 @@ begin
   FBusy:=true;
   FPause:=false;
   FPauseing:=false;
-  if Assigned(FAfterStart) then FAfterStart(Self);
 end;
 
 procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
@@ -408,7 +408,9 @@ end;
 procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 begin
   if FBusy then exit;
+  if Assigned(FBeforeStart) then FBeforeStart(Self);
   wewnStart(aMemoryStream);
+  if Assigned(FAfterStart) then FAfterStart(Self);
 end;
 
 procedure TUOSPlayer.Stop(aForce: boolean);
@@ -438,7 +440,7 @@ begin
   end;
   FBusy:=false;
   if xindex<100 then inc(xindex,100) else dec(xindex,100);
-  if Assigned(FOnStop) then FOnStop(self);
+  if Assigned(FOnStop) then FOnStop(self,FBusy,not FPause,FPauseing,FPause);
   if Assigned(FAfterStop) then FAfterStop(Self);
   QFORCEFPPS:=false;
 end;
