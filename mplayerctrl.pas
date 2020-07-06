@@ -244,6 +244,7 @@ type
     function GetAudioSamplerate: integer;
     procedure SetAudioSamplerate(aSamplerate: integer);
     procedure SetAudioEQ(s: string = '');
+    procedure SetAF(aValue: string = '');
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -1326,6 +1327,15 @@ begin
     ExecuteSockProcess('{ "command": ["set_property", "af", "superequalizer"] }')
   else
     ExecuteSockProcess('{ "command": ["set_property", "af", "superequalizer='+s+'"] }');
+end;
+
+procedure TCustomMPlayerControl.SetAF(aValue: string);
+begin
+  if FNosound then exit;
+  if aValue='' then
+    ExecuteSockProcess('{ "command": ["set_property", "af", ""] }')
+  else
+    ExecuteSockProcess('{ "command": ["set_property", "af", "'+aValue+'"] }');
 end;
 
 procedure TCustomMPlayerControl.InitialiseInfo;
