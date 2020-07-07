@@ -2,6 +2,7 @@ unit UOSPlayer;
 
 {$mode objfpc}{$H+}
 {.$define SOUTH}
+{$DEFINE CRQ}
 
 interface
 
@@ -225,6 +226,7 @@ end;
 procedure TUOSPlayer.wewnStart(aMemoryStream: TMemoryStream);
 var
   a: double;
+  x: TMemoryStream;
 begin
   if not FDevEngine.Loaded then exit;
   if ((FMode<>moPlayLoop) and FBusy) or ((FMode=moPlayLoop) and FBusy and (not FPause)) then exit;
@@ -255,7 +257,33 @@ begin
     (* PLAY LOOP *)
     if FBusy and FPPS then QVolume:=0 else QVolume:=1;
     if FMute then a:=0 else a:=GetMixVolume;
-    QMEM:=aMemoryStream;
+
+    if aMemoryStream=nil then
+    begin
+      {$IFDEF CRQ}
+      if QMEM.Size>0 then
+      begin
+        x:=TMemoryStream.Create;
+        x.LoadFromStream(QMEM);
+        aMemoryStream:=x;
+      end;
+      {$ELSE}
+      if QMEM<>nil then
+      begin
+        x:=TMemoryStream.Create;
+        x.LoadFromStream(QMEM);
+        aMemoryStream:=x;
+      end;
+      {$ENDIF}
+    end else begin
+      {$IFDEF CRQ}
+      QMEM.LoadFromStream(aMemoryStream);
+      {$ELSE}
+      QMEM:=TMemoryStream.Create;
+      QMEM.LoadFromStream(aMemoryStream);
+      {$ENDIF}
+    end;
+
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName))
     else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
 
@@ -390,6 +418,11 @@ end;
 constructor TUOSPlayer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  {$IFDEF CRQ}
+  QMEM:=TMemoryStream.Create;
+  {$ELSE}
+  QMEM:=nil;
+  {$ENDIF}
   _init;
   QTimer:=TTimer.Create(nil);
   QTimer.Enabled:=false;
@@ -399,6 +432,9 @@ end;
 
 destructor TUOSPlayer.Destroy;
 begin
+  {$IFDEF CRQ}
+  QMEM.Free;
+  {$ENDIF}
   QFORCEEXIT:=true;
   if FBusy then Stop;
   QTimer.Free;
@@ -409,6 +445,18 @@ procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 begin
   if FBusy then exit;
   if Assigned(FBeforeStart) then FBeforeStart(Self);
+  if FMode=moPlayLoop then
+  begin
+    {$IFDEF CRQ}
+    QMEM.Clear;
+    {$ELSE}
+    if QMEM<>nil then
+    begin
+      QMEM.Free;
+      QMEM:=nil;
+    end;
+    {$ENDIF}
+  end;
   wewnStart(aMemoryStream);
   if Assigned(FAfterStart) then FAfterStart(Self);
 end;
@@ -431,7 +479,15 @@ begin
   end else
   if FMode=moPlayLoop then
   begin
-    QMEM:=nil;
+    {$IFDEF CRQ}
+    QMEM.Clear;
+    {$ELSE}
+    if QMEM<>nil then
+    begin
+      QMEM.Free;
+      QMEM:=nil;
+    end;
+    {$ENDIF}
     QPOS:=0;
     QFORCE:=false;
     if not FPause then uos_Stop(xindex);
@@ -481,7 +537,7 @@ begin
     QTT:=1;
     if not QTimer.Enabled then
     begin
-      wewnStart(QMEM);
+      wewnStart;
       SeekTime(QPOS);
     end;
   end else begin
