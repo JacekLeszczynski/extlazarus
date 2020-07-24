@@ -27,6 +27,7 @@ type
     procedure SetSeparator(aSeparator: char = #0);
     procedure Execute(aPath, aFilter: string; aSignature: string = '');
     procedure Execute(aPackRecord: string; aSignature: string = '');
+    procedure Execute(aPath, aFilter: string; var aPliki: TStrings);
   published
     property Mode: TDirectoryPackMode read FMode write FMode;
     property OnExecute: TDirectoryPackOnExecute read FOnExecute write FOnExecute;
@@ -177,6 +178,52 @@ begin
     for i:=5 to a+5-1 do katalogi.Add(GetLineToStr(aPackRecord,i,#9));
     for i:=5+a to a+b+5-1 do pliki.Add(GetLineToStr(aPackRecord,i,#9));
     if Assigned(FOnExecute) then FOnExecute(self,katalogi,pliki,aSignature);
+  finally
+    katalogi.Free;
+    pliki.Free;
+  end;
+end;
+
+procedure TDirectoryPack.Execute(aPath, aFilter: string; var aPliki: TStrings);
+var
+  katalogi,pliki: TStringList;
+  SR: TSearchRec;
+  found: Integer;
+  s,s1,s2,spack: string;
+  i: integer;
+begin
+  katalogi:=TStringList.Create;
+  pliki:=TStringList.Create;
+  try
+    s1:=aPath;
+    {katalogi}
+    s:=s1+__F+ALL;
+    s:=StringReplace(s,__F+__F,__F,[]);
+    found:=FindFirst(s,faDirectory,SR);
+    while found=0 do
+    begin
+      if (SR.Name<>'.') and (SR.Attr=48) then katalogi.Add(SR.Name);
+      found:=FindNext(SR);
+    end;
+    FindClose(SR);
+    {pliki}
+    i:=1;
+    while true do
+    begin
+      s2:=GetLineToStr(aFilter,i,';');
+      if s2='' then break;
+      s:=s1+__F+s2;
+      s:=StringReplace(s,__F+__F,__F,[]);
+      found:=FindFirst(s,faNormal,SR);
+      while found=0 do
+      begin
+        pliki.Add(SR.Name);
+        found:=FindNext(SR);
+      end;
+      FindClose(SR);
+      inc(i);
+    end;
+    aPliki.Assign(pliki);
   finally
     katalogi.Free;
     pliki.Free;

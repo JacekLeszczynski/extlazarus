@@ -44,9 +44,11 @@ type
     function execute_get_post(url_get,url_post: string; var res: TMemoryStream): integer;
     function execute_get_post(url_get,url_post: string; var res: string): integer;
     function execute_get_post(url_get,url_post: string; var res: TStringList): integer;
+    function execute_get_post(url_get,url_post: string; var res: TStrings): integer;
     function execute_get_post(url: string; var res: TMemoryStream): integer;
     function execute_get_post(url: string; var res: string): integer;
     function execute_get_post(url: string; var res: TStringList): integer;
+    function execute_get_post(url: string; var res: TStrings): integer;
     function GetText(const URL: string; const Response: TStrings): Boolean;
     function GetBinary(const URL: string; const Response: TStream): Boolean;
   published
@@ -174,8 +176,11 @@ var
   i: integer;
 begin
   if FMethod=meGet then v_method:='GET' else v_method:='POST';
-  if FSesja then v_http:=http else
+  if FSesja then
   begin
+    v_http:=http;
+    v_http.Headers.Clear;
+  end else begin
     v_http:=THttpSend.Create;
     if FReferrer<>'' then v_http.Headers.Add('Referer: '+FReferrer);
     for i:=0 to FHeaders.Count-1 do v_http.Headers.Add(FHeaders[i]);
@@ -307,6 +312,22 @@ begin
   result:=result_code;
 end;
 
+function TNetSynHTTP.execute_get_post(url_get, url_post: string;
+  var res: TStrings): integer;
+var
+  str: TMemoryStream;
+  result_code: integer;
+begin
+  str:=TMemoryStream.Create;
+  try
+    result_code:=execute_get_post(url_get,url_post,str);
+    res.LoadFromStream(str);
+  finally
+    str.Free;
+  end;
+  result:=result_code;
+end;
+
 function TNetSynHTTP.execute_get_post(url: string; var res: TMemoryStream
   ): integer;
 begin
@@ -320,6 +341,11 @@ end;
 
 function TNetSynHTTP.execute_get_post(url: string; var res: TStringList
   ): integer;
+begin
+  result:=execute_get_post(url,url,res);
+end;
+
+function TNetSynHTTP.execute_get_post(url: string; var res: TStrings): integer;
 begin
   result:=execute_get_post(url,url,res);
 end;
