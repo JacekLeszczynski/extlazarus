@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  ZConnection, ZDbcIntfs;
+  ZConnection, ZDbcIntfs, ZDataset;
 
 type
 
@@ -17,7 +17,6 @@ type
     FDatabase: TZConnection;
     FTransactIsolationLevel: TZTransactIsolationLevel;
   protected
-
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -26,6 +25,8 @@ type
     procedure Commit;
     procedure Rollback;
     procedure State(Sender: TObject; var aActive,aNoEmpty,aEdited: boolean);
+    function SqlitePragmaForeignKeys: boolean;
+    procedure SqlitePragmaForeignKeys(aOn: boolean);
   published
     property Database: TZConnection read FDatabase write FDatabase;
     property IsolationLevel: TZTransactIsolationLevel read FTransactIsolationLevel write FTransactIsolationLevel default tiReadCommitted;
@@ -97,38 +98,39 @@ begin
   aEdited:=b.Active and (a.State in [dsEdit,dsInsert]);
 end;
 
+function TZTransaction.SqlitePragmaForeignKeys: boolean;
+var
+  q1: TZQuery;
+  a: integer;
+begin
+  q1:=TZQuery.Create(nil);
+  q1.Connection:=FDatabase;
+  try
+    q1.SQL.Add('PRAGMA foreign_keys');
+    q1.Open;
+    a:=q1.Fields[0].AsInteger;
+    q1.Close;
+  finally
+    q1.Free;
+  end;
+  result:=a=1;
+end;
+
+procedure TZTransaction.SqlitePragmaForeignKeys(aOn: boolean);
+var
+  q1: TZQuery;
+begin
+  q1:=TZQuery.Create(nil);
+  q1.Connection:=FDatabase;
+  try
+    if aOn then q1.SQL.Add('PRAGMA foreign_keys = on')
+           else q1.SQL.Add('PRAGMA foreign_keys = off');
+    q1.ExecSQL;
+  finally
+    q1.Free;
+  end;
+end;
+
 { TZTransaction }
-
-{
-
-function TForm1.TimeToInteger(Time: TDateTime): integer;
-var
-  godz,min,sec,milisec: word;
-begin
-  DecodeTime(Time,godz,min,sec,milisec);
-  result:=(godz*60*60*1000)+(min*60*1000)+(sec*1000)+milisec;
-end;
-
-function TForm1.TimeToInteger: integer;
-begin
-  result:=TimeToInteger(time);
-end;
-
-function TForm1.IntegerToTime(czas: integer): TDateTime;
-var
-  c: integer;
-  godz,min,sec,milisec: word;
-begin
-  c:=czas;
-  godz:=c div (60*60*1000);
-  c:=c-(godz*(60*60*1000));
-  min:=c div (60*1000);
-  c:=c-(min*(60*1000));
-  sec:=c div 1000;
-  milisec:=c-(sec*1000);
-  result:=EncodeTime(godz,min,sec,milisec);
-end;
-
-}
 
 end.
