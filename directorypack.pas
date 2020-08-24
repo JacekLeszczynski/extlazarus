@@ -92,6 +92,7 @@ end;
 constructor TDirectoryPack.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  SetSeparator;
   FMode:=pmServer;
 end;
 
