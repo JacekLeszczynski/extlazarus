@@ -28,7 +28,8 @@ type
     procedure Execute(aPath, aFilter: string; aSignature: string = '');
     procedure Execute(aPackRecord: string; aSignature: string = '');
     procedure Execute(aPath, aFilter: string; var aKatalogi,aPliki: TStrings);
-    procedure Execute(aPath, aFilter: string; var aPliki: TStrings);
+    procedure ExecuteDirs(aPath, aFilter: string; var aKatalogi: TStrings);
+    procedure ExecuteFiles(aPath, aFilter: string; var aPliki: TStrings);
   published
     property Mode: TDirectoryPackMode read FMode write FMode;
     property OnExecute: TDirectoryPackOnExecute read FOnExecute write FOnExecute;
@@ -188,15 +189,21 @@ end;
 
 procedure TDirectoryPack.Execute(aPath, aFilter: string; var aKatalogi,
   aPliki: TStrings);
+begin
+  ExecuteDirs(aPath,aFilter,aKatalogi);
+  ExecuteFiles(aPath,aFilter,aPliki);
+end;
+
+procedure TDirectoryPack.ExecuteDirs(aPath, aFilter: string;
+  var aKatalogi: TStrings);
 var
-  katalogi,pliki: TStringList;
+  katalogi: TStrings;
   SR: TSearchRec;
   found: Integer;
-  s,s1,s2,spack: string;
+  s,s1,spack: string;
   i: integer;
 begin
   katalogi:=TStringList.Create;
-  pliki:=TStringList.Create;
   try
     s1:=aPath;
     {katalogi}
@@ -209,6 +216,24 @@ begin
       found:=FindNext(SR);
     end;
     FindClose(SR);
+    aKatalogi.Assign(katalogi);
+  finally
+    katalogi.Free;
+  end;
+end;
+
+procedure TDirectoryPack.ExecuteFiles(aPath, aFilter: string;
+  var aPliki: TStrings);
+var
+  pliki: TStringList;
+  SR: TSearchRec;
+  found: Integer;
+  s,s1,s2,spack: string;
+  i: integer;
+begin
+  pliki:=TStringList.Create;
+  try
+    s1:=aPath;
     {pliki}
     i:=1;
     while true do
@@ -226,23 +251,9 @@ begin
       FindClose(SR);
       inc(i);
     end;
-    aKatalogi.Assign(katalogi);
     aPliki.Assign(pliki);
   finally
-    katalogi.Free;
     pliki.Free;
-  end;
-end;
-
-procedure TDirectoryPack.Execute(aPath, aFilter: string; var aPliki: TStrings);
-var
-  katalogi: TStrings;
-begin
-  katalogi:=TStringList.Create;
-  try
-    Execute(aPath,aFilter,katalogi,aPliki);
-  finally
-    katalogi.Free;
   end;
 end;
 
