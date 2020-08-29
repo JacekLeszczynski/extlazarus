@@ -27,6 +27,7 @@ type
     procedure SetSeparator(aSeparator: char = #0);
     procedure Execute(aPath, aFilter: string; aSignature: string = '');
     procedure Execute(aPackRecord: string; aSignature: string = '');
+    procedure Execute(aPath, aFilter: string; var aKatalogi,aPliki: TStrings);
     procedure Execute(aPath, aFilter: string; var aPliki: TStrings);
   published
     property Mode: TDirectoryPackMode read FMode write FMode;
@@ -185,7 +186,8 @@ begin
   end;
 end;
 
-procedure TDirectoryPack.Execute(aPath, aFilter: string; var aPliki: TStrings);
+procedure TDirectoryPack.Execute(aPath, aFilter: string; var aKatalogi,
+  aPliki: TStrings);
 var
   katalogi,pliki: TStringList;
   SR: TSearchRec;
@@ -224,10 +226,23 @@ begin
       FindClose(SR);
       inc(i);
     end;
+    aKatalogi.Assign(katalogi);
     aPliki.Assign(pliki);
   finally
     katalogi.Free;
     pliki.Free;
+  end;
+end;
+
+procedure TDirectoryPack.Execute(aPath, aFilter: string; var aPliki: TStrings);
+var
+  katalogi: TStrings;
+begin
+  katalogi:=TStringList.Create;
+  try
+    Execute(aPath,aFilter,katalogi,aPliki);
+  finally
+    katalogi.Free;
   end;
 end;
 
