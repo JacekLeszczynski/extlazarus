@@ -16,7 +16,7 @@ uses
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
-  DirectoryPack, Presentation, DSMaster, LazarusPackageIntf;
+  DirectoryPack, Presentation, DSMaster, FullscreenMenu, LazarusPackageIntf;
 
 implementation
 
@@ -62,6 +62,7 @@ begin
   RegisterUnit('DirectoryPack', @DirectoryPack.Register);
   RegisterUnit('Presentation', @Presentation.Register);
   RegisterUnit('DSMaster', @DSMaster.Register);
+  RegisterUnit('FullscreenMenu', @FullscreenMenu.Register);
 end;
 
 initialization
