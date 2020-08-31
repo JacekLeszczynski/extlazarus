@@ -12,6 +12,7 @@ type
 
   { TFullscreenMenu }
 
+  TFullscreenMenuMode = (fmNone,fmAutomatic,fmManual);
   TFullscreenMenuOnBefore = procedure(aItemIndex: integer) of object;
   TFullscreenMenuOnExecute = procedure(aItemIndex: integer; aResult: integer) of object;
   TFullscreenMenuOnAfter = procedure(aItemIndex: integer) of object;
@@ -20,6 +21,7 @@ type
     cctimer,cctimer_opt: integer;
     cPanel: TPanel;
     cLabels: array of TLabel;
+    cmode: TFullscreenMenuMode;
     FActive: boolean;
     FBGColor: TColor;
     FColor,FActiveColor: TColor;
@@ -28,6 +30,7 @@ type
     FFont: TFont;
     FIndex,FCount,FItemIndex: integer;
     FItems: TStrings;
+    FMode: TFullscreenMenuMode;
     FOnAfter: TFullscreenMenuOnAfter;
     FOnBefore: TFullscreenMenuOnBefore;
     FOnExecute: TFullscreenMenuOnExecute;
@@ -38,25 +41,48 @@ type
     procedure _OnStopTimer(Sender: TObject);
     procedure _OnTimer(Sender: TObject);
     procedure SetItems(AValue: TStrings);
+    procedure SetMenuPosition(aIndex: integer);
   protected
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure Execute(aItemIndex: integer = -1);
+    procedure Execute(aItemIndex: integer = -1; aMode: TFullscreenMenuMode = fmNone);
+    function IsManual: boolean;
     procedure Click;
+    procedure Cancel;
+    procedure Next;
+    procedure Prior;
   published
+    {Ustawione, gdy kontrolka działa}
     property Active: boolean read FActive;
+    {Kontrolka na której ma być wyświetlane menu}
     property DefControl: TWinControl read FControl write FControl;
+    {Domyślny tryb działania kontrolki:}
+    { fmNone      - tryb nie jest wybrany domyślnie}
+    { fmAutomatic - tryb pracy automatycznej}
+    { fmManual    - tryb pracy manualnej}
+    property Mode: TFullscreenMenuMode read FMode write FMode;
+    {Domyślny font (kolor dot. nieaktywnych)}
     property Font: TFont read FFont write SetFont;
+    {Zestawy menu oddzielone przecinkami}
     property Items: TStrings read FItems write SetItems;
+    {Domyślny zestaw menu, gdy nie podany w parametrze}
     property DefaultIndex: integer read FIndex write FIndex;
+    {Kolor tła menu}
     property Color: TColor read FColor write FColor;
+    {Kolor fontu pozycji aktywnych}
     property ActiveColor: TColor read FActiveColor write FActiveColor;
+    {Kolor tła fontu pozycji aktywnych}
     property ActiveColorBG: TColor read FBGColor write FBGColor;
+    {Wyświetlanie pozycji menu dużymi literami}
     property UpcaseSet: boolean read FUpcase write FUpcase;
+    {Ukrywaj kursor myszy po najechaniu na menu}
     property CursorOff: boolean read FCursorOff write FCursorOff;
+    {Programowanie funkcji menu}
     property OnExecute: TFullscreenMenuOnExecute read FOnExecute write FOnExecute;
+    {Kod wykonywany przed odpaleniem kontrolki}
     property OnBefore: TFullscreenMenuOnBefore read FOnBefore write FOnBefore;
+    {Kod wykonywany po zakończeniu pracy kontrolki}
     property OnAfter: TFullscreenMenuOnAfter read FOnAfter write FOnAfter;
   end;
 
@@ -108,13 +134,7 @@ begin
   if b=0 then
   begin
     cctimer_opt:=a;
-    cLabels[a].Font.Color:=FActiveColor;
-    cLabels[a].Color:=FBGColor;
-    if a>0 then
-    begin
-      cLabels[a-1].Font.Assign(FFont);
-      cLabels[a-1].Color:=FColor;
-    end;
+    SetmenuPosition(a);
   end;
   if (a=FCount-1) and (cctimer>(FCount-1)*30+10) then FTimer.Enabled:=false;
   inc(cctimer);
@@ -125,10 +145,26 @@ begin
   FItems.Assign(AValue);
 end;
 
+procedure TFullscreenMenu.SetMenuPosition(aIndex: integer);
+var
+  i: integer;
+begin
+  (* wyłączam wszystkie pozycje *)
+  for i:=0 to FCount-1 do
+  begin
+    cLabels[i].Font.Assign(FFont);
+    cLabels[i].Color:=FColor;
+  end;
+  (* włączam pożądaną pozycję *)
+  cLabels[aIndex].Font.Color:=FActiveColor;
+  cLabels[aIndex].Color:=FBGColor;
+end;
+
 constructor TFullscreenMenu.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FActive:=false;
+  FMode:=fmNone;
   FIndex:=-1;
   FFont:=TFont.Create;
   FItems:=TStringList.Create;
@@ -153,13 +189,17 @@ begin
   inherited Destroy;
 end;
 
-procedure TFullscreenMenu.Execute(aItemIndex: integer);
+procedure TFullscreenMenu.Execute(aItemIndex: integer;
+  aMode: TFullscreenMenuMode);
 var
   s: string;
   i: integer;
 begin
-  cctimer_opt:=0;
+  if aMode=fmNone then cmode:=FMode else cmode:=aMode;
+  if cmode=fmNone then exit;
   if aItemIndex=-1 then FItemIndex:=FIndex else FItemIndex:=aItemIndex;
+  if FItemIndex=-1 then exit;
+  cctimer_opt:=0;
   if assigned(FOnBefore) then FOnBefore(FItemIndex);
   FActive:=true;
   s:=FItems[FItemIndex];
@@ -175,10 +215,7 @@ begin
   begin
     cLabels[i]:=TLabel.Create(cPanel);
     cLabels[i].Parent:=cPanel;
-
-    //if i=cctimer_opt then cLabels[i].Font.Color:=FActiveColor else cLabels[i].Font.Color:=FCancelColor;
     if i=cctimer_opt then cLabels[i].Color:=FBGColor else cLabels[i].Color:=FColor;
-
     if FUpcase then cLabels[i].Caption:=ansiuppercase(GetLineToStr(s,i+1,',')) else cLabels[i].Caption:=GetLineToStr(s,i+1,',');
     cLabels[i].Font.Assign(FFont);
     cLabels[i].Left:=32;
@@ -191,12 +228,40 @@ begin
   cPanel.Top:=round((FControl.Height/2)-(cPanel.Height/2));
   cPanel.Left:=round((FControl.Width/2)-(cPanel.Width/2));
   (* proces *)
-  FTimer.Enabled:=true;
+  if cmode=fmAutomatic then FTimer.Enabled:=true else SetMenuPosition(cctimer_opt);
+end;
+
+function TFullscreenMenu.IsManual: boolean;
+begin
+  result:=FActive and (cmode=fmManual);
 end;
 
 procedure TFullscreenMenu.Click;
 begin
-  FTimer.Enabled:=false;
+  if cmode=fmAutomatic then FTimer.Enabled:=false else _OnStopTimer(self);
+end;
+
+procedure TFullscreenMenu.Cancel;
+begin
+  if cmode=fmAutomatic then FTimer.Enabled:=false else
+  begin
+    cctimer_opt:=-1;
+    _OnStopTimer(self);
+  end;
+end;
+
+procedure TFullscreenMenu.Next;
+begin
+  inc(cctimer_opt);
+  if cctimer_opt>=FCount then cctimer_opt:=0;
+  SetMenuPosition(cctimer_opt);
+end;
+
+procedure TFullscreenMenu.Prior;
+begin
+  dec(cctimer_opt);
+  if cctimer_opt<0 then cctimer_opt:=FCount-1;
+  SetMenuPosition(cctimer_opt);
 end;
 
 end.

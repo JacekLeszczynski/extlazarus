@@ -24,7 +24,13 @@ type
     destructor Destroy; override;
     procedure execute;
   published
+    {Mode:}
+    { KDE    - shutdown KDE mode}
+    { P1     - execute: "shutdown -p now"}
+    { P2     - execute: "shutdown -P now"}
+    { Custom - execute custom command}
     property Mode: TExtShutdownOnShutdownMode read FMode write FMode;
+    {Execute command is Mode = Custom}
     property CustomCommand: string read FCustomCommand write FCustomCommand;
     property OnBeforeShutdown: TNotifyEvent read FOnBeforeShutdown write FOnBeforeShutdown;
     property OnAfterShutdown: TNotifyEvent read FOnAfterShutdown write FOnAfterShutdown;
