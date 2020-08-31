@@ -23,6 +23,7 @@ type
     cLabels: array of TLabel;
     cmode: TFullscreenMenuMode;
     FActive: boolean;
+    FAlarmColor: TColor;
     FBGColor: TColor;
     FColor,FActiveColor: TColor;
     FControl: TWinControl;
@@ -72,6 +73,8 @@ type
     property Color: TColor read FColor write FColor;
     {Kolor fontu pozycji aktywnych}
     property ActiveColor: TColor read FActiveColor write FActiveColor;
+    {Kolor fontu pozycji alarmowej}
+    property AlarmColor: TColor read FAlarmColor write FAlarmColor;
     {Kolor tła fontu pozycji aktywnych}
     property ActiveColorBG: TColor read FBGColor write FBGColor;
     {Wyświetlanie pozycji menu dużymi literami}
@@ -148,15 +151,17 @@ end;
 procedure TFullscreenMenu.SetMenuPosition(aIndex: integer);
 var
   i: integer;
+  alarm: boolean;
 begin
   (* wyłączam wszystkie pozycje *)
   for i:=0 to FCount-1 do
   begin
-    cLabels[i].Font.Assign(FFont);
+    alarm:=cLabels[i].Font.Color=FAlarmColor;
+    if not alarm then cLabels[i].Font.Assign(FFont);
     cLabels[i].Color:=FColor;
   end;
   (* włączam pożądaną pozycję *)
-  cLabels[aIndex].Font.Color:=FActiveColor;
+  if cLabels[aIndex].Font.Color<>FAlarmColor then cLabels[aIndex].Font.Color:=FActiveColor;
   cLabels[aIndex].Color:=FBGColor;
 end;
 
@@ -176,6 +181,7 @@ begin
   FTimer.OnTimer:=@_OnTimer;
   FColor:=clBlue;
   FActiveColor:=clBlack;
+  FAlarmColor:=clRed;
   FBGColor:=clYellow;
   FUpcase:=false;
   FCursorOff:=false;
@@ -192,8 +198,9 @@ end;
 procedure TFullscreenMenu.Execute(aItemIndex: integer;
   aMode: TFullscreenMenuMode);
 var
-  s: string;
+  s,s1: string;
   i: integer;
+  alarm: boolean;
 begin
   if aMode=fmNone then cmode:=FMode else cmode:=aMode;
   if cmode=fmNone then exit;
@@ -216,10 +223,14 @@ begin
     cLabels[i]:=TLabel.Create(cPanel);
     cLabels[i].Parent:=cPanel;
     if i=cctimer_opt then cLabels[i].Color:=FBGColor else cLabels[i].Color:=FColor;
-    if FUpcase then cLabels[i].Caption:=ansiuppercase(GetLineToStr(s,i+1,',')) else cLabels[i].Caption:=GetLineToStr(s,i+1,',');
+    if FUpcase then s1:=ansiuppercase(GetLineToStr(s,i+1,',')) else s1:=GetLineToStr(s,i+1,',');
+    alarm:=pos('$',s1)>0;
+    s1:=StringReplace(s1,'$','',[rfReplaceAll]);
+    cLabels[i].Caption:=s1;
     cLabels[i].Font.Assign(FFont);
+    if alarm then cLabels[i].Font.Color:=FAlarmColor;
     cLabels[i].Left:=32;
-    cLabels[i].Top:=round(((cLabels[0].Height*(FCount+1))/FCount)*i+(cLabels[i].Height/2));
+    cLabels[i].Top:=round(((cLabels[0].Height*(FCount+1))/FCount)*i+(cLabels[i].Height/2))-15;
     cLabels[i].Alignment:=taCenter;
     cLabels[i].AutoSize:=false;
     cLabels[i].Width:=cPanel.Width-64;
