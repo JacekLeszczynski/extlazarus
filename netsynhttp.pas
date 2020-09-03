@@ -16,6 +16,8 @@ type
 
   TNetSynHTTP = class(TComponent)
   private
+    FFilter: TStrings;
+    FFiltering: boolean;
     FHeaders: TStrings;
     FMethod: TSynHttpMethode;
     FMimetype: string;
@@ -24,6 +26,7 @@ type
     //FTimeout: integer;
     FUrlData: string;
     FUserAgent: string;
+    procedure SetFilter(AValue: TStrings);
     procedure SetHeaders(AValue: TStrings);
     procedure SetMimetype(AValue: string);
     procedure SetUserAgent(AValue: string);
@@ -51,13 +54,19 @@ type
     function execute_get_post(url: string; var res: TStrings): integer;
     function GetText(const URL: string; const Response: TStrings): Boolean;
     function GetBinary(const URL: string; const Response: TStream): Boolean;
+    function FilteringNow(aHtml: string): string;
   published
     property Sesja: boolean read FSesja;
     property Method: TSynHttpMethode read FMethod write FMethod;
     property Mimetype: string read FMimetype write SetMimetype; //<auto>: "text/html", <app>: "application/x-www-form-urlencoded"
     property UserAgent: string read FUserAgent write SetUserAgent;
     property UrlData: string read FUrlData write FUrlData; //Dane formularzy w metodzie "POST"
-    //property Timeout: integer read FTimeout write FTimeout default 0;  //Default 0 = 90000 sec.
+    {Filtruj wszystko co zostanie wczytane}
+    property Filtering: boolean read FFiltering write FFiltering;
+    {Automatyczne filtrowanie stron}
+    { D... - Usuń od początku wraz z tekstem}
+    { T... - Usuń tekst i całą resztę}
+    property Filter: TStrings read FFilter write SetFilter;
     property Headers: TStrings read FHeaders write SetHeaders;
     property Referrer: string read FReferrer write FReferrer;
   end;
@@ -87,6 +96,11 @@ end;
 procedure TNetSynHTTP.SetHeaders(AValue: TStrings);
 begin
   FHeaders.Assign(AValue);
+end;
+
+procedure TNetSynHTTP.SetFilter(AValue: TStrings);
+begin
+  FFilter.Assign(AValue);
 end;
 
 procedure TNetSynHTTP.SetMimetype(AValue: string);
@@ -134,8 +148,10 @@ end;
 constructor TNetSynHTTP.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FSesja:=false;
   FHeaders:=TStringList.Create;
+  FFilter:=TStringList.Create;
+  FSesja:=false;
+  FFiltering:=false;
   FMethod:=meGet;
   FUserAgent:='<auto>';
   FMimetype:='<auto>';
@@ -148,6 +164,7 @@ destructor TNetSynHTTP.Destroy;
 begin
   if FSesja then http.Free;
   FHeaders.Free;
+  FFilter.Free;
   inherited Destroy;
 end;
 
@@ -360,6 +377,11 @@ function TNetSynHTTP.GetBinary(const URL: string; const Response: TStream
   ): Boolean;
 begin
   result:=HttpGetBinary(URL,Response);
+end;
+
+function TNetSynHTTP.FilteringNow(aHtml: string): string;
+begin
+
 end;
 
 end.
