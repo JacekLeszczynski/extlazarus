@@ -55,6 +55,14 @@ type
     function GetText(const URL: string; const Response: TStrings): Boolean;
     function GetBinary(const URL: string; const Response: TStream): Boolean;
     function FilteringNow(aHtml: string): string;
+    function MemLength(aMem: TMemoryStream): int64;
+    function MemPos(aStr: string; aMem: TMemoryStream): integer;
+    procedure MemDelete(aMem: TMemoryStream; aStart,aCount: integer);
+    function memCopy(aMem: TMemoryStream; aStart,aCount: integer): string;
+    function MemDeleteStart(aMem: TMemoryStream; aStr: string): boolean;
+    function StrDeleteStart(var aStr: string; aSub: string): boolean;
+    function MemDeleteEnd(aMem: TMemoryStream; aStr: string): boolean;
+    function StrDeleteEnd(var aStr: string; aSub: string): boolean;
   published
     property Sesja: boolean read FSesja;
     property Method: TSynHttpMethode read FMethod write FMethod;
@@ -382,6 +390,87 @@ end;
 function TNetSynHTTP.FilteringNow(aHtml: string): string;
 begin
 
+end;
+
+function TNetSynHTTP.MemLength(aMem: TMemoryStream): int64;
+var
+  p: ^string;
+begin
+  p:=aMem.Memory;
+  result:=length(p^);
+end;
+
+function TNetSynHTTP.MemPos(aStr: string; aMem: TMemoryStream): integer;
+var
+  p: ^string;
+begin
+  p:=aMem.Memory;
+  result:=pos(aStr,p^);
+end;
+
+procedure TNetSynHTTP.MemDelete(aMem: TMemoryStream; aStart, aCount: integer);
+var
+  p: ^string;
+begin
+  p:=aMem.Memory;
+  delete(p^,aStart,aCount);
+end;
+
+function TNetSynHTTP.memCopy(aMem: TMemoryStream; aStart, aCount: integer
+  ): string;
+var
+  p: ^string;
+begin
+  p:=aMem.Memory;
+  result:=copy(p^,aStart,aCount);
+end;
+
+function TNetSynHTTP.MemDeleteStart(aMem: TMemoryStream; aStr: string): boolean;
+var
+  a: integer;
+begin
+  a:=MemPos(aStr,aMem);
+  if a=0 then result:=false else
+  begin
+    MemDelete(aMem,1,a+length(aStr)-1);
+    result:=true;
+  end;
+end;
+
+function TNetSynHTTP.StrDeleteStart(var aStr: string; aSub: string): boolean;
+var
+  a: integer;
+begin
+  a:=pos(aSub,aStr);
+  if a=0 then result:=false else
+  begin
+    delete(aStr,1,a+length(aSub)-1);
+    result:=true;
+  end;
+end;
+
+function TNetSynHTTP.MemDeleteEnd(aMem: TMemoryStream; aStr: string): boolean;
+var
+  a: integer;
+begin
+  a:=MemPos(aStr,aMem);
+  if a=0 then result:=false else
+  begin
+    MemDelete(aMem,a,maxint);
+    result:=true;
+  end;
+end;
+
+function TNetSynHTTP.StrDeleteEnd(var aStr: string; aSub: string): boolean;
+var
+  a: integer;
+begin
+  a:=pos(aSub,aStr);
+  if a=0 then result:=false else
+  begin
+    delete(aStr,a,maxint);
+    result:=true;
+  end;
 end;
 
 end.
