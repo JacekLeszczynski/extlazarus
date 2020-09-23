@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="44">
+    <Files Count="45">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -229,6 +229,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="FullscreenMenu"/>
       </Item44>
+      <Item45>
+        <Filename Value="diff.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="diff"/>
+      </Item45>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
