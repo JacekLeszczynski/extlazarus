@@ -56,7 +56,7 @@ A tu historia moich zmian:
 interface
 
 uses
-  Classes, SysUtils, LResources, pointertab;
+  Classes, SysUtils, LResources;
 
 const
   //Maximum realistic deviation from centre diagonal vector ...
@@ -148,12 +148,10 @@ type
     function GetCompare(index: integer): TCompareRec;
     function GetCompareCount: integer;
     function _ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
-    procedure _on_create(Sender: TObject; var AWskaznik: Pointer);
-    procedure _on_destroy(Sender: TObject; var AWskaznik: Pointer);
-    procedure _on_read(Sender: TObject; var AWskaznik: Pointer);
-    procedure _on_write(Sender: TObject; var AWskaznik: Pointer);
-    procedure DiffAnalize(pp: TPointerTab; aDiff: TStrings);
-    function DiffSzukajPierwszejZmiany(aOd: integer; pp: TPointerTab): integer;
+
+    procedure DiffAnalize(pp: TList; aDiff: TStrings);
+    function DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
+
   protected
   public
     constructor Create(aOwner: TComponent); override;
@@ -196,15 +194,12 @@ uses
   Math, crc, BaseUnix;
 
 type
-  Ppp = ^Tpp;
-  Tpp = record
+  PElement = ^TElement;
+  TElement = record
     flaga: char;
     s: string;
     i1,i2: integer;
   end;
-
-var
-  element: Tpp;
 
 procedure Register;
 begin
@@ -218,6 +213,22 @@ var
 begin
   crcvalue:=crc32(0,nil,0);
   result:=crc32(crcvalue,@mystring[1],length(mystring));
+end;
+
+function ElementAdd(aList: TList; aElement: TElement): integer;
+var
+  p: PElement;
+begin
+  new(p);
+  p^:=aElement;
+  result:=aList.Add(p);
+end;
+
+procedure ElementClear(aList: TList);
+var
+  i: integer;
+begin
+  for i:=0 to aList.Count-1 do dispose(PElement(aList[i]));
 end;
 
 { TDiff }
@@ -1168,39 +1179,6 @@ begin
   result:=l;
 end;
 
-procedure TDiff._on_create(Sender: TObject; var AWskaznik: Pointer);
-var
-  p: Ppp;
-begin
-  new(p);
-  AWskaznik:=p;
-end;
-
-procedure TDiff._on_destroy(Sender: TObject; var AWskaznik: Pointer);
-var
-  p: Ppp;
-begin
-  p:=AWskaznik;
-  dispose(p);
-  AWskaznik:=nil;
-end;
-
-procedure TDiff._on_read(Sender: TObject; var AWskaznik: Pointer);
-var
-  p: Ppp;
-begin
-  p:=AWskaznik;
-  element:=p^;
-end;
-
-procedure TDiff._on_write(Sender: TObject; var AWskaznik: Pointer);
-var
-  p: Ppp;
-begin
-  p:=AWskaznik;
-  p^:=element;
-end;
-
 constructor TDiff.Create(aOwner: TComponent);
 begin
   inherited Create(aOwner);
@@ -1588,7 +1566,9 @@ var
   pom,s1,s2: string;
   info1,info2: stat;
   strefa: string;
-  pp: TPointerTab;
+  //pp: TPointerTab;
+  pp: TList;
+  element: TElement;
 begin
   i:=round((GetLocalTimeOffset*-1)/60);
   if i>0 then strefa:='+' else strefa:='-';
@@ -1600,11 +1580,7 @@ begin
   ff2:=TStringList.Create;
   ll1:=TList.Create;
   ll2:=TList.Create;
-  pp:=TPointerTab.Create(nil);
-  pp.OnCreateElement:=@_on_create;
-  pp.OnDestroyElement:=@_on_destroy;
-  pp.OnReadElement:=@_on_read;
-  pp.OnWriteElement:=@_on_write;
+  pp:=TList.Create;
   try
     ff1.LoadFromFile(aFileOld);
     ff2.LoadFromFile(aFileNew);
@@ -1629,12 +1605,12 @@ begin
       element.i1:=i1;
       element.i2:=i2;
       case cc.Kind of
-        ckNone:   begin element.s:=' '+ff1[i1]; pp.Add; end;
-        ckAdd:    begin element.s:='+'+ff2[i2]; pp.Add; end;
-        ckDelete: begin element.s:='-'+ff1[i1]; pp.Add; end;
+        ckNone:   begin element.s:=' '+ff1[i1]; ElementAdd(pp,element); end;
+        ckAdd:    begin element.s:='+'+ff2[i2]; ElementAdd(pp,element); end;
+        ckDelete: begin element.s:='-'+ff1[i1]; ElementAdd(pp,element); end;
         ckModify: begin
-                    element.s:='-'+ff1[i1]; pp.Add;
-                    element.s:='+'+ff2[i2]; pp.Add;
+                    element.s:='-'+ff1[i1]; ElementAdd(pp,element);
+                    element.s:='+'+ff2[i2]; ElementAdd(pp,element);
                   end;
       end;
     end;
@@ -1647,15 +1623,16 @@ begin
     ff2.Free;
     ll1.Free;
     ll2.Free;
+    ElementClear(pp);
     pp.Free;
   end;
 end;
 
-procedure TDiff.DiffAnalize(pp: TPointerTab; aDiff: TStrings);
+procedure TDiff.DiffAnalize(pp: TList; aDiff: TStrings);
 var
+  element: TElement;
   max,indeks: integer;
-  i: integer;
-  x,a,b,x1,x2,x3,x4: integer;
+  x,a,x1,x2,x3,x4: integer;
   zab: integer;
   s: string;
 begin
@@ -1675,7 +1652,7 @@ begin
     while true do
     begin
       if a>max then break;
-      pp.Read(a);
+      element:=PElement(pp[a])^;
       if (x1=0) and (element.flaga<>'A') then x1:=element.i1+1;
       if (x2=0) and (element.flaga<>'D') then x2:=element.i2+1;
       if element.flaga<>'A' then x3:=element.i1+1;
@@ -1700,15 +1677,15 @@ begin
   end;
 end;
 
-function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TPointerTab
-  ): integer;
+function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
 var
+  element: TElement;
   i,a: integer;
 begin
   a:=-1;
   for i:=aOd to pp.Count-1 do
   begin
-    pp.Read(i);
+    element:=PElement(pp[i])^;
     if element.flaga<>'N' then
     begin
       a:=i;
