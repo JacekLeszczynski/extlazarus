@@ -56,7 +56,7 @@ A tu historia moich zmian:
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources, pointertab;
 
 const
   //Maximum realistic deviation from centre diagonal vector ...
@@ -107,6 +107,7 @@ type
   end;
 
   TDiffAlgorithm = (daDifference,daSeqComparison);
+  TDiffFileEngine = (fePascal,feMemory);
 
   { TDiff }
 
@@ -121,6 +122,8 @@ type
     fExecuting: boolean;
     fDiagBuffer, bDiagBuffer: pointer;
     Chrs1, Chrs2: PChrArray;
+    FFileEngine: TDiffFileEngine;
+    FOnProcSys: TNotifyEvent;
     Ints1, Ints2: PIntArray;
     LastCompareRec: TCompareRec;
     fDiag, bDiag: PDiags;
@@ -144,6 +147,13 @@ type
     procedure AddChangeInts(offset1, range: integer; ChangeKind: TChangeKind);
     function GetCompare(index: integer): TCompareRec;
     function GetCompareCount: integer;
+    function _ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
+    procedure _on_create(Sender: TObject; var AWskaznik: Pointer);
+    procedure _on_destroy(Sender: TObject; var AWskaznik: Pointer);
+    procedure _on_read(Sender: TObject; var AWskaznik: Pointer);
+    procedure _on_write(Sender: TObject; var AWskaznik: Pointer);
+    procedure DiffAnalize(pp: TPointerTab; aDiff: TStrings);
+    function DiffSzukajPierwszejZmiany(aOd: integer; pp: TPointerTab): integer;
   protected
   public
     constructor Create(aOwner: TComponent); override;
@@ -154,6 +164,11 @@ type
     //Cancel allows interrupting excessively prolonged comparisons
     procedure Cancel;
     procedure Clear;
+    procedure FileToHashList(aFile: string; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
+    procedure StringsToHashList(aStr: TStrings; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
+    procedure StringsToHashList(aStr: TStringList; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
+    function HashLine(const aLine: string; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false): pointer;
+    procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
 
     property Cancelled: boolean read fCancelled;
     property Count: integer read GetCompareCount;
@@ -164,6 +179,13 @@ type
       daDifference    - algorytm różnicowy Meyer'sa
       daSeqComparison - algorytm porównywania sekwencji}
     property Algorithm: TDiffAlgorithm read FAlg write FAlg default daDifference;
+    {Tryb czytania plików (jeśli wykorzystywane):
+      fePascal - pascalowe czytanie plików,
+      feMemory - wczytanie całego pliku do pamięci.}
+    property FileEngine: TDiffFileEngine read FFileEngine write FFileEngine default feMemory;
+    {Jeśli potrzebujesz użyć metody:
+     *** Application.ProcessMessage ***}
+    property OnProcSys: TNotifyEvent read FOnProcSys write FOnProcSys;
   end;
 
 procedure Register;
@@ -171,12 +193,31 @@ procedure Register;
 implementation
 
 uses
-  Math;
+  Math, crc, BaseUnix;
+
+type
+  Ppp = ^Tpp;
+  Tpp = record
+    flaga: char;
+    s: string;
+    i1,i2: integer;
+  end;
+
+var
+  element: Tpp;
 
 procedure Register;
 begin
   {$I diff_icon.lrs}
   RegisterComponents('Misc',[TDiff]);
+end;
+
+function CrcString(const mystring: string): longword;
+var
+  crcvalue: longword;
+begin
+  crcvalue:=crc32(0,nil,0);
+  result:=crc32(crcvalue,@mystring[1],length(mystring));
 end;
 
 { TDiff }
@@ -253,7 +294,7 @@ begin
       inc(p);
       if (p mod 1024)=1023 then
       begin
-        Application.ProcessMessages;
+        if Assigned(FOnProcSys) then FOnProcSys(self);
         if fCancelled then exit;
       end;
       //nb: the Snake order is important here
@@ -269,7 +310,7 @@ begin
       inc(p);
       if (p mod 1024)=1023 then
       begin
-        Application.ProcessMessages;
+        if Assigned(FOnProcSys) then FOnProcSys(self);
         if fCancelled then exit;
       end;
       //nb: the Snake order is important here
@@ -330,7 +371,7 @@ begin
       inc(p);
       if (p mod 1024=1023) then
       begin
-        Application.ProcessMessages;
+        if Assigned(FOnProcSys) then FOnProcSys(self);
         if fCancelled then exit;
       end;
       //nb: the Snake order is important here
@@ -346,7 +387,7 @@ begin
       inc(p);
       if (p mod 1024=1023) then
       begin
-        Application.ProcessMessages;
+        if Assigned(FOnProcSys) then FOnProcSys(self);
         if fCancelled then exit;
       end;
       //nb: the Snake order is important here
@@ -691,7 +732,7 @@ var
 begin
   //nb: the possible depth of recursion here is most unlikely to cause
   //    problems with stack overflows.
-  application.processmessages;
+  if Assigned(FOnProcSys) then FOnProcSys(self);
   if fCancelled then exit;
 
   if (len1=0) then
@@ -721,7 +762,7 @@ begin
 
     if (Oscill mod 200)=0 then
     begin
-      application.processmessages;
+      if Assigned(FOnProcSys) then FOnProcSys(self);
       if fCancelled then exit;
     end;
 
@@ -897,7 +938,7 @@ var
 begin
   //nb: the possible depth of recursion here is most unlikely to cause
   //    problems with stack overflows.
-  application.processmessages;
+  if Assigned(FOnProcSys) then FOnProcSys(self);
   if fCancelled then exit;
 
   if (len1=0) then
@@ -929,7 +970,7 @@ begin
 
     if (Oscill mod 200)=0 then
     begin
-      application.processmessages;
+      if Assigned(FOnProcSys) then FOnProcSys(self);
       if fCancelled then exit;
     end;
 
@@ -1109,10 +1150,62 @@ begin
   result:=fCompareList.count;
 end;
 
+function TDiff._ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
+var
+  cc: TCompareRec;
+  k: TChangeKind;
+  i,l: integer;
+  flaga: string;
+begin
+  l:=0;
+  k:=self.Compares[aIndex].Kind;
+  for i:=aIndex to self.Count-1 do
+  begin
+    cc:=self.Compares[i];
+    if cc.Kind<>k then break;
+    inc(l);
+  end;
+  result:=l;
+end;
+
+procedure TDiff._on_create(Sender: TObject; var AWskaznik: Pointer);
+var
+  p: Ppp;
+begin
+  new(p);
+  AWskaznik:=p;
+end;
+
+procedure TDiff._on_destroy(Sender: TObject; var AWskaznik: Pointer);
+var
+  p: Ppp;
+begin
+  p:=AWskaznik;
+  dispose(p);
+  AWskaznik:=nil;
+end;
+
+procedure TDiff._on_read(Sender: TObject; var AWskaznik: Pointer);
+var
+  p: Ppp;
+begin
+  p:=AWskaznik;
+  element:=p^;
+end;
+
+procedure TDiff._on_write(Sender: TObject; var AWskaznik: Pointer);
+var
+  p: Ppp;
+begin
+  p:=AWskaznik;
+  p^:=element;
+end;
+
 constructor TDiff.Create(aOwner: TComponent);
 begin
   inherited Create(aOwner);
   FAlg:=daDifference;
+  FFileEngine:=feMemory;
   fCompareList:=TList.create;
   fDiffList:=TList.Create;
 end;
@@ -1415,6 +1508,214 @@ begin
   Chrs2:=nil;
   Ints1:=nil;
   Ints2:=nil;
+end;
+
+procedure TDiff.FileToHashList(aFile: string; aHashList: TList;
+  aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
+var
+  f: Text;
+  s: string;
+  t: TStringList;
+  i: integer;
+begin
+  aHashList.Clear;
+  if FFileEngine=fePascal then
+  begin
+    assignfile(f,aFile);
+    while not eof(f) do
+    begin
+      readln(f,s);
+      aHashList.Add(HashLine(s,aTrimSpace,aIgnoreSpace,aIgnoreCase));
+    end;
+    closefile(f);
+  end else begin
+    t:=TStringList.Create;
+    try
+      t.LoadFromFile(aFile);
+      for i:=0 to t.Count-1 do aHashList.Add(HashLine(t[i],aTrimSpace,aIgnoreSpace,aIgnoreCase));
+    finally
+      t.Free;
+    end;
+  end;
+end;
+
+procedure TDiff.StringsToHashList(aStr: TStrings; aHashList: TList;
+  aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
+var
+  i: integer;
+begin
+  aHashList.Clear;
+  for i:=0 to aStr.Count-1 do aHashList.Add(HashLine(aStr[i],aTrimSpace,aIgnoreSpace,aIgnoreCase));
+end;
+
+procedure TDiff.StringsToHashList(aStr: TStringList; aHashList: TList;
+  aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
+var
+  i: integer;
+begin
+  aHashList.Clear;
+  for i:=0 to aStr.Count-1 do aHashList.Add(HashLine(aStr[i],aTrimSpace,aIgnoreSpace,aIgnoreCase));
+end;
+
+function TDiff.HashLine(const aLine: string; aTrimSpace: boolean;
+  aIgnoreSpace: boolean; aIgnoreCase: boolean): pointer;
+var
+  i: integer;
+  s: string;
+begin
+  s:=aLine;
+  (* usuwam wszystkie powtarzające się spacje *)
+  if aTrimSpace then while pos('  ',s)>0 do s:=StringReplace(s,'  ',' ',[rfReplaceAll]);
+  (* usuwam wszystkie spacje i znaki tabulacji *)
+  if aIgnoreSpace then
+  begin
+    s:='';
+    for i:=1 to length(aLine) do if not (aLine[i] in [#9,#32]) then s:=s+aLine[i];
+  end;
+  (* ignoruję wielkości liter *)
+  if aIgnoreCase then s:=AnsiLowerCase(s);
+  //result:=pointer(CalcCRC32(pchar(s),length(s)));
+  result:=pointer(CrcString(s));
+end;
+
+procedure TDiff.Diff(aFileOld, aFileNew: string; aDiff: TStrings);
+var
+  ff1,ff2: TStringList;
+  ll1,ll2: TList;
+  cc: TCompareRec;
+  flaga: string[1];
+  i,i1,i2: integer;
+  pom,s1,s2: string;
+  info1,info2: stat;
+  strefa: string;
+  pp: TPointerTab;
+begin
+  i:=round((GetLocalTimeOffset*-1)/60);
+  if i>0 then strefa:='+' else strefa:='-';
+  if i<10 then strefa:=strefa+'0'+IntToStr(i) else strefa:=strefa+IntToStr(i);
+  strefa:=strefa+'00';
+  fpstat(aFileOld,info1);
+  fpstat(aFileNew,info2);
+  ff1:=TStringList.Create;
+  ff2:=TStringList.Create;
+  ll1:=TList.Create;
+  ll2:=TList.Create;
+  pp:=TPointerTab.Create(nil);
+  pp.OnCreateElement:=@_on_create;
+  pp.OnDestroyElement:=@_on_destroy;
+  pp.OnReadElement:=@_on_read;
+  pp.OnWriteElement:=@_on_write;
+  try
+    ff1.LoadFromFile(aFileOld);
+    ff2.LoadFromFile(aFileNew);
+    (* obliczam hashe *)
+    StringsToHashList(ff1,ll1);
+    StringsToHashList(ff2,ll2);
+    (* wykonuję analizę *)
+    execute(PINT(ll1.List),PINT(ll2.List),ll1.Count,ll2.Count);
+    (* przelatuję dane *)
+    for i:=0 to self.Count-1 do
+    begin
+      cc:=self.Compares[i];
+      i1:=cc.oldIndex1;
+      i2:=cc.oldIndex2;
+      case cc.Kind of
+        ckNone:   flaga:='N';
+        ckAdd:    flaga:='A';
+        ckDelete: flaga:='D';
+        ckModify: flaga:='M';
+      end;
+      element.flaga:=flaga[1];
+      element.i1:=i1;
+      element.i2:=i2;
+      case cc.Kind of
+        ckNone:   begin element.s:=' '+ff1[i1]; pp.Add; end;
+        ckAdd:    begin element.s:='+'+ff2[i2]; pp.Add; end;
+        ckDelete: begin element.s:='-'+ff1[i1]; pp.Add; end;
+        ckModify: begin
+                    element.s:='-'+ff1[i1]; pp.Add;
+                    element.s:='+'+ff2[i2]; pp.Add;
+                  end;
+      end;
+    end;
+    aDiff.Clear;
+    aDiff.Add('--- '+aFileOld+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(info1.st_mtime))+'.'+IntToStr(info1.st_mtime_nsec)+' '+strefa);
+    aDiff.Add('+++ '+aFileNew+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(info2.st_mtime))+'.'+IntToStr(info2.st_mtime_nsec)+' '+strefa);
+    DiffAnalize(pp,aDiff);
+  finally
+    ff1.Free;
+    ff2.Free;
+    ll1.Free;
+    ll2.Free;
+    pp.Free;
+  end;
+end;
+
+procedure TDiff.DiffAnalize(pp: TPointerTab; aDiff: TStrings);
+var
+  max,indeks: integer;
+  i: integer;
+  x,a,b,x1,x2,x3,x4: integer;
+  zab: integer;
+  s: string;
+begin
+  max:=pp.Count-1;
+  x:=0;
+  (* analiza *)
+  while true do
+  begin
+    a:=DiffSzukajPierwszejZmiany(x,pp);
+    if a=-1 then break;
+
+    a:=a-3;
+    if a<0 then a:=0;
+
+    indeks:=aDiff.Add('@@ -$A,$B +$C,$D @@');
+    x1:=0; x2:=0; x3:=0; x4:=0; zab:=0;
+    while true do
+    begin
+      if a>max then break;
+      pp.Read(a);
+      if (x1=0) and (element.flaga<>'A') then x1:=element.i1+1;
+      if (x2=0) and (element.flaga<>'D') then x2:=element.i2+1;
+      if element.flaga<>'A' then x3:=element.i1+1;
+      if element.flaga<>'D' then x4:=element.i2+1;
+      if element.flaga<>'N' then zab:=0;
+      aDiff.Add(element.s);
+      inc(a);
+      inc(zab);
+      if zab>3 then break;
+    end;
+
+    s:=aDiff[indeks];
+    s:=StringReplace(s,'$A',IntToStr(x1),[]);
+    s:=StringReplace(s,'$B',IntToStr(x3-x1+1),[]);
+    s:=StringReplace(s,'$C',IntToStr(x2),[]);
+    s:=StringReplace(s,'$D',IntToStr(x4-x2+1),[]);
+    aDiff.Delete(indeks);
+    aDiff.Insert(indeks,s);
+
+    x:=a+1;
+
+  end;
+end;
+
+function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TPointerTab
+  ): integer;
+var
+  i,a: integer;
+begin
+  a:=-1;
+  for i:=aOd to pp.Count-1 do
+  begin
+    pp.Read(i);
+    if element.flaga<>'N' then
+    begin
+      a:=i;
+      break;
+    end;
+  end;
+  result:=a;
 end;
 
 end.
