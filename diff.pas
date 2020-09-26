@@ -238,12 +238,13 @@ begin
   for i:=0 to aList.Count-1 do dispose(PElement(aList[i]));
 end;
 
-function StringToItemIndex(slist: TStrings; kod: string; wart_domyslna: integer): integer;
+function StringToItemIndex(slist: TStrings; kod: string; aIndeksOd: integer = 0; aIndeksDo: integer = -1; wart_domyslna: integer = -1): integer;
 var
-  i,a: integer;
+  i,a,max: integer;
 begin
    a:=wart_domyslna;
-   for i:=0 to slist.Count-1 do if slist[i]=kod then
+   if aIndeksDo=-1 then max:=slist.Count-1 else max:=aIndeksDo;
+   for i:=aIndeksOd to max do if slist[i]=kod then
    begin
      a:=i;
      break;
@@ -251,12 +252,13 @@ begin
    result:=a;
 end;
 
-function StringToItemIndex(slist: TStringList; kod: string; wart_domyslna: integer = -1): integer;
+function StringToItemIndex(slist: TStringList; kod: string; aIndeksOd: integer = 0; aIndeksDo: integer = -1; wart_domyslna: integer = -1): integer;
 var
-  i,a: integer;
+  i,a,max: integer;
 begin
    a:=wart_domyslna;
-   for i:=0 to slist.Count-1 do if slist[i]=kod then
+   if aIndeksDo=-1 then max:=slist.Count-1 else max:=aIndeksDo;
+   for i:=aIndeksOd to max do if slist[i]=kod then
    begin
      a:=i;
      break;
