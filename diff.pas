@@ -149,8 +149,11 @@ type
     function GetCompareCount: integer;
     function _ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
 
+    function DiffFileInfo(aFlaga: char; aFileName: string; aDT,aMS: qword): string;
     procedure DiffAnalize(pp: TList; aDiff: TStrings);
     function DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
+    procedure DiffNewFile(aFileNotFound,aFile: string; aDiff: TStrings);
+    procedure DiffFileDeleted(aFile,aFileDeleted: string; aDiff: TStrings);
 
   protected
   public
@@ -167,6 +170,7 @@ type
     procedure StringsToHashList(aStr: TStringList; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
     function HashLine(const aLine: string; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false): pointer;
     procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
+    procedure DiffDirectories(aDirOld,aDirNew: string; aDiff: TStrings);
 
     property Cancelled: boolean read fCancelled;
     property Count: integer read GetCompareCount;
@@ -191,7 +195,7 @@ procedure Register;
 implementation
 
 uses
-  Math, crc, BaseUnix;
+  Math, crc, BaseUnix, strutils, lazfileutils, fileutil;
 
 type
   PElement = ^TElement;
@@ -229,6 +233,32 @@ var
   i: integer;
 begin
   for i:=0 to aList.Count-1 do dispose(PElement(aList[i]));
+end;
+
+function StringToItemIndex(slist: TStrings; kod: string; wart_domyslna: integer): integer;
+var
+  i,a: integer;
+begin
+   a:=wart_domyslna;
+   for i:=0 to slist.Count-1 do if slist[i]=kod then
+   begin
+     a:=i;
+     break;
+   end;
+   result:=a;
+end;
+
+function StringToItemIndex(slist: TStringList; kod: string; wart_domyslna: integer = -1): integer;
+var
+  i,a: integer;
+begin
+   a:=wart_domyslna;
+   for i:=0 to slist.Count-1 do if slist[i]=kod then
+   begin
+     a:=i;
+     break;
+   end;
+   result:=a;
 end;
 
 { TDiff }
@@ -1179,6 +1209,138 @@ begin
   result:=l;
 end;
 
+function TDiff.DiffFileInfo(aFlaga: char; aFileName: string; aDT, aMS: qword
+  ): string;
+var
+  i: integer;
+  strefa,s,pom: string;
+begin
+  i:=round((GetLocalTimeOffset*-1)/60);
+  if i>0 then strefa:='+' else strefa:='-';
+  if i<10 then strefa:=strefa+'0'+IntToStr(i) else strefa:=strefa+IntToStr(i);
+  strefa:=strefa+'00';
+  (* buduję string *)
+  if aFlaga='+' then s:='+++' else s:='---';
+  s:=s+' '+aFileName;
+  if aDT=0 then s:=s+#9+'1970-01-01 01:00:00.000000000 +0100' else
+  begin
+    s:=s+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(aDT));
+    pom:=FormatFloat('000000000',aMS);
+    if length(pom)>9 then SetLength(pom,9);
+    s:=s+'.'+pom;
+    s:=s+' '+strefa;
+  end;
+  result:=s;
+end;
+
+procedure TDiff.DiffAnalize(pp: TList; aDiff: TStrings);
+var
+  element: TElement;
+  max,indeks: integer;
+  x,a,x1,x2,x3,x4: integer;
+  zab: integer;
+  s: string;
+begin
+  max:=pp.Count-1;
+  x:=0;
+  (* analiza *)
+  while true do
+  begin
+    a:=DiffSzukajPierwszejZmiany(x,pp);
+    if a=-1 then break;
+
+    a:=a-3;
+    if a<0 then a:=0;
+
+    indeks:=aDiff.Add('@@ -$A,$B +$C,$D @@');
+    x1:=0; x2:=0; x3:=0; x4:=0; zab:=0;
+    while true do
+    begin
+      if a>max then break;
+      element:=PElement(pp[a])^;
+      if (x1=0) and (element.flaga<>'A') then x1:=element.i1+1;
+      if (x2=0) and (element.flaga<>'D') then x2:=element.i2+1;
+      if element.flaga<>'A' then x3:=element.i1+1;
+      if element.flaga<>'D' then x4:=element.i2+1;
+      if element.flaga<>'N' then zab:=0;
+      aDiff.Add(element.s);
+      inc(a);
+      inc(zab);
+      if zab>3 then break;
+    end;
+
+    s:=aDiff[indeks];
+    s:=StringReplace(s,'$A',IntToStr(x1),[]);
+    s:=StringReplace(s,'$B',IntToStr(x3-x1+1),[]);
+    s:=StringReplace(s,'$C',IntToStr(x2),[]);
+    s:=StringReplace(s,'$D',IntToStr(x4-x2+1),[]);
+    aDiff.Delete(indeks);
+    aDiff.Insert(indeks,s);
+
+    x:=a+1;
+
+  end;
+end;
+
+function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
+var
+  element: TElement;
+  i,a: integer;
+begin
+  a:=-1;
+  for i:=aOd to pp.Count-1 do
+  begin
+    element:=PElement(pp[i])^;
+    if element.flaga<>'N' then
+    begin
+      a:=i;
+      break;
+    end;
+  end;
+  result:=a;
+end;
+
+procedure TDiff.DiffNewFile(aFileNotFound, aFile: string; aDiff: TStrings);
+var
+  ff: TStringList;
+  info: stat;
+  i: integer;
+begin
+  fpstat(aFile,info);
+  aDiff.Add(DiffFileInfo('-',aFileNotFound,0,0));
+  aDiff.Add(DiffFileInfo('+',aFile,info.st_mtime,info.st_mtime_nsec));
+  ff:=TStringList.Create;
+  try
+    ff.LoadFromFile(aFile);
+    aDiff.Add('@@ -0,0 +1,'+IntToStr(ff.Count)+' @@');
+    (* przelatuję dane *)
+    for i:=0 to ff.Count-1 do aDiff.Add('+'+ff[i]);
+  finally
+    ff.Free;
+  end;
+end;
+
+procedure TDiff.DiffFileDeleted(aFile, aFileDeleted: string; aDiff: TStrings);
+var
+  ff: TStringList;
+  info: stat;
+  strefa: string;
+  i: integer;
+begin
+  fpstat(aFile,info);
+  aDiff.Add(DiffFileInfo('-',aFile,info.st_mtime,info.st_mtime_nsec));
+  aDiff.Add(DiffFileInfo('+',aFileDeleted,0,0));
+  ff:=TStringList.Create;
+  try
+    ff.LoadFromFile(aFile);
+    aDiff.Add('@@ -1 +0,0 @@');
+    (* przelatuję dane *)
+    for i:=0 to ff.Count-1 do aDiff.Add('-'+ff[i]);
+  finally
+    ff.Free;
+  end;
+end;
+
 constructor TDiff.Create(aOwner: TComponent);
 begin
   inherited Create(aOwner);
@@ -1563,10 +1725,8 @@ var
   cc: TCompareRec;
   flaga: string[1];
   i,i1,i2: integer;
-  pom,s1,s2: string;
   info1,info2: stat;
   strefa: string;
-  //pp: TPointerTab;
   pp: TList;
   element: TElement;
 begin
@@ -1614,9 +1774,8 @@ begin
                   end;
       end;
     end;
-    aDiff.Clear;
-    aDiff.Add('--- '+aFileOld+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(info1.st_mtime))+'.'+IntToStr(info1.st_mtime_nsec)+' '+strefa);
-    aDiff.Add('+++ '+aFileNew+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(info2.st_mtime))+'.'+IntToStr(info2.st_mtime_nsec)+' '+strefa);
+    aDiff.Add(DiffFileInfo('-',aFileOld,info1.st_mtime,info1.st_mtime_nsec));
+    aDiff.Add(DiffFileInfo('+',aFileNew,info2.st_mtime,info2.st_mtime_nsec));
     DiffAnalize(pp,aDiff);
   finally
     ff1.Free;
@@ -1628,71 +1787,73 @@ begin
   end;
 end;
 
-procedure TDiff.DiffAnalize(pp: TList; aDiff: TStrings);
+function druga_nazwa(aKat1,aKat2,aStr: string; aReverse: boolean = false): string;
 var
-  element: TElement;
-  max,indeks: integer;
-  x,a,x1,x2,x3,x4: integer;
-  zab: integer;
   s: string;
+  i: integer;
 begin
-  max:=pp.Count-1;
-  x:=0;
-  (* analiza *)
-  while true do
+  s:=aStr;
+  if aReverse then
   begin
-    a:=DiffSzukajPierwszejZmiany(x,pp);
-    if a=-1 then break;
-
-    a:=a-3;
-    if a<0 then a:=0;
-
-    indeks:=aDiff.Add('@@ -$A,$B +$C,$D @@');
-    x1:=0; x2:=0; x3:=0; x4:=0; zab:=0;
-    while true do
-    begin
-      if a>max then break;
-      element:=PElement(pp[a])^;
-      if (x1=0) and (element.flaga<>'A') then x1:=element.i1+1;
-      if (x2=0) and (element.flaga<>'D') then x2:=element.i2+1;
-      if element.flaga<>'A' then x3:=element.i1+1;
-      if element.flaga<>'D' then x4:=element.i2+1;
-      if element.flaga<>'N' then zab:=0;
-      aDiff.Add(element.s);
-      inc(a);
-      inc(zab);
-      if zab>3 then break;
-    end;
-
-    s:=aDiff[indeks];
-    s:=StringReplace(s,'$A',IntToStr(x1),[]);
-    s:=StringReplace(s,'$B',IntToStr(x3-x1+1),[]);
-    s:=StringReplace(s,'$C',IntToStr(x2),[]);
-    s:=StringReplace(s,'$D',IntToStr(x4-x2+1),[]);
-    aDiff.Delete(indeks);
-    aDiff.Insert(indeks,s);
-
-    x:=a+1;
-
+    for i:=1 to length(aKat2) do delete(s,1,1);
+    s:=aKat1+s;
+  end else begin
+    for i:=1 to length(aKat1) do delete(s,1,1);
+    s:=aKat2+s;
   end;
+  result:=s;
 end;
 
-function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
+procedure TDiff.DiffDirectories(aDirOld, aDirNew: string; aDiff: TStrings);
 var
-  element: TElement;
-  i,a: integer;
+  list1,list2: TStringList;
+  s1,s2: string;
+  a: integer;
 begin
-  a:=-1;
-  for i:=aOd to pp.Count-1 do
-  begin
-    element:=PElement(pp[i])^;
-    if element.flaga<>'N' then
+  list1:=TStringList.Create;
+  list2:=TStringList.Create;
+  try
+    FindAllFiles(list1,aDirOld);
+    FindAllFiles(list2,aDirNew);
+    (* pliki z listy 2 *)
+    while list2.Count>0 do
     begin
-      a:=i;
-      break;
+      s2:=list2[0];
+      s1:=druga_nazwa(aDirOld,aDirNew,s2,true);
+      list2.Delete(0);
+      a:=StringToItemIndex(list1,s1);
+      if a=-1 then
+      begin
+        aDiff.Add('diff -ruN '+s1+' '+s2);
+        DiffNewFile(s1,s2,aDiff);
+        //DiffFileDeleted(s1,s2,aDiff);
+      end else begin
+        list1.Delete(a);
+        aDiff.Add('diff -ruN '+s1+' '+s2);
+        Diff(s1,s2,aDiff);
+      end;
     end;
+    (* pliki z listy 1 *)
+    while list1.Count>0 do
+    begin
+      s1:=list1[0];
+      s2:=druga_nazwa(aDirOld,aDirNew,s1);
+      list1.Delete(0);
+      a:=StringToItemIndex(list2,s2);
+      if a=-1 then
+      begin
+        aDiff.Add('diff -ruN '+s1+' '+s2);
+        DiffFileDeleted(s1,s2,aDiff);
+      end else begin
+        list2.Delete(a);
+        aDiff.Add('diff -ruN '+s1+' '+s2);
+        Diff(s1,s2,aDiff);
+      end;
+    end;
+  finally
+    list1.Free;
+    list2.Free;
   end;
-  result:=a;
 end;
 
 end.
