@@ -5,7 +5,7 @@ unit DirectoryPack;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;
 
 type
   TDirectoryPackMode = (pmServer, pmClient);

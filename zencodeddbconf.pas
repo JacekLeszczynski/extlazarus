@@ -28,8 +28,7 @@ unit ZEncodedDBConf;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  DCPdes, DCPsha1, ZConnection;
+  Classes, SysUtils, LResources, DCPdes, DCPsha1, ZConnection;
 
 type
 
@@ -544,4 +543,4 @@ begin
   end;
 end;
 
-end.
+end.

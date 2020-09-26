@@ -5,7 +5,7 @@ unit DSMaster;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, DB;
+  Classes, SysUtils, LResources, DB;
 
 type
 

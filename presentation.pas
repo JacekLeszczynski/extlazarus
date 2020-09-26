@@ -11,8 +11,7 @@ unit Presentation;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ExtCtrls,
-  PointerTab;
+  Classes, SysUtils, LResources, ExtCtrls, PointerTab;
 
 type
 

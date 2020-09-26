@@ -5,8 +5,7 @@ unit FullscreenMenu;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  StdCtrls, ExtCtrls;
+  Classes, SysUtils, LResources, Controls, Graphics, StdCtrls, ExtCtrls;
 
 type
 

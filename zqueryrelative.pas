@@ -5,7 +5,7 @@ unit ZQueryRelative;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ZDataset, ExtCtrls, DB;
+  Classes, SysUtils, LResources, ZDataset, ExtCtrls, DB;
 
 type
 

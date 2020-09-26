@@ -170,4 +170,4 @@ end;
 initialization
   {$I logstringgrid_images.lrs}
 
-end.
+end.

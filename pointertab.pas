@@ -11,11 +11,7 @@ interface
 {$ENDIF}
 
 uses
-  Classes, SysUtils,
-  {$IFDEF FPC}
-  LResources,
-  {$ENDIF}
-  Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;
 
 type
   t_wskaznik = ^t_element;

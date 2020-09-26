@@ -5,7 +5,7 @@ unit ZMasterVersionDB;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
+  Classes, SysUtils, LResources, Dialogs,
   ZConnection, ZDataset, XmlParser, ZSqlProcessor;
 
 type
@@ -108,6 +108,7 @@ implementation
 
 uses
   lconvencoding, ZDbcIntfs, ZScriptParser;
+
 var
   ERR: integer;
   sERR: string;
@@ -763,4 +764,4 @@ begin
   result:=ver>=FVersion;
 end;
 
-end.
+end.

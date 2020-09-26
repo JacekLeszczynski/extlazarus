@@ -5,7 +5,7 @@ unit ExtSharedMemory;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, simpleipc;
+  Classes, SysUtils, LResources, simpleipc;
 
 type
   TExtSharedMemoryMessageEvent = procedure(Sender: TObject; AMessage: string) of object;

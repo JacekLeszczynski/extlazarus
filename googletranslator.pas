@@ -5,8 +5,7 @@ unit GoogleTranslator;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  NetSynHTTP;
+  Classes, SysUtils, LResources, NetSynHTTP;
 
 type
 

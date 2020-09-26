@@ -5,8 +5,7 @@ unit NetSocket;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  lNet, lNetComponents, lNetSSL;
+  Classes, SysUtils, LResources, lNet, lNetComponents, lNetSSL;
 
 type
   TNetSocketMode = (smServer, smClient);

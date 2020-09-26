@@ -5,7 +5,7 @@ unit LazLogin;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, lazflogin, LazGradient;
+  Classes, SysUtils, LResources, Forms, Controls, Graphics, lazflogin, LazGradient;
 
 type
 

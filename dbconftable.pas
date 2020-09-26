@@ -5,8 +5,7 @@ unit DBConfTable;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  ZConnection, ZDataset;
+  Classes, SysUtils, LResources, ZConnection, ZDataset;
 
 type
 

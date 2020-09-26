@@ -5,8 +5,7 @@ unit ZTransaction;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  ZConnection, ZDbcIntfs, ZDataset;
+  Classes, SysUtils, LResources, ZConnection, ZDbcIntfs, ZDataset;
 
 type
 

@@ -5,8 +5,7 @@ unit NetSynWebSocket;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ExtCtrls,
-  websocket2;
+  Classes, SysUtils, LResources, Graphics, ExtCtrls, websocket2;
 
 type
 

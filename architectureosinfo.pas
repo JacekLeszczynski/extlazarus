@@ -5,7 +5,7 @@ unit ArchitectureOSInfo;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;
 
 type
   TArchitectureOsInfoElements = (osNone,osWindows86,osWindows64,osLinux86,osLinux64,osFreeBSD86,osFreeBSD64);

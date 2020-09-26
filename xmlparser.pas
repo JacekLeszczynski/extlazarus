@@ -41,7 +41,6 @@ uses
   {$IFDEF LAZARUS}
   LResources,
   {$ENDIF}
-  Forms, Controls, Graphics, Dialogs,
   {$IFDEF LAZARUS}
   DOM, XMLRead, Zipper,
   {$ELSE}
@@ -767,4 +766,4 @@ begin
   {$ENDIF}
 end;
 
-end.
+end.

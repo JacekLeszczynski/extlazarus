@@ -5,7 +5,7 @@ unit ExtEventLog;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, Eventlog, LogStringGrid;
+  Classes, SysUtils, LResources, Eventlog, LogStringGrid;
 
 type
 

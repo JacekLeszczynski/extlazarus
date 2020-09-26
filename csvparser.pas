@@ -23,11 +23,7 @@ interface
 {$ENDIF}
 
 uses
-  Classes, SysUtils,
-  {$IFDEF LAZARUS}
-  LResources,
-  {$ENDIF}
-  Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;
 
 type
   TBeforeAfterReadEvent = procedure(Sender: TObject) of object;

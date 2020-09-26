@@ -5,8 +5,7 @@ unit NetSynHTTP;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  httpsend;
+  Classes, SysUtils, LResources, httpsend;
 
 type
 

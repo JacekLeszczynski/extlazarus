@@ -5,7 +5,7 @@ unit frReportPlus;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, LR_Class;
+  Classes, SysUtils, LResources, LR_Class;
 
 type
 

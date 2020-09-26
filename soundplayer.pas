@@ -6,11 +6,9 @@ interface
 
 uses
   {$IFDEF WINDOWS}
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  FileUtil, mmsystem;
+  Classes, SysUtils, LResources, FileUtil, mmsystem;
   {$ELSE}
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  FileUtil, AsyncProcess, Process;
+  Classes, SysUtils, LResources, FileUtil, AsyncProcess, Process;
   {$ENDIF}
 
 type

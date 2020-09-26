@@ -5,7 +5,7 @@ unit DBSourceCopyToExcel;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, DB, ClipBrd;
+  Classes, SysUtils, LResources, DB, ClipBrd;
 
 type
 

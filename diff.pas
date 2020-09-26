@@ -173,6 +173,7 @@ type
     function HashLine(const aLine: string; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false): pointer;
     procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
     procedure DiffDirectories(aDirOld,aDirNew: string; aDiff: TStrings);
+    procedure Patch(aFileDiff,aFile: string);
 
     property Cancelled: boolean read fCancelled;
     property Count: integer read GetCompareCount;
@@ -1855,6 +1856,27 @@ begin
   finally
     list1.Free;
     list2.Free;
+  end;
+end;
+
+procedure TDiff.Patch(aFileDiff, aFile: string);
+var
+  d,f: TStringList;
+  i: integer;
+begin
+  exit;
+  d:=TStringList.Create;
+  f:=TStringList.Create;
+  try
+    d.LoadFromFile(aFileDiff);
+    f.LoadFromFile(aFile);
+    for i:=0 to d.Count-1 do
+    begin
+
+    end;
+  finally
+    d.Free;
+    f.Free;
   end;
 end;
 

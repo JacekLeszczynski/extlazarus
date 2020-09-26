@@ -5,8 +5,7 @@ unit ConsMixer;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  FileUtil, AsyncProcess, Process;
+  Classes, SysUtils, LResources, FileUtil, AsyncProcess, Process;
 
 type
 

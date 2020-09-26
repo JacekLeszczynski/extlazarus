@@ -5,8 +5,7 @@ unit DBSchemaSync_postgres;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, DB,
-  ZConnection, ZDataset, ZSqlProcessor;
+  Classes, SysUtils, LResources, DB, ZConnection, ZDataset, ZSqlProcessor;
 
 type
   TNoDropObjects = (nnTables, nnColumns);

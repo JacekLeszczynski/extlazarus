@@ -4,7 +4,7 @@ interface
 uses
 {$IFDEF UNIX}
   SysUtils, Messages, LMessages, LCLIntf, LCLType,
-  Classes, ExtCtrls, Controls, Menus, Graphics, Dialogs;
+  Classes, ExtCtrls, Controls, Graphics;
 {$ELSE}
   SysUtils, Windows, {WinTypes, WinProcs,} Messages, Classes, ExtCtrls,Controls,menus,graphics,dialogs;
 {$ENDIF}

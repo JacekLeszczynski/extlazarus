@@ -5,7 +5,7 @@ unit OpenGLCenter;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
+  Classes, SysUtils, LResources, Forms, Controls, Graphics,
   PointerTab, OpenGLContext, BGRABitmap, BGRABitmapTypes, BGRAOpenGL;
 
 type

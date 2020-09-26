@@ -7,8 +7,7 @@ unit UOSPlayer;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ExtCtrls,
-  UOSEngine;
+  Classes, SysUtils, LResources, ExtCtrls, UOSEngine;
 
 type
 
