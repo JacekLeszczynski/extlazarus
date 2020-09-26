@@ -5,7 +5,9 @@ Moduł przepisany z wersji pod Delphi, przepisałem ja Jacek L.
 Niżej pod moim komentarzem dane autora tego modułu.
 
 A tu historia moich zmian:
-  22.09.2020 - przepisanie kodu do modułu pod Lazarusa i testy pod linuksem.
+  22.09.2020 - przepisanie kodu do modułu pod Lazarusa i testy pod linuksem,
+               i optymalizacja kodu.
+  26.09.2020 - dodanie metod tworzących łatki kodu (pliki i katalogi).
 *)
 
 (*******************************************************************************
