@@ -27,8 +27,10 @@ type
     destructor Destroy; override;
     procedure Execute;
     function Count: integer;
+    function _Count: integer;
     function GetParam(Index: integer): string;
     function GetValue(Index: integer): string;
+    function GetVar(Index: integer): string;
     function IsParam(par1: string; par2: string = ''; par3: string = ''; par4: string = ''; par5: string = ''; par6: string = ''): boolean;
     function GetValue(par1: string; par2: string = ''; par3: string = ''; par4: string = ''; par5: string = ''; par6: string = ''): string;
     function IsNull(wartosc,domyslna: string):string;
@@ -120,7 +122,8 @@ begin
       end else begin
         (* następny parametr jest wartością lub nie *)
         list1.Add(s);
-        if (i+1<=ParamCount) and ((FVP.Count=0) or (StringToItemIndex(FVP,s,-1)<>-1)) then
+        //if (i+1<=ParamCount) and ((FVP.Count=0) or (StringToItemIndex(FVP,s,-1)<>-1)) then
+        if (StringToItemIndex(FVP,s,-1)<>-1) then
         begin
           w:=ParamStr(i+1);
           if w[1]<>'-' then
@@ -144,6 +147,15 @@ begin
   result:=list1.Count;
 end;
 
+function TExtParams._Count: integer;
+var
+  i,a: integer;
+begin
+  a:=0;
+  for i:=0 to list1.Count-1 do if list1[i][1]='_' then inc(a);
+  result:=a;
+end;
+
 function TExtParams.GetParam(Index: integer): string;
 begin
   result:=list1[Index];
@@ -152,6 +164,22 @@ end;
 function TExtParams.GetValue(Index: integer): string;
 begin
   result:=list2[Index];
+end;
+
+function TExtParams.GetVar(Index: integer): string;
+var
+  i,a: integer;
+  s: string;
+begin
+  a:=-1;
+  s:='';
+  for i:=0 to list1.Count-1 do if list1[i][1]='_' then
+  begin
+    inc(a);
+    s:=list2[i];
+    if a=Index then break;
+  end;
+  result:=s;
 end;
 
 function _IsParam(list: TStrings; par: string):boolean;

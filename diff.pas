@@ -172,8 +172,9 @@ type
     procedure StringsToHashList(aStr: TStringList; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
     function HashLine(const aLine: string; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false): pointer;
     procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
-    procedure DiffDirectories(aDirOld,aDirNew: string; aDiff: TStrings);
+    procedure DiffDirectory(aDirOld,aDirNew: string; aDiff: TStrings);
     procedure Patch(aFileDiff,aFile: string);
+    procedure PatchDirectory(aFileDiff,aDir: string);
 
     property Cancelled: boolean read fCancelled;
     property Count: integer read GetCompareCount;
@@ -207,6 +208,9 @@ type
     s: string;
     i1,i2: integer;
   end;
+
+const
+  textseparator = '"';
 
 procedure Register;
 begin
@@ -264,6 +268,39 @@ begin
      break;
    end;
    result:=a;
+end;
+
+function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
+var
+  i,ll,dl: integer;
+  b: boolean;
+begin
+  b:=false;
+  dl:=length(s);
+  ll:=1;
+  s:=s+separator;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then inc(ll);
+    if ll=l then break;
+  end;
+  if ll=1 then dec(i);
+  delete(s,1,i);
+  b:=false;
+  for i:=1 to length(s) do
+  begin
+    if s[i]=textseparator then b:=not b;
+    if (not b) and (s[i]=separator) then break;
+  end;
+  delete(s,i,dl);
+  if (s<>'') and (s[1]=textseparator) then
+  begin
+    delete(s,1,1);
+    delete(s,length(s),1);
+  end;
+  if s='' then s:=wynik;
+  result:=s;
 end;
 
 { TDiff }
@@ -1792,6 +1829,21 @@ begin
   end;
 end;
 
+function druga_nazwa(aFileName: string): string;
+var
+  s: string;
+  a: integer;
+begin
+  s:=aFileName;
+  {$IFDEF UNIX}
+  a:=pos('/',s);
+  {$ELSE}
+  a:=pos('\',s);
+  {$ENDIF}
+  if a>0 then delete(s,1,a);
+  result:=s;
+end;
+
 function druga_nazwa(aKat1,aKat2,aStr: string; aReverse: boolean = false): string;
 var
   s: string;
@@ -1809,7 +1861,7 @@ begin
   result:=s;
 end;
 
-procedure TDiff.DiffDirectories(aDirOld, aDirNew: string; aDiff: TStrings);
+procedure TDiff.DiffDirectory(aDirOld, aDirNew: string; aDiff: TStrings);
 var
   list1,list2: TStringList;
   s1,s2: string;
@@ -1861,20 +1913,164 @@ begin
   end;
 end;
 
+procedure dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
+var
+  s: string;
+  pom,s3,s4,s5,s6: string;
+  fs: TFormatSettings;
+begin
+  s:=StringReplace(aStr,#9,' ',[]);
+  aFileName:=GetLineToStr(s,2,' ');
+  s3:=GetLineToStr(s,3,' '); //date
+  pom:=GetLineToStr(s,4,' '); //time + milisekund
+  s4:=GetLineToStr(pom,1,'.'); //time
+  s5:=GetLineToStr(pom,2,'.'); //milisekund
+  s6:=GetLineToStr(s,5,' '); //strefa
+  fs.DateSeparator:='-';
+  fs.ShortDateFormat:='y/m/d';
+  fs.TimeSeparator:=':';
+  aDT:=StrToDateTime(s3+' '+s4,fs);
+end;
+
+procedure dane_pliku(aStr: string; var aStart,aCount,bStart,bCount: integer);
+var
+  s: string;
+begin
+  {A}
+  s:=GetLineToStr(aStr,2,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  if s='1' then
+  begin
+    aStart:=0;
+    aCount:=0;
+  end else begin
+    aStart:=StrToInt(GetLineToStr(s,1,','));
+    aCount:=StrToInt(GetLineToStr(s,2,','));
+  end;
+  {B}
+  s:=GetLineToStr(aStr,3,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  bStart:=StrToInt(GetLineToStr(s,1,','));
+  bCount:=StrToInt(GetLineToStr(s,2,','));
+end;
+
+procedure patch_go(d,f: TStringList; start,a1,a2,b1,b2: integer; var wektor: integer);
+var
+  i: integer;
+  s,s1: string;
+begin
+  for i:=start to d.Count-1 do
+  begin
+    s:=d[i];
+    if pos('diff -ruN',s)=1 then break;
+    if pos('---',s)=1 then break;
+    if pos('@@',s)=1 then break;
+    s1:=s;
+    delete(s1,1,1);
+    if s[1]=' ' then continue;
+    if s[1]='-' then
+    begin
+      f.Delete(a1+i+wektor-start-1);
+      dec(wektor);
+    end;
+    if s[1]='+' then
+    begin
+      if (a1=0) and (a2=0) then f.Add(s1) else f.Insert(a1+i+wektor-start-1,s1);
+      inc(wektor);
+    end;
+  end;
+end;
+
 procedure TDiff.Patch(aFileDiff, aFile: string);
 var
+  f1_name,f2_name: string;
+  f1_dt,f2_dt: TDateTime;
+  kompozyt: boolean;
   d,f: TStringList;
-  i: integer;
+  i,j,wektor: integer;
+  s,s1: string;
+  a1,a2,b1,b2: integer;
 begin
-  exit;
   d:=TStringList.Create;
   f:=TStringList.Create;
   try
     d.LoadFromFile(aFileDiff);
     f.LoadFromFile(aFile);
+    wektor:=0;
+    kompozyt:=pos('diff -ruN',d[0])>0;
     for i:=0 to d.Count-1 do
     begin
+      s:=d[i];
+      if pos('---',s)=1 then dane_pliku(s,f1_name,f1_dt) else
+      if pos('+++',s)=1 then dane_pliku(s,f2_name,f2_dt) else
+      if pos('@@',s)=1 then
+      begin
+        dane_pliku(s,a1,a2,b1,b2);
+        patch_go(d,f,i+1,a1,a2,b1,b2,wektor);
+      end;
+    end;
+    f.SaveToFile(aFile);
+  finally
+    d.Free;
+    f.Free;
+  end;
+end;
 
+procedure TDiff.PatchDirectory(aFileDiff, aDir: string);
+var
+  d,f: TStringList;
+  i,wektor: integer;
+  s: string;
+  kompozyt: boolean;
+  plik,plik2: string;
+  f1_name,f2_name: string;
+  f1_dt,f2_dt: TDateTime;
+  a1,a2,b1,b2: integer;
+begin
+  d:=TStringList.Create;
+  f:=TStringList.Create;
+  try
+    d.LoadFromFile(aFileDiff);
+    for i:=0 to d.Count-1 do
+    begin
+      s:=d[i];
+      kompozyt:=pos('diff -ruN',s)=1;
+      if kompozyt then
+      begin
+        if f.Count>0 then
+        begin
+          f.SaveToFile(plik2);
+          f.Clear;
+        end;
+        plik:=GetLineToStr(s,3,' ');
+        plik:=druga_nazwa(plik);
+        {$IFDEF UNIX}
+        plik2:=aDir+'/'+plik;
+        plik2:=StringReplace(plik2,'//','/',[]);
+        {$ELSE}
+        plik2:=aDir+'\'+plik;
+        plik2:=StringReplace(plik2,'\\','\',[]);
+        {$ENDIF}
+        wektor:=0;
+        continue;
+      end;
+      if pos('---',s)=1 then dane_pliku(s,f1_name,f1_dt) else
+      if pos('+++',s)=1 then dane_pliku(s,f2_name,f2_dt) else
+      if pos('@@',s)=1 then
+      begin
+        dane_pliku(s,a1,a2,b1,b2);
+        if FileExists(plik2) then f.LoadFromFile(plik2);
+        if (a1=0) and (a2=0) and (b1=0) and (b2=0) then
+        begin
+          DeleteFile(plik2);
+          f.Clear;
+        end else patch_go(d,f,i+1,a1,a2,b1,b2,wektor);
+      end;
+    end;
+    if f.Count>0 then
+    begin
+      f.SaveToFile(plik2);
+      f.Clear;
     end;
   finally
     d.Free;
