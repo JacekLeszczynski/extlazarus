@@ -27,7 +27,7 @@ type
     destructor Destroy; override;
     procedure Execute;
     function Count: integer;
-    function _Count: integer;
+    function CountVar: integer;
     function GetParam(Index: integer): string;
     function GetValue(Index: integer): string;
     function GetVar(Index: integer): string;
@@ -147,7 +147,7 @@ begin
   result:=list1.Count;
 end;
 
-function TExtParams._Count: integer;
+function TExtParams.CountVar: integer;
 var
   i,a: integer;
 begin

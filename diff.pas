@@ -110,12 +110,14 @@ type
 
   TDiffAlgorithm = (daDifference,daSeqComparison);
   TDiffFileEngine = (fePascal,feMemory);
+  TDiffRequestBinaryFileEvent = procedure(Sender: TObject; aIsDiff,aIsPatch: boolean; aFileName: string) of object;
 
   { TDiff }
 
   TDiff = class(TComponent)
   private
     FAlg: TDiffAlgorithm;
+    FBin: TDiffRequestBinaryFileEvent;
     fDiffList: TList;      //this TList circumvents the need for recursion
     fCompareInts: boolean; //ie are we comparing integer arrays or char arrays
     fCancelled: boolean;
@@ -192,6 +194,7 @@ type
     {Jeśli potrzebujesz użyć metody:
      *** Application.ProcessMessage ***}
     property OnProcSys: TNotifyEvent read FOnProcSys write FOnProcSys;
+    property OnBinaryFile: TDiffRequestBinaryFileEvent read FBin write FBin;
   end;
 
 procedure Register;
@@ -199,7 +202,7 @@ procedure Register;
 implementation
 
 uses
-  Math, crc, BaseUnix, strutils, lazfileutils, fileutil;
+  Math, crc, md5, BaseUnix, strutils, lazfileutils, fileutil;
 
 type
   PElement = ^TElement;
@@ -301,6 +304,45 @@ begin
   end;
   if s='' then s:=wynik;
   result:=s;
+end;
+
+function IsTextFile(const sFile: TFileName): boolean;
+//Created By Marcelo Castro - from Brazil
+var
+  oIn: TFileStream;
+  iRead: Integer;
+  iMaxRead: Integer;
+  iData: Byte;
+  dummy:string;
+begin
+  result:=true;
+  dummy:='';
+  oIn:=TFileStream.Create(sFile,fmOpenRead or fmShareDenyNone);
+  try
+    iMaxRead:=1000;  //only text the first 1000 bytes
+    if iMaxRead>oIn.Size then iMaxRead:=oIn.Size;
+    for iRead:=1 to iMaxRead do
+    begin
+      oIn.Read(iData,1);
+      if idata>127 then
+      begin
+        result:=false;
+        break;
+      end;
+    end;
+  finally
+    FreeAndNil(oIn);
+  end;
+end;
+
+function IsBinaryFile(const sFile: TFileName): boolean;
+begin
+  result:=not IsTextFile(sFile);
+end;
+
+function GetHashFile(const sFile: TFileName): string;
+begin
+  result:=MD5Print(MD5File(sFile));
 end;
 
 { TDiff }
@@ -1863,12 +1905,14 @@ end;
 
 procedure TDiff.DiffDirectory(aDirOld, aDirNew: string; aDiff: TStrings);
 var
-  list1,list2: TStringList;
+  list1,list2,bin: TStringList;
   s1,s2: string;
   a: integer;
+  b1,b2: boolean;
 begin
   list1:=TStringList.Create;
   list2:=TStringList.Create;
+  bin:=TStringList.Create;
   try
     FindAllFiles(list1,aDirOld);
     FindAllFiles(list2,aDirNew);
@@ -1881,13 +1925,30 @@ begin
       a:=StringToItemIndex(list1,s1);
       if a=-1 then
       begin
-        aDiff.Add('diff -ruN '+s1+' '+s2);
-        DiffNewFile(s1,s2,aDiff);
-        //DiffFileDeleted(s1,s2,aDiff);
+        b2:=IsBinaryFile(s2);
+        if b2 then
+        begin
+          bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+          if assigned(FBin) then FBin(self,true,false,s2);
+        end else begin
+          aDiff.Add('diff -ruN '+s1+' '+s2);
+          DiffNewFile(s1,s2,aDiff);
+        end;
       end else begin
-        list1.Delete(a);
-        aDiff.Add('diff -ruN '+s1+' '+s2);
-        Diff(s1,s2,aDiff);
+        b1:=IsBinaryFile(s1);
+        b2:=IsBinaryFile(s2);
+        if b1 or b2 then
+        begin
+          if GetHashFile(s1)<>GetHashFile(s2) then
+          begin
+            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            if assigned(FBin) then FBin(self,true,false,s2);
+          end;
+        end else begin
+          list1.Delete(a);
+          aDiff.Add('diff -ruN '+s1+' '+s2);
+          Diff(s1,s2,aDiff);
+        end;
       end;
     end;
     (* pliki z listy 1 *)
@@ -1902,14 +1963,27 @@ begin
         aDiff.Add('diff -ruN '+s1+' '+s2);
         DiffFileDeleted(s1,s2,aDiff);
       end else begin
-        list2.Delete(a);
-        aDiff.Add('diff -ruN '+s1+' '+s2);
-        Diff(s1,s2,aDiff);
+        b1:=IsBinaryFile(s1);
+        b2:=IsBinaryFile(s2);
+        if b1 or b2 then
+        begin
+          if GetHashFile(s1)<>GetHashFile(s2) then
+          begin
+            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            if assigned(FBin) then FBin(self,true,false,s2);
+          end;
+        end else begin
+          list2.Delete(a);
+          aDiff.Add('diff -ruN '+s1+' '+s2);
+          Diff(s1,s2,aDiff);
+        end;
       end;
     end;
+    for a:=0 to bin.Count-1 do aDiff.Add(bin[a]);
   finally
     list1.Free;
     list2.Free;
+    bin.Free;
   end;
 end;
 
@@ -1965,6 +2039,7 @@ begin
     if pos('diff -ruN',s)=1 then break;
     if pos('---',s)=1 then break;
     if pos('@@',s)=1 then break;
+    if pos('B',s)=1 then break;
     s1:=s;
     delete(s1,1,1);
     if s[1]=' ' then continue;
@@ -2020,7 +2095,7 @@ procedure TDiff.PatchDirectory(aFileDiff, aDir: string);
 var
   d,f: TStringList;
   i,wektor: integer;
-  s: string;
+  s,pom,pom2,pom3: string;
   kompozyt: boolean;
   plik,plik2: string;
   f1_name,f2_name: string;
@@ -2065,6 +2140,19 @@ begin
           DeleteFile(plik2);
           f.Clear;
         end else patch_go(d,f,i+1,a1,a2,b1,b2,wektor);
+      end else
+      if pos('B',s)=1 then
+      begin
+        pom:=GetLineToStr(s,5,' ');
+        pom2:=druga_nazwa(pom);
+        {$IFDEF UNIX}
+        pom3:=aDir+'/'+pom2;
+        pom3:=StringReplace(pom3,'//','/',[]);
+        {$ELSE}
+        pom3:=aDir+'\'+pom2;
+        pom3:=StringReplace(pom3,'\\','\',[]);
+        {$ENDIF}
+        if assigned(FBin) then FBin(self,false,true,pom3);
       end;
     end;
     if f.Count>0 then
