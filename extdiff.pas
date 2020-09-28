@@ -1,4 +1,4 @@
-unit extdiff;
+unit ExtDiff;
 
 (*
 Moduł przepisany z wersji pod Delphi, przepisałem ja Jacek L.
@@ -114,7 +114,7 @@ type
 
   { TDiff }
 
-  TDiff = class(TComponent)
+  TExtDiff = class(TComponent)
   private
     FAlg: TDiffAlgorithm;
     FBin: TDiffRequestBinaryFileEvent;
@@ -194,6 +194,8 @@ type
     {Jeśli potrzebujesz użyć metody:
      *** Application.ProcessMessage ***}
     property OnProcSys: TNotifyEvent read FOnProcSys write FOnProcSys;
+    {Gdy algorytm Diff/Patch trafi na plik binarny
+     tu możesz go dodatkowo obsłużyć w swoim programie.}
     property OnBinaryFile: TDiffRequestBinaryFileEvent read FBin write FBin;
   end;
 
@@ -218,7 +220,7 @@ const
 procedure Register;
 begin
   {$I diff_icon.lrs}
-  RegisterComponents('Misc',[TDiff]);
+  RegisterComponents('Misc',[TExtDiff]);
 end;
 
 function CrcString(const mystring: string): longword;
@@ -345,9 +347,110 @@ begin
   result:=MD5Print(MD5File(sFile));
 end;
 
+function druga_nazwa(aFileName: string): string;
+var
+  s: string;
+  a: integer;
+begin
+  s:=aFileName;
+  {$IFDEF UNIX}
+  a:=pos('/',s);
+  {$ELSE}
+  a:=pos('\',s);
+  {$ENDIF}
+  if a>0 then delete(s,1,a);
+  result:=s;
+end;
+
+function druga_nazwa(aKat1,aKat2,aStr: string; aReverse: boolean = false): string;
+var
+  s: string;
+  i: integer;
+begin
+  s:=aStr;
+  if aReverse then
+  begin
+    for i:=1 to length(aKat2) do delete(s,1,1);
+    s:=aKat1+s;
+  end else begin
+    for i:=1 to length(aKat1) do delete(s,1,1);
+    s:=aKat2+s;
+  end;
+  result:=s;
+end;
+
+procedure dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
+var
+  s: string;
+  pom,s3,s4,s5,s6: string;
+  fs: TFormatSettings;
+begin
+  s:=StringReplace(aStr,#9,' ',[]);
+  aFileName:=GetLineToStr(s,2,' ');
+  s3:=GetLineToStr(s,3,' '); //date
+  pom:=GetLineToStr(s,4,' '); //time + milisekund
+  s4:=GetLineToStr(pom,1,'.'); //time
+  s5:=GetLineToStr(pom,2,'.'); //milisekund
+  s6:=GetLineToStr(s,5,' '); //strefa
+  fs.DateSeparator:='-';
+  fs.ShortDateFormat:='y/m/d';
+  fs.TimeSeparator:=':';
+  aDT:=StrToDateTime(s3+' '+s4,fs);
+end;
+
+procedure dane_pliku(aStr: string; var aStart,aCount,bStart,bCount: integer);
+var
+  s: string;
+begin
+  {A}
+  s:=GetLineToStr(aStr,2,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  if s='1' then
+  begin
+    aStart:=0;
+    aCount:=0;
+  end else begin
+    aStart:=StrToInt(GetLineToStr(s,1,','));
+    aCount:=StrToInt(GetLineToStr(s,2,','));
+  end;
+  {B}
+  s:=GetLineToStr(aStr,3,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  bStart:=StrToInt(GetLineToStr(s,1,','));
+  bCount:=StrToInt(GetLineToStr(s,2,','));
+end;
+
+procedure patch_go(d,f: TStringList; start,a1,a2,b1,b2: integer; var wektor: integer);
+var
+  i: integer;
+  s,s1: string;
+begin
+  for i:=start to d.Count-1 do
+  begin
+    s:=d[i];
+    if pos('diff -ruN',s)=1 then break;
+    if pos('---',s)=1 then break;
+    if pos('@@',s)=1 then break;
+    if pos('B',s)=1 then break;
+    s1:=s;
+    delete(s1,1,1);
+    if s[1]=' ' then continue;
+    if s[1]='-' then
+    begin
+      f.Delete(a1+i+wektor-start-1);
+      dec(wektor);
+    end;
+    if s[1]='+' then
+    begin
+      if (a1=0) and (a2=0) then f.Add(s1) else f.Insert(a1+i+wektor-start-1,s1);
+      inc(wektor);
+    end;
+  end;
+end;
+
 { TDiff }
 
-procedure TDiff.PushDiff(offset1, offset2, len1, len2: integer);
+procedure TExtDiff.PushDiff(offset1, offset2, len1, len2: integer);
 var
   DiffVars: PDiffVars;
 begin
@@ -359,7 +462,7 @@ begin
   fDiffList.Add(DiffVars);
 end;
 
-function TDiff.PopDiff: boolean;
+function TExtDiff.PopDiff: boolean;
 var
   DiffVars: PDiffVars;
   idx: integer;
@@ -373,7 +476,7 @@ begin
   fDiffList.Delete(idx);
 end;
 
-procedure TDiff.DiffInt(offset1, offset2, len1, len2: integer);
+procedure TExtDiff.DiffInt(offset1, offset2, len1, len2: integer);
 var
   p,k,delta: integer;
 begin
@@ -449,7 +552,7 @@ begin
   end;
 end;
 
-procedure TDiff.DiffChr(offset1, offset2, len1, len2: integer);
+procedure TExtDiff.DiffChr(offset1, offset2, len1, len2: integer);
 var
   p,k,delta: integer;
 begin
@@ -526,7 +629,7 @@ begin
   end;
 end;
 
-function TDiff.SnakeChrF(k, offset1, offset2, len1, len2: integer): boolean;
+function TExtDiff.SnakeChrF(k, offset1, offset2, len1, len2: integer): boolean;
 var
   x,y: integer;
 begin
@@ -547,7 +650,7 @@ begin
   PushDiff(offset1,offset2,x,y);
 end;
 
-function TDiff.SnakeChrB(k, offset1, offset2, len1, len2: integer): boolean;
+function TExtDiff.SnakeChrB(k, offset1, offset2, len1, len2: integer): boolean;
 var
   x,y: integer;
 begin
@@ -568,7 +671,7 @@ begin
   PushDiff(offset1,offset2,x,y);
 end;
 
-function TDiff.SnakeIntF(k, offset1, offset2, len1, len2: integer): boolean;
+function TExtDiff.SnakeIntF(k, offset1, offset2, len1, len2: integer): boolean;
 var
   x,y: integer;
 begin
@@ -589,7 +692,7 @@ begin
   PushDiff(offset1,offset2,x,y);
 end;
 
-function TDiff.SnakeIntB(k, offset1, offset2, len1, len2: integer): boolean;
+function TExtDiff.SnakeIntB(k, offset1, offset2, len1, len2: integer): boolean;
 var
   x,y: integer;
 begin
@@ -610,7 +713,7 @@ begin
   PushDiff(offset1,offset2,x,y);
 end;
 
-procedure TDiff.AddChangeChr(offset1, range: integer; ChangeKind: TChangeKind);
+procedure TExtDiff.AddChangeChr(offset1, range: integer; ChangeKind: TChangeKind);
 var
   i,j: integer;
   compareRec: PCompareRec;
@@ -717,7 +820,7 @@ begin
   end;
 end;
 
-procedure TDiff.AddChangeInt(offset1, range: integer; ChangeKind: TChangeKind);
+procedure TExtDiff.AddChangeInt(offset1, range: integer; ChangeKind: TChangeKind);
 var
   i,j: integer;
   compareRec: PCompareRec;
@@ -824,7 +927,7 @@ begin
   end;
 end;
 
-procedure TDiff.InitDiagArrays(MaxOscill, len1, len2: integer);
+procedure TExtDiff.InitDiagArrays(MaxOscill, len1, len2: integer);
 var
   i: integer;
 begin
@@ -838,7 +941,7 @@ begin
   bDiag^[len1-len2]:=len1-1;
 end;
 
-procedure TDiff.InitDiagArrays(len1, len2: integer);
+procedure TExtDiff.InitDiagArrays(len1, len2: integer);
 var
   i: integer;
 begin
@@ -851,7 +954,7 @@ begin
   bDiag^[len2-len1+1]:=len2;
 end;
 
-procedure TDiff.RecursiveDiffChr(offset1, offset2, len1, len2: integer);
+procedure TExtDiff.RecursiveDiffChr(offset1, offset2, len1, len2: integer);
 var
   diag,lenDelta,Oscill,maxOscill,x1,x2: integer;
 begin
@@ -965,7 +1068,7 @@ begin
   raise Exception.create('oops - error in RecursiveDiffChr()');
 end;
 
-procedure TDiff.AddChangeChrs(offset1, range: integer; ChangeKind: TChangeKind);
+procedure TExtDiff.AddChangeChrs(offset1, range: integer; ChangeKind: TChangeKind);
 var
   i,j: integer;
   compareRec: PCompareRec;
@@ -1057,7 +1160,7 @@ begin
   end;
 end;
 
-procedure TDiff.RecursiveDiffInt(offset1, offset2, len1, len2: integer);
+procedure TExtDiff.RecursiveDiffInt(offset1, offset2, len1, len2: integer);
 var
   diag,lenDelta,Oscill,maxOscill,x1,x2: integer;
 begin
@@ -1173,7 +1276,7 @@ begin
   raise Exception.create('oops - error in RecursiveDiffInt()');
 end;
 
-procedure TDiff.AddChangeInts(offset1, range: integer; ChangeKind: TChangeKind);
+procedure TExtDiff.AddChangeInts(offset1, range: integer; ChangeKind: TChangeKind);
 var
   i,j: integer;
   compareRec: PCompareRec;
@@ -1265,17 +1368,17 @@ begin
   end;
 end;
 
-function TDiff.GetCompare(index: integer): TCompareRec;
+function TExtDiff.GetCompare(index: integer): TCompareRec;
 begin
   result:=PCompareRec(fCompareList[index])^;
 end;
 
-function TDiff.GetCompareCount: integer;
+function TExtDiff.GetCompareCount: integer;
 begin
   result:=fCompareList.count;
 end;
 
-function TDiff._ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
+function TExtDiff._ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
 var
   cc: TCompareRec;
   k: TChangeKind;
@@ -1293,7 +1396,7 @@ begin
   result:=l;
 end;
 
-function TDiff.DiffFileInfo(aFlaga: char; aFileName: string; aDT, aMS: qword
+function TExtDiff.DiffFileInfo(aFlaga: char; aFileName: string; aDT, aMS: qword
   ): string;
 var
   i: integer;
@@ -1317,7 +1420,7 @@ begin
   result:=s;
 end;
 
-procedure TDiff.DiffAnalize(pp: TList; aDiff: TStrings);
+procedure TExtDiff.DiffAnalize(pp: TList; aDiff: TStrings);
 var
   element: TElement;
   max,indeks: integer;
@@ -1366,7 +1469,7 @@ begin
   end;
 end;
 
-function TDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
+function TExtDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
 var
   element: TElement;
   i,a: integer;
@@ -1384,7 +1487,7 @@ begin
   result:=a;
 end;
 
-procedure TDiff.DiffNewFile(aFileNotFound, aFile: string; aDiff: TStrings);
+procedure TExtDiff.DiffNewFile(aFileNotFound, aFile: string; aDiff: TStrings);
 var
   ff: TStringList;
   info: stat;
@@ -1404,7 +1507,7 @@ begin
   end;
 end;
 
-procedure TDiff.DiffFileDeleted(aFile, aFileDeleted: string; aDiff: TStrings);
+procedure TExtDiff.DiffFileDeleted(aFile, aFileDeleted: string; aDiff: TStrings);
 var
   ff: TStringList;
   info: stat;
@@ -1425,7 +1528,7 @@ begin
   end;
 end;
 
-constructor TDiff.Create(aOwner: TComponent);
+constructor TExtDiff.Create(aOwner: TComponent);
 begin
   inherited Create(aOwner);
   FAlg:=daDifference;
@@ -1434,7 +1537,7 @@ begin
   fDiffList:=TList.Create;
 end;
 
-destructor TDiff.Destroy;
+destructor TExtDiff.Destroy;
 begin
   Clear;
   fCompareList.free;
@@ -1442,7 +1545,7 @@ begin
   inherited Destroy;
 end;
 
-function TDiff.Execute(pints1, pints2: PINT; len1, len2: integer): boolean;
+function TExtDiff.Execute(pints1, pints2: PINT; len1, len2: integer): boolean;
 var
   maxOscill,x1,x2,savedLen: integer;
   compareRec: PCompareRec;
@@ -1577,7 +1680,7 @@ begin
   end;
 end;
 
-function TDiff.Execute(pchrs1, pchrs2: PChar; len1, len2: integer): boolean;
+function TExtDiff.Execute(pchrs1, pchrs2: PChar; len1, len2: integer): boolean;
 var
   maxOscill,x1,x2,savedLen: integer;
   compareRec: PCompareRec;
@@ -1710,12 +1813,12 @@ begin
   end;
 end;
 
-procedure TDiff.Cancel;
+procedure TExtDiff.Cancel;
 begin
   fCancelled:=true;
 end;
 
-procedure TDiff.Clear;
+procedure TExtDiff.Clear;
 var
   i: integer;
 begin
@@ -1734,7 +1837,7 @@ begin
   Ints2:=nil;
 end;
 
-procedure TDiff.FileToHashList(aFile: string; aHashList: TList;
+procedure TExtDiff.FileToHashList(aFile: string; aHashList: TList;
   aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
 var
   f: Text;
@@ -1763,7 +1866,7 @@ begin
   end;
 end;
 
-procedure TDiff.StringsToHashList(aStr: TStrings; aHashList: TList;
+procedure TExtDiff.StringsToHashList(aStr: TStrings; aHashList: TList;
   aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
 var
   i: integer;
@@ -1772,7 +1875,7 @@ begin
   for i:=0 to aStr.Count-1 do aHashList.Add(HashLine(aStr[i],aTrimSpace,aIgnoreSpace,aIgnoreCase));
 end;
 
-procedure TDiff.StringsToHashList(aStr: TStringList; aHashList: TList;
+procedure TExtDiff.StringsToHashList(aStr: TStringList; aHashList: TList;
   aTrimSpace: boolean; aIgnoreSpace: boolean; aIgnoreCase: boolean);
 var
   i: integer;
@@ -1781,7 +1884,7 @@ begin
   for i:=0 to aStr.Count-1 do aHashList.Add(HashLine(aStr[i],aTrimSpace,aIgnoreSpace,aIgnoreCase));
 end;
 
-function TDiff.HashLine(const aLine: string; aTrimSpace: boolean;
+function TExtDiff.HashLine(const aLine: string; aTrimSpace: boolean;
   aIgnoreSpace: boolean; aIgnoreCase: boolean): pointer;
 var
   i: integer;
@@ -1802,7 +1905,7 @@ begin
   result:=pointer(CrcString(s));
 end;
 
-procedure TDiff.Diff(aFileOld, aFileNew: string; aDiff: TStrings);
+procedure TExtDiff.Diff(aFileOld, aFileNew: string; aDiff: TStrings);
 var
   ff1,ff2: TStringList;
   ll1,ll2: TList;
@@ -1871,39 +1974,7 @@ begin
   end;
 end;
 
-function druga_nazwa(aFileName: string): string;
-var
-  s: string;
-  a: integer;
-begin
-  s:=aFileName;
-  {$IFDEF UNIX}
-  a:=pos('/',s);
-  {$ELSE}
-  a:=pos('\',s);
-  {$ENDIF}
-  if a>0 then delete(s,1,a);
-  result:=s;
-end;
-
-function druga_nazwa(aKat1,aKat2,aStr: string; aReverse: boolean = false): string;
-var
-  s: string;
-  i: integer;
-begin
-  s:=aStr;
-  if aReverse then
-  begin
-    for i:=1 to length(aKat2) do delete(s,1,1);
-    s:=aKat1+s;
-  end else begin
-    for i:=1 to length(aKat1) do delete(s,1,1);
-    s:=aKat2+s;
-  end;
-  result:=s;
-end;
-
-procedure TDiff.DiffDirectory(aDirOld, aDirNew: string; aDiff: TStrings);
+procedure TExtDiff.DiffDirectory(aDirOld, aDirNew: string; aDiff: TStrings);
 var
   list1,list2,bin: TStringList;
   s1,s2: string;
@@ -1987,76 +2058,7 @@ begin
   end;
 end;
 
-procedure dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
-var
-  s: string;
-  pom,s3,s4,s5,s6: string;
-  fs: TFormatSettings;
-begin
-  s:=StringReplace(aStr,#9,' ',[]);
-  aFileName:=GetLineToStr(s,2,' ');
-  s3:=GetLineToStr(s,3,' '); //date
-  pom:=GetLineToStr(s,4,' '); //time + milisekund
-  s4:=GetLineToStr(pom,1,'.'); //time
-  s5:=GetLineToStr(pom,2,'.'); //milisekund
-  s6:=GetLineToStr(s,5,' '); //strefa
-  fs.DateSeparator:='-';
-  fs.ShortDateFormat:='y/m/d';
-  fs.TimeSeparator:=':';
-  aDT:=StrToDateTime(s3+' '+s4,fs);
-end;
-
-procedure dane_pliku(aStr: string; var aStart,aCount,bStart,bCount: integer);
-var
-  s: string;
-begin
-  {A}
-  s:=GetLineToStr(aStr,2,' ');
-  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
-  if s='1' then
-  begin
-    aStart:=0;
-    aCount:=0;
-  end else begin
-    aStart:=StrToInt(GetLineToStr(s,1,','));
-    aCount:=StrToInt(GetLineToStr(s,2,','));
-  end;
-  {B}
-  s:=GetLineToStr(aStr,3,' ');
-  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
-  bStart:=StrToInt(GetLineToStr(s,1,','));
-  bCount:=StrToInt(GetLineToStr(s,2,','));
-end;
-
-procedure patch_go(d,f: TStringList; start,a1,a2,b1,b2: integer; var wektor: integer);
-var
-  i: integer;
-  s,s1: string;
-begin
-  for i:=start to d.Count-1 do
-  begin
-    s:=d[i];
-    if pos('diff -ruN',s)=1 then break;
-    if pos('---',s)=1 then break;
-    if pos('@@',s)=1 then break;
-    if pos('B',s)=1 then break;
-    s1:=s;
-    delete(s1,1,1);
-    if s[1]=' ' then continue;
-    if s[1]='-' then
-    begin
-      f.Delete(a1+i+wektor-start-1);
-      dec(wektor);
-    end;
-    if s[1]='+' then
-    begin
-      if (a1=0) and (a2=0) then f.Add(s1) else f.Insert(a1+i+wektor-start-1,s1);
-      inc(wektor);
-    end;
-  end;
-end;
-
-procedure TDiff.Patch(aFileDiff, aFile: string);
+procedure TExtDiff.Patch(aFileDiff, aFile: string);
 var
   f1_name,f2_name: string;
   f1_dt,f2_dt: TDateTime;
@@ -2091,7 +2093,7 @@ begin
   end;
 end;
 
-procedure TDiff.PatchDirectory(aFileDiff, aDir: string);
+procedure TExtDiff.PatchDirectory(aFileDiff, aDir: string);
 var
   d,f: TStringList;
   i,wektor: integer;
