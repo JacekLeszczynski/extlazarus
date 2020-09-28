@@ -110,14 +110,17 @@ type
 
   TDiffAlgorithm = (daDifference,daSeqComparison);
   TDiffFileEngine = (fePascal,feMemory);
-  TDiffRequestBinaryFileEvent = procedure(Sender: TObject; aIsDiff,aIsPatch: boolean; aFileName: string) of object;
+  TDiffRequestBinaryFileEvent = procedure(Sender: TObject; aFileName: string) of object;
 
   { TDiff }
+
+  { TExtDiff }
 
   TExtDiff = class(TComponent)
   private
     FAlg: TDiffAlgorithm;
-    FBin: TDiffRequestBinaryFileEvent;
+    FBinDiff: TDiffRequestBinaryFileEvent;
+    FBinPatch: TDiffRequestBinaryFileEvent;
     fDiffList: TList;      //this TList circumvents the need for recursion
     fCompareInts: boolean; //ie are we comparing integer arrays or char arrays
     fCancelled: boolean;
@@ -196,7 +199,8 @@ type
     property OnProcSys: TNotifyEvent read FOnProcSys write FOnProcSys;
     {Gdy algorytm Diff/Patch trafi na plik binarny
      tu możesz go dodatkowo obsłużyć w swoim programie.}
-    property OnBinaryFile: TDiffRequestBinaryFileEvent read FBin write FBin;
+     property OnBinaryFileDiff: TDiffRequestBinaryFileEvent read FBinDiff write FBinDiff;
+     property OnBinaryFilePatch: TDiffRequestBinaryFileEvent read FBinPatch write FBinPatch;
   end;
 
 procedure Register;
@@ -2000,7 +2004,7 @@ begin
         if b2 then
         begin
           bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
-          if assigned(FBin) then FBin(self,true,false,s2);
+          if assigned(FBinDiff) then FBinDiff(self,s2);
         end else begin
           aDiff.Add('diff -ruN '+s1+' '+s2);
           DiffNewFile(s1,s2,aDiff);
@@ -2013,7 +2017,7 @@ begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
             bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
-            if assigned(FBin) then FBin(self,true,false,s2);
+            if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list1.Delete(a);
@@ -2041,7 +2045,7 @@ begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
             bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
-            if assigned(FBin) then FBin(self,true,false,s2);
+            if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list2.Delete(a);
@@ -2154,7 +2158,7 @@ begin
         pom3:=aDir+'\'+pom2;
         pom3:=StringReplace(pom3,'\\','\',[]);
         {$ENDIF}
-        if assigned(FBin) then FBin(self,false,true,pom3);
+        if assigned(FBinPatch) then FBinPatch(self,pom3);
       end;
     end;
     if f.Count>0 then
