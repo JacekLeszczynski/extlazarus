@@ -1,4 +1,4 @@
-unit diff;
+unit extdiff;
 
 (*
 Moduł przepisany z wersji pod Delphi, przepisałem ja Jacek L.

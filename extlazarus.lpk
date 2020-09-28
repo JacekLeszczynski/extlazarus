@@ -230,9 +230,9 @@
         <UnitName Value="FullscreenMenu"/>
       </Item44>
       <Item45>
-        <Filename Value="diff.pas"/>
+        <Filename Value="extdiff.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="diff"/>
+        <UnitName Value="extdiff"/>
       </Item45>
     </Files>
     <RequiredPkgs Count="9">

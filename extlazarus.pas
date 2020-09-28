@@ -16,7 +16,7 @@ uses
   OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
-  DirectoryPack, Presentation, DSMaster, FullscreenMenu, diff, 
+  DirectoryPack, Presentation, DSMaster, FullscreenMenu, extdiff, 
   LazarusPackageIntf;
 
 implementation
@@ -64,7 +64,7 @@ begin
   RegisterUnit('Presentation', @Presentation.Register);
   RegisterUnit('DSMaster', @DSMaster.Register);
   RegisterUnit('FullscreenMenu', @FullscreenMenu.Register);
-  RegisterUnit('diff', @diff.Register);
+  RegisterUnit('extdiff', @extdiff.Register);
 end;
 
 initialization
