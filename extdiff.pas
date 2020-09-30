@@ -129,7 +129,7 @@ type
 
   TDiffAlgorithm = (daDifference,daSeqComparison);
   TDiffFileEngine = (fePascal,feMemory);
-  TDiffRequestBinaryFileEvent = procedure(Sender: TObject; aFileName: string) of object;
+  TDiffRequestFileEvent = procedure(Sender: TObject; aFileName: string) of object;
   TDiffRequestFileAttributesEvent = procedure(Sender: TObject; aFileName: string; var aFileDate: qword; var aMilisecond: qword) of object;
   TDiffRequestFileBinaryEvent = procedure(Sender: TObject; aFileName: string; var aIsBinary: boolean) of object;
   TDiffRequestFileBodyEvent = procedure(Sender: TObject; aFileName: string; aBody: TStrings) of object;
@@ -138,8 +138,8 @@ type
   TExtDiff = class(TComponent)
   private
     FAlg: TDiffAlgorithm;
-    FBinDiff: TDiffRequestBinaryFileEvent;
-    FBinPatch: TDiffRequestBinaryFileEvent;
+    FBinDiff: TDiffRequestFileEvent;
+    FBinPatch: TDiffRequestFileEvent;
     fDiffList: TList;      //this TList circumvents the need for recursion
     fCompareInts: boolean; //ie are we comparing integer arrays or char arrays
     fCancelled: boolean;
@@ -150,10 +150,12 @@ type
     Chrs1, Chrs2: PChrArray;
     FFileEngine: TDiffFileEngine;
     FOnProcSys: TNotifyEvent;
+    FRequestDeleteFile: TDiffRequestFileEvent;
     FRequestDiffBinFiles: TDiffRequestDiffBinFilesEvent;
     FRequestFileAttrib: TDiffRequestFileAttributesEvent;
     FRequestFileIsBin: TDiffRequestFileBinaryEvent;
     FRequestFileBody: TDiffRequestFileBodyEvent;
+    FRequestSaveFile: TDiffRequestFileBodyEvent;
     Ints1, Ints2: PIntArray;
     LastCompareRec: TCompareRec;
     fDiag, bDiag: PDiags;
@@ -207,7 +209,9 @@ type
     procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
     procedure DiffDirectory(aDir1,aDir2: TStrings; aDiff: TStrings);
     procedure DiffDirectory(aDirOld,aDirNew: string; aDiff: TStrings);
+    procedure Patch(aFileDiff,aFile: TStrings);
     procedure Patch(aFileDiff,aFile: string);
+    procedure PatchDirectory(aFileDiff: TStrings);
     procedure PatchDirectory(aFileDiff,aDir: string);
 
     property Cancelled: boolean read fCancelled;
@@ -228,10 +232,10 @@ type
     property OnProcSys: TNotifyEvent read FOnProcSys write FOnProcSys;
     {Gdy algorytm Diff trafi na plik binarny
      tu możesz go dodatkowo obsłużyć w swoim programie.}
-    property OnBinaryFileDiff: TDiffRequestBinaryFileEvent read FBinDiff write FBinDiff;
+    property OnBinaryFileDiff: TDiffRequestFileEvent read FBinDiff write FBinDiff;
     {Gdy algorytm Patch trafi na plik binarny
      tu możesz go dodatkowo obsłużyć w swoim programie.}
-    property OnBinaryFilePatch: TDiffRequestBinaryFileEvent read FBinPatch write FBinPatch;
+    property OnBinaryFilePatch: TDiffRequestFileEvent read FBinPatch write FBinPatch;
     {Żądanie podania dokładnego czasu ostatniej edycji pliku.}
     property OnRequestFileAttrib: TDiffRequestFileAttributesEvent read FRequestFileAttrib write FRequestFileAttrib;
     {Żądanie sprawdzenia, czy plik jest plikiem binarnym?}
@@ -241,6 +245,10 @@ type
     {Żądanie porównania dwóch plików binarnych,
      by stwierdzić czy się różnią!}
     property OnRequestDiffBinFiles: TDiffRequestDiffBinFilesEvent read FRequestDiffBinFiles write FRequestDiffBinFiles;
+    {żądanie usunięcia pliku!}
+    property OnRequestDeleteFile: TDiffRequestFileEvent read FRequestDeleteFile write FRequestDeleteFile;
+    {żądanie aktualizacji pliku!}
+    property OnRequestSaveFile: TDiffRequestFileBodyEvent read FRequestSaveFile write FRequestSaveFile;
   end;
 
 procedure Register;
@@ -444,7 +452,7 @@ begin
   bCount:=StrToInt(GetLineToStr(s,2,','));
 end;
 
-procedure patch_go(d,f: TStringList; start,a1,a2,b1,b2: integer; var wektor: integer);
+procedure patch_go(d,f: TStrings; start,a1,a2,b1,b2: integer; var wektor: integer);
 var
   i: integer;
   s,s1: string;
@@ -2397,37 +2405,97 @@ begin
   end;
 end;
 
-procedure TExtDiff.Patch(aFileDiff, aFile: string);
+procedure TExtDiff.Patch(aFileDiff, aFile: TStrings);
 var
   f1_name,f2_name: string;
   f1_dt,f2_dt: TDateTime;
   kompozyt: boolean;
-  d,f: TStringList;
   i,j,wektor: integer;
-  s,s1: string;
+  s: string;
   a1,a2,b1,b2: integer;
+begin
+  wektor:=0;
+  kompozyt:=pos('diff -ruN',aFileDiff[0])>0;
+  for i:=0 to aFileDiff.Count-1 do
+  begin
+    s:=aFileDiff[i];
+    if pos('---',s)=1 then dane_pliku(s,f1_name,f1_dt) else
+    if pos('+++',s)=1 then dane_pliku(s,f2_name,f2_dt) else
+    if pos('@@',s)=1 then
+    begin
+      dane_pliku(s,a1,a2,b1,b2);
+      patch_go(aFileDiff,aFile,i+1,a1,a2,b1,b2,wektor);
+    end;
+  end;
+end;
+
+procedure TExtDiff.Patch(aFileDiff, aFile: string);
+var
+  d,f: TStringList;
 begin
   d:=TStringList.Create;
   f:=TStringList.Create;
   try
     d.LoadFromFile(aFileDiff);
     f.LoadFromFile(aFile);
-    wektor:=0;
-    kompozyt:=pos('diff -ruN',d[0])>0;
-    for i:=0 to d.Count-1 do
+    Patch(d,f);
+    f.SaveToFile(aFile);
+  finally
+    d.Free;
+    f.Free;
+  end;
+end;
+
+procedure TExtDiff.PatchDirectory(aFileDiff: TStrings);
+var
+  f: TStringList;
+  i,wektor: integer;
+  s,pom: string;
+  kompozyt: boolean;
+  plik,plik2: string;
+  f1_name,f2_name: string;
+  f1_dt,f2_dt: TDateTime;
+  a1,a2,b1,b2: integer;
+begin
+  f:=TStringList.Create;
+  try
+    for i:=0 to aFileDiff.Count-1 do
     begin
-      s:=d[i];
+      s:=aFileDiff[i];
+      kompozyt:=pos('diff -ruN',s)=1;
+      if kompozyt then
+      begin
+        if f.Count>0 then
+        begin
+          if assigned(FRequestSaveFile) then FRequestSaveFile(self,plik2,f);
+          f.Clear;
+        end;
+        plik:=GetLineToStr(s,3,' ');
+        plik2:=GetLineToStr(s,4,' ');
+        wektor:=0;
+        continue;
+      end;
       if pos('---',s)=1 then dane_pliku(s,f1_name,f1_dt) else
       if pos('+++',s)=1 then dane_pliku(s,f2_name,f2_dt) else
       if pos('@@',s)=1 then
       begin
         dane_pliku(s,a1,a2,b1,b2);
-        patch_go(d,f,i+1,a1,a2,b1,b2,wektor);
+        f.Clear;
+        if assigned(FRequestFileBody) then FRequestFileBody(self,plik2,f);
+        if (a1=0) and (a2=0) and (b1=0) and (b2=0) then
+        begin
+          if assigned(FRequestDeleteFile) then FRequestDeleteFile(self,plik2);
+          f.Clear;
+        end else patch_go(aFileDiff,f,i+1,a1,a2,b1,b2,wektor);
+      end else
+      if pos('B',s)=1 then
+      begin
+        pom:=GetLineToStr(s,5,' ');
+        if assigned(FBinPatch) then FBinPatch(self,pom);
       end;
     end;
-    f.SaveToFile(aFile);
+    if f.Count>0 then if assigned(FRequestSaveFile) then FRequestSaveFile(self,plik2,f);
   finally
-    d.Free;
     f.Free;
   end;
 end;
