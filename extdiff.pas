@@ -180,6 +180,8 @@ type
     function GetCompare(index: integer): TCompareRec;
     function GetCompareCount: integer;
     function _ile_pozycji_o_tej_samej_fladze(aIndex: integer): integer;
+    procedure dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
+    procedure dane_pliku(aStr: string; var aStart,aCount,bStart,bCount: integer);
 
     function DiffFileInfo(aFlaga: char; aFileName: string; aDT,aMS: qword): string;
     function DiffFileInfo(aFlaga: char; aFileName: string; aDateTime: TDateTime): string;
@@ -195,6 +197,7 @@ type
     function GetHashFile(const sFile: TFileName): string;
     function IsTextFile(const sFile: TFileName): boolean;
     function IsBinaryFile(const sFile: TFileName): boolean;
+    function NormalizeFilePath(aPatchFile: string; aForceLinux: boolean = false): string;
     //compare either and array of characters or an array of integers ...
     function Execute(pints1, pints2: PINT; len1, len2: integer): boolean;
     function Execute(pchrs1, pchrs2: PChar; len1, len2: integer): boolean;
@@ -409,47 +412,6 @@ begin
     s:=aKat2+s;
   end;
   result:=s;
-end;
-
-procedure dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
-var
-  s: string;
-  pom,s3,s4,s5,s6: string;
-  fs: TFormatSettings;
-begin
-  s:=StringReplace(aStr,#9,' ',[]);
-  aFileName:=GetLineToStr(s,2,' ');
-  s3:=GetLineToStr(s,3,' '); //date
-  pom:=GetLineToStr(s,4,' '); //time + milisekund
-  s4:=GetLineToStr(pom,1,'.'); //time
-  s5:=GetLineToStr(pom,2,'.'); //milisekund
-  s6:=GetLineToStr(s,5,' '); //strefa
-  fs.DateSeparator:='-';
-  fs.ShortDateFormat:='y/m/d';
-  fs.TimeSeparator:=':';
-  aDT:=StrToDateTime(s3+' '+s4,fs);
-end;
-
-procedure dane_pliku(aStr: string; var aStart,aCount,bStart,bCount: integer);
-var
-  s: string;
-begin
-  {A}
-  s:=GetLineToStr(aStr,2,' ');
-  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
-  if s='1' then
-  begin
-    aStart:=0;
-    aCount:=0;
-  end else begin
-    aStart:=StrToInt(GetLineToStr(s,1,','));
-    aCount:=StrToInt(GetLineToStr(s,2,','));
-  end;
-  {B}
-  s:=GetLineToStr(aStr,3,' ');
-  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
-  bStart:=StrToInt(GetLineToStr(s,1,','));
-  bCount:=StrToInt(GetLineToStr(s,2,','));
 end;
 
 procedure patch_go(d,f: TStrings; start,a1,a2,b1,b2: integer; var wektor: integer);
@@ -1500,6 +1462,47 @@ begin
   result:=l;
 end;
 
+procedure TExtDiff.dane_pliku(aStr: string; var aFileName: string; var aDT: TDateTime);
+var
+  s: string;
+  pom,s3,s4,s5,s6: string;
+  fs: TFormatSettings;
+begin
+  s:=StringReplace(aStr,#9,' ',[]);
+  aFileName:=NormalizeFilePath(GetLineToStr(s,2,' '));
+  s3:=GetLineToStr(s,3,' '); //date
+  pom:=GetLineToStr(s,4,' '); //time + milisekund
+  s4:=GetLineToStr(pom,1,'.'); //time
+  s5:=GetLineToStr(pom,2,'.'); //milisekund
+  s6:=GetLineToStr(s,5,' '); //strefa
+  fs.DateSeparator:='-';
+  fs.ShortDateFormat:='y/m/d';
+  fs.TimeSeparator:=':';
+  aDT:=StrToDateTime(s3+' '+s4,fs);
+end;
+
+procedure TExtDiff.dane_pliku(aStr: string; var aStart, aCount, bStart, bCount: integer);
+var
+  s: string;
+begin
+  {A}
+  s:=GetLineToStr(aStr,2,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  if s='1' then
+  begin
+    aStart:=0;
+    aCount:=0;
+  end else begin
+    aStart:=StrToInt(GetLineToStr(s,1,','));
+    aCount:=StrToInt(GetLineToStr(s,2,','));
+  end;
+  {B}
+  s:=GetLineToStr(aStr,3,' ');
+  if (s[1]='-') or (s[1]='+') then delete(s,1,1);
+  bStart:=StrToInt(GetLineToStr(s,1,','));
+  bCount:=StrToInt(GetLineToStr(s,2,','));
+end;
+
 function TExtDiff.DiffFileInfo(aFlaga: char; aFileName: string; aDT, aMS: qword
   ): string;
 var
@@ -1512,7 +1515,7 @@ begin
   strefa:=strefa+'00';
   (* buduję string *)
   if aFlaga='+' then s:='+++' else s:='---';
-  s:=s+' '+aFileName;
+  s:=s+' '+NormalizeFilePath(aFileName,true);
   if aDT=0 then s:=s+#9+'1970-01-01 01:00:00.000000000 +0100' else
   begin
     s:=s+#9+FormatDateTime('yyyy-mm-dd hh:nn:ss',FileDateToDateTime(aDT));
@@ -1537,7 +1540,7 @@ begin
   strefa:=strefa+'00';
   (* buduję string *)
   if aFlaga='+' then s:='+++' else s:='---';
-  s:=s+' '+aFileName;
+  s:=s+' '+NormalizeFilePath(aFileName,true);
   if aDateTime=0 then s:=s+#9+'1970-01-01 01:00:00.000000000 +0100' else
   begin
     DecodeTime(aDateTime,hh,mm,ss,ms);
@@ -1748,6 +1751,21 @@ end;
 function TExtDiff.IsBinaryFile(const sFile: TFileName): boolean;
 begin
   result:=not IsTextFile(sFile);
+end;
+
+function TExtDiff.NormalizeFilePath(aPatchFile: string; aForceLinux: boolean
+  ): string;
+var
+  s: string;
+begin
+  s:=aPatchFile;
+  {$IFDEF UNIX}
+  s:=StringReplace(s,'\','/',[rfReplaceAll]);
+  {$ELSE}
+  if aForceLinux then s:=StringReplace(s,'\','/',[rfReplaceAll])
+                 else s:=StringReplace(s,'/','\',[rfReplaceAll]);
+  {$ENDIF}
+  result:=s;
 end;
 
 function TExtDiff.Execute(pints1, pints2: PINT; len1, len2: integer): boolean;
@@ -2229,10 +2247,10 @@ begin
         if assigned(FRequestFileIsBin) then FRequestFileIsBin(self,s2,b2);
         if b2 then
         begin
-          bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+          bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
           if assigned(FBinDiff) then FBinDiff(self,s2);
         end else begin
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2));
           DiffNewFile(s1,s2,aDiff,true);
         end;
       end else begin
@@ -2249,12 +2267,12 @@ begin
           if assigned(FRequestDiffBinFiles) then FRequestDiffBinFiles(self,s1,s2,bb);
           if bb then
           begin
-            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
             if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list1.Delete(a);
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           if assigned(FRequestFileBody) then
           begin
             FRequestFileBody(self,s1,f1);
@@ -2278,7 +2296,7 @@ begin
       a:=StringToItemIndex(list2,s2);
       if a=-1 then
       begin
-        aDiff.Add('diff -ruN '+s1+' '+s2);
+        aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
         DiffFileDeleted(s1,s2,aDiff,true);
       end else begin
         b1:=false;
@@ -2291,12 +2309,12 @@ begin
           if assigned(FRequestDiffBinFiles) then FRequestDiffBinFiles(self,s1,s2,bb);
           if bb then
           begin
-            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
             if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list2.Delete(a);
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           if assigned(FRequestFileBody) then
           begin
             FRequestFileBody(self,s1,f1);
@@ -2346,10 +2364,10 @@ begin
         b2:=IsBinaryFile(s2);
         if b2 then
         begin
-          bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+          bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
           if assigned(FBinDiff) then FBinDiff(self,s2);
         end else begin
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           DiffNewFile(s1,s2,aDiff);
         end;
       end else begin
@@ -2359,12 +2377,12 @@ begin
         begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
-            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
             if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list1.Delete(a);
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           Diff(s1,s2,aDiff);
         end;
       end;
@@ -2378,7 +2396,7 @@ begin
       a:=StringToItemIndex(list2,s2);
       if a=-1 then
       begin
-        aDiff.Add('diff -ruN '+s1+' '+s2);
+        aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
         DiffFileDeleted(s1,s2,aDiff);
       end else begin
         b1:=IsBinaryFile(s1);
@@ -2387,12 +2405,12 @@ begin
         begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
-            bin.Add('Binarne pliki '+s1+' i '+s2+' różnią się');
+            bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
             if assigned(FBinDiff) then FBinDiff(self,s2);
           end;
         end else begin
           list2.Delete(a);
-          aDiff.Add('diff -ruN '+s1+' '+s2);
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           Diff(s1,s2,aDiff);
         end;
       end;
@@ -2470,8 +2488,8 @@ begin
           if assigned(FRequestSaveFile) then FRequestSaveFile(self,plik2,f);
           f.Clear;
         end;
-        plik:=GetLineToStr(s,3,' ');
-        plik2:=GetLineToStr(s,4,' ');
+        plik:=NormalizeFilePath(GetLineToStr(s,3,' '));
+        plik2:=NormalizeFilePath(GetLineToStr(s,4,' '));
         wektor:=0;
         continue;
       end;
@@ -2490,7 +2508,7 @@ begin
       end else
       if pos('B',s)=1 then
       begin
-        pom:=GetLineToStr(s,5,' ');
+        pom:=NormalizeFilePath(GetLineToStr(s,5,' '));
         if assigned(FBinPatch) then FBinPatch(self,pom);
       end;
     end;
@@ -2526,7 +2544,7 @@ begin
           f.SaveToFile(plik2);
           f.Clear;
         end;
-        plik:=GetLineToStr(s,3,' ');
+        plik:=NormalizeFilePath(GetLineToStr(s,3,' '));
         plik:=druga_nazwa(plik);
         {$IFDEF UNIX}
         plik2:=aDir+'/'+plik;
@@ -2535,6 +2553,7 @@ begin
         plik2:=aDir+'\'+plik;
         plik2:=StringReplace(plik2,'\\','\',[]);
         {$ENDIF}
+        plik2:=NormalizeFilePath(plik2); //na wszelki wypadek
         wektor:=0;
         continue;
       end;
@@ -2552,7 +2571,7 @@ begin
       end else
       if pos('B',s)=1 then
       begin
-        pom:=GetLineToStr(s,5,' ');
+        pom:=NormalizeFilePath(GetLineToStr(s,5,' '));
         pom2:=druga_nazwa(pom);
         {$IFDEF UNIX}
         pom3:=aDir+'/'+pom2;
@@ -2561,6 +2580,7 @@ begin
         pom3:=aDir+'\'+pom2;
         pom3:=StringReplace(pom3,'\\','\',[]);
         {$ENDIF}
+        pom3:=NormalizeFilePath(pom3); //tak na wszelki wypadek
         if assigned(FBinPatch) then FBinPatch(self,pom3);
       end;
     end;
