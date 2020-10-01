@@ -129,10 +129,10 @@ type
 
   TDiffAlgorithm = (daDifference,daSeqComparison);
   TDiffFileEngine = (fePascal,feMemory);
-  TDiffRequestFileEvent = procedure(Sender: TObject; aFileName: string) of object;
-  TDiffRequestFileAttributesEvent = procedure(Sender: TObject; aFileName: string; var aFileDate: qword; var aMilisecond: qword) of object;
-  TDiffRequestFileBinaryEvent = procedure(Sender: TObject; aFileName: string; var aIsBinary: boolean) of object;
-  TDiffRequestFileBodyEvent = procedure(Sender: TObject; aFileName: string; aBody: TStrings) of object;
+  TDiffRequestFileEvent = procedure(Sender: TObject; aVersion: integer; aFileName: string) of object;
+  TDiffRequestFileAttributesEvent = procedure(Sender: TObject; aVersion: integer; aFileName: string; var aFileDate: qword; var aMilisecond: qword) of object;
+  TDiffRequestFileBinaryEvent = procedure(Sender: TObject; aVersion: integer; aFileName: string; var aIsBinary: boolean) of object;
+  TDiffRequestFileBodyEvent = procedure(Sender: TObject; aVersion: integer; aFileName: string; aBody: TStrings) of object;
   TDiffRequestDiffBinFilesEvent = procedure(Sender: TObject; aBinFile1,aBinFile2: string; var aDifferend: boolean) of object;
 
   TExtDiff = class(TComponent)
@@ -185,7 +185,7 @@ type
 
     function DiffFileInfo(aFlaga: char; aFileName: string; aDT,aMS: qword): string;
     function DiffFileInfo(aFlaga: char; aFileName: string; aDateTime: TDateTime): string;
-    procedure DiffAnalize(pp: TList; aDiff: TStrings);
+    function DiffAnalize(pp: TList; aDiff: TStrings): integer;
     function DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
     procedure DiffNewFile(aFileNotFound,aFile: string; aDiff: TStrings; aExecuteRequest: boolean = false);
     procedure DiffFileDeleted(aFile,aFileDeleted: string; aDiff: TStrings; aExecuteRequest: boolean = false);
@@ -195,8 +195,11 @@ type
     constructor Create(aOwner: TComponent); override;
     destructor Destroy; override;
     function GetHashFile(const sFile: TFileName): string;
-    function IsTextFile(const sFile: TFileName): boolean;
-    function IsBinaryFile(const sFile: TFileName): boolean;
+    function GetHashFile(aBuffer: TMemoryStream): string;
+    function IsTextFile(const sFile: TFileName; const aForceAll: boolean = false): boolean;
+    function IsTextFile(aMemoryStream: TMemoryStream; const aForceAll: boolean = false): boolean;
+    function IsBinaryFile(const sFile: TFileName; const aForceAll: boolean = false): boolean;
+    function IsBinaryFile(aMemoryStream: TMemoryStream; const aForceAll: boolean = false): boolean;
     function NormalizeFilePath(aPatchFile: string; aForceLinux: boolean = false): string;
     //compare either and array of characters or an array of integers ...
     function Execute(pints1, pints2: PINT; len1, len2: integer): boolean;
@@ -208,8 +211,8 @@ type
     procedure StringsToHashList(aStr: TStrings; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
     procedure StringsToHashList(aStr: TStringList; aHashList: TList; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false);
     function HashLine(const aLine: string; aTrimSpace: boolean = false; aIgnoreSpace: boolean = false; aIgnoreCase: boolean = false): pointer;
-    procedure Diff(aFile1, aFile2: TStrings; aFName1, aFName2: string; aDTime1, aMSec1, aDTime2, aMSec2: qword; aDiff: TStrings);
-    procedure Diff(aFileOld,aFileNew: string; aDiff: TStrings);
+    function Diff(aFile1, aFile2: TStrings; aFName1, aFName2: string; aDTime1, aMSec1, aDTime2, aMSec2: qword; aDiff: TStrings): integer;
+    function Diff(aFileOld,aFileNew: string; aDiff: TStrings): integer;
     procedure DiffDirectory(aDir1,aDir2: TStrings; aDiff: TStrings);
     procedure DiffDirectory(aDirOld,aDirNew: string; aDiff: TStrings);
     procedure Patch(aFileDiff,aFile: TStrings);
@@ -1553,14 +1556,15 @@ begin
   result:=s;
 end;
 
-procedure TExtDiff.DiffAnalize(pp: TList; aDiff: TStrings);
+function TExtDiff.DiffAnalize(pp: TList; aDiff: TStrings): integer;
 var
   element: TElement;
-  max,indeks: integer;
+  ile,max,indeks: integer;
   x,a,x1,x2,x3,x4: integer;
   zab: integer;
   s: string;
 begin
+  ile:=0;
   max:=pp.Count-1;
   x:=0;
   (* analiza *)
@@ -1584,6 +1588,7 @@ begin
       if element.flaga<>'D' then x4:=element.i2+1;
       if element.flaga<>'N' then zab:=0;
       aDiff.Add(element.s);
+      inc(ile);
       inc(a);
       inc(zab);
       if zab>3 then break;
@@ -1595,11 +1600,12 @@ begin
     s:=StringReplace(s,'$C',IntToStr(x2),[]);
     s:=StringReplace(s,'$D',IntToStr(x4-x2+1),[]);
     aDiff.Delete(indeks);
-    aDiff.Insert(indeks,s);
+    if ile>0 then aDiff.Insert(indeks,s);
 
     x:=a+1;
 
   end;
+  result:=ile;
 end;
 
 function TExtDiff.DiffSzukajPierwszejZmiany(aOd: integer; pp: TList): integer;
@@ -1633,7 +1639,7 @@ begin
   aDiff.Add(DiffFileInfo('-',aFileNotFound,0,0));
   if aExecuteRequest then
   begin
-    if assigned(FRequestFileAttrib) then FRequestFileAttrib(self,aFile,dtime,msec);
+    if assigned(FRequestFileAttrib) then FRequestFileAttrib(self,2,aFile,dtime,msec);
   end else begin
     {$IFDEF UNIX}
     fpstat(aFile,info);
@@ -1649,7 +1655,7 @@ begin
   try
     if aExecuteRequest then
     begin
-      if assigned(FRequestFileBody) then FRequestFileBody(self,aFile,ff);
+      if assigned(FRequestFileBody) then FRequestFileBody(self,2,aFile,ff);
     end else ff.LoadFromFile(aFile);
     aDiff.Add('@@ -0,0 +1,'+IntToStr(ff.Count)+' @@');
     (* przelatuję dane *)
@@ -1671,7 +1677,7 @@ var
 begin
   if aExecuteRequest then
   begin
-    if assigned(FRequestFileAttrib) then FRequestFileAttrib(self,aFile,dtime,msec);
+    if assigned(FRequestFileAttrib) then FRequestFileAttrib(self,1,aFile,dtime,msec);
   end else begin
     {$IFDEF UNIX}
     fpstat(aFile,info);
@@ -1688,7 +1694,7 @@ begin
   try
     if aExecuteRequest then
     begin
-      if assigned(FRequestFileBody) then FRequestFileBody(self,aFile,ff);
+      if assigned(FRequestFileBody) then FRequestFileBody(self,1,aFile,ff);
     end else ff.LoadFromFile(aFile);
     aDiff.Add('@@ -1 +0,0 @@');
     (* przelatuję dane *)
@@ -1719,12 +1725,17 @@ begin
   result:=MD5Print(MD5File(sFile));
 end;
 
-function TExtDiff.IsTextFile(const sFile: TFileName): boolean;
+function TExtDiff.GetHashFile(aBuffer: TMemoryStream): string;
+begin
+  result:=MD5Print(MD5Buffer(aBuffer,aBuffer.Size));
+end;
+
+function TExtDiff.IsTextFile(const sFile: TFileName; const aForceAll: boolean
+  ): boolean;
 //Created By Marcelo Castro - from Brazil
 var
   oIn: TFileStream;
-  iRead: Integer;
-  iMaxRead: Integer;
+  iRead, iMaxRead: int64;
   iData: Byte;
   dummy:string;
 begin
@@ -1732,11 +1743,12 @@ begin
   dummy:='';
   oIn:=TFileStream.Create(sFile,fmOpenRead or fmShareDenyNone);
   try
-    iMaxRead:=1000;  //only text the first 1000 bytes
-    if iMaxRead>oIn.Size then iMaxRead:=oIn.Size;
+    iMaxRead:=oIn.Size;  //only text the first 1000 bytes
+    if (not aForceAll) and (iMaxRead>1000) then iMaxRead:=1000;
     for iRead:=1 to iMaxRead do
     begin
-      oIn.Read(iData,1);
+      iData:=oIn.ReadByte;
+      //oIn.Read(iData,1);
       if idata>127 then
       begin
         result:=false;
@@ -1748,9 +1760,37 @@ begin
   end;
 end;
 
-function TExtDiff.IsBinaryFile(const sFile: TFileName): boolean;
+function TExtDiff.IsTextFile(aMemoryStream: TMemoryStream;
+  const aForceAll: boolean): boolean;
+var
+  i,max: int64;
+  b: byte;
+begin
+  result:=true;
+  aMemoryStream.Position:=0;
+  max:=aMemoryStream.Size;
+  if (not aForceAll) and (max>1000) then max:=1000;
+  for i:=1 to max do
+  begin
+    b:=aMemoryStream.ReadByte;
+    if b>127 then
+    begin
+      result:=false;
+      break;
+    end;
+  end;
+end;
+
+function TExtDiff.IsBinaryFile(const sFile: TFileName; const aForceAll: boolean
+  ): boolean;
 begin
   result:=not IsTextFile(sFile);
+end;
+
+function TExtDiff.IsBinaryFile(aMemoryStream: TMemoryStream;
+  const aForceAll: boolean): boolean;
+begin
+  result:=not IsTextFile(aMemoryStream);
 end;
 
 function TExtDiff.NormalizeFilePath(aPatchFile: string; aForceLinux: boolean
@@ -2128,13 +2168,13 @@ begin
   result:=pointer(CrcString(s));
 end;
 
-procedure TExtDiff.Diff(aFile1, aFile2: TStrings; aFName1, aFName2: string;
-  aDTime1, aMSec1, aDTime2, aMSec2: qword; aDiff: TStrings);
+function TExtDiff.Diff(aFile1, aFile2: TStrings; aFName1, aFName2: string;
+  aDTime1, aMSec1, aDTime2, aMSec2: qword; aDiff: TStrings): integer;
 var
   ll1,ll2: TList;
   cc: TCompareRec;
   flaga: string[1];
-  i,i1,i2: integer;
+  i,i1,i2,a,x: integer;
   strefa: string;
   pp: TList;
   element: TElement;
@@ -2178,9 +2218,15 @@ begin
                   end;
       end;
     end;
-    aDiff.Add(DiffFileInfo('-',aFName1,aDTime1,aMSec1));
+    x:=aDiff.Add(DiffFileInfo('-',aFName1,aDTime1,aMSec1));
     aDiff.Add(DiffFileInfo('+',aFName2,aDTime2,aMSec2));
-    DiffAnalize(pp,aDiff);
+    a:=DiffAnalize(pp,aDiff);
+    if a=0 then
+    begin
+      result:=0;
+      aDiff.Delete(x);
+      aDiff.Delete(x);
+    end else result:=a;
   finally
     ll1.Free;
     ll2.Free;
@@ -2189,7 +2235,7 @@ begin
   end;
 end;
 
-procedure TExtDiff.Diff(aFileOld, aFileNew: string; aDiff: TStrings);
+function TExtDiff.Diff(aFileOld, aFileNew: string; aDiff: TStrings): integer;
 var
   ff1,ff2: TStringList;
   {$IFDEF UNIX}
@@ -2204,9 +2250,9 @@ begin
     {$IFDEF UNIX}
     fpstat(aFileOld,info1);
     fpstat(aFileNew,info2);
-    Diff(ff1,ff2,aFileOld,aFileNew,info1.st_mtime,info1.st_mtime_nsec,info2.st_mtime,info2.st_mtime_nsec,aDiff);
+    result:=Diff(ff1,ff2,aFileOld,aFileNew,info1.st_mtime,info1.st_mtime_nsec,info2.st_mtime,info2.st_mtime_nsec,aDiff);
     {$ELSE}
-    Diff(ff1,ff2,aFileOld,aFileNew,FileAge(aFileOld),0,FileAge(aFileNew),0,aDiff);
+    result:=Diff(ff1,ff2,aFileOld,aFileNew,FileAge(aFileOld),0,FileAge(aFileNew),0,aDiff);
     {$ENDIF}
   finally
     ff1.Free;
@@ -2219,7 +2265,7 @@ var
   d1,d2: string;
   list1,list2,bin,f1,f2: TStringList;
   s1,s2: string;
-  a: integer;
+  a,x: integer;
   b1,b2,bb: boolean;
   dtime1,msec1,dtime2,msec2: qword;
 begin
@@ -2244,22 +2290,23 @@ begin
       if a=-1 then
       begin
         b2:=false;
-        if assigned(FRequestFileIsBin) then FRequestFileIsBin(self,s2,b2);
+        if assigned(FRequestFileIsBin) then FRequestFileIsBin(self,2,s2,b2);
         if b2 then
         begin
           bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-          if assigned(FBinDiff) then FBinDiff(self,s2);
+          if assigned(FBinDiff) then FBinDiff(self,2,s2);
         end else begin
           aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2));
           DiffNewFile(s1,s2,aDiff,true);
         end;
       end else begin
+        list1.Delete(a);
         if assigned(FRequestFileIsBin) then
         begin
           b1:=false;
           b2:=false;
-          FRequestFileIsBin(self,s1,b1);
-          FRequestFileIsBin(self,s2,b2);
+          FRequestFileIsBin(self,1,s1,b1);
+          FRequestFileIsBin(self,2,s2,b2);
         end;
         if b1 or b2 then
         begin
@@ -2268,22 +2315,21 @@ begin
           if bb then
           begin
             bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-            if assigned(FBinDiff) then FBinDiff(self,s2);
+            if assigned(FBinDiff) then FBinDiff(self,2,s2);
           end;
         end else begin
-          list1.Delete(a);
-          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
+          x:=aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           if assigned(FRequestFileBody) then
           begin
-            FRequestFileBody(self,s1,f1);
-            FRequestFileBody(self,s2,f2);
+            FRequestFileBody(self,1,s1,f1);
+            FRequestFileBody(self,2,s2,f2);
           end;
           if assigned(FRequestFileAttrib) then
           begin
-            FRequestFileAttrib(self,s1,dtime1,msec1);
-            FRequestFileAttrib(self,s2,dtime2,msec2);
+            FRequestFileAttrib(self,1,s1,dtime1,msec1);
+            FRequestFileAttrib(self,2,s2,dtime2,msec2);
           end;
-          Diff(f1,f2,s1,s2,dtime1,msec1,dtime2,msec2,aDiff);
+          if Diff(f1,f2,s1,s2,dtime1,msec1,dtime2,msec2,aDiff)=0 then aDiff.Delete(x);
         end;
       end;
     end;
@@ -2296,13 +2342,24 @@ begin
       a:=StringToItemIndex(list2,s2);
       if a=-1 then
       begin
-        aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
-        DiffFileDeleted(s1,s2,aDiff,true);
+
+        b1:=false;
+        if assigned(FRequestFileIsBin) then FRequestFileIsBin(self,1,s1,b1);
+        if b1 then
+        begin
+          bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
+          if assigned(FBinDiff) then FBinDiff(self,1,s1);
+        end else begin
+          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
+          DiffFileDeleted(s1,s2,aDiff,true);
+        end;
+
       end else begin
+        list2.Delete(a);
         b1:=false;
         b2:=false;
-        FRequestFileIsBin(self,s1,b1);
-        FRequestFileIsBin(self,s2,b2);
+        FRequestFileIsBin(self,1,s1,b1);
+        FRequestFileIsBin(self,2,s2,b2);
         if b1 or b2 then
         begin
           bb:=false;
@@ -2310,22 +2367,21 @@ begin
           if bb then
           begin
             bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-            if assigned(FBinDiff) then FBinDiff(self,s2);
+            if assigned(FBinDiff) then FBinDiff(self,2,s2);
           end;
         end else begin
-          list2.Delete(a);
-          aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
+          x:=aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           if assigned(FRequestFileBody) then
           begin
-            FRequestFileBody(self,s1,f1);
-            FRequestFileBody(self,s2,f2);
+            FRequestFileBody(self,1,s1,f1);
+            FRequestFileBody(self,2,s2,f2);
           end;
           if assigned(FRequestFileAttrib) then
           begin
-            FRequestFileAttrib(self,s1,dtime1,msec1);
-            FRequestFileAttrib(self,s2,dtime2,msec2);
+            FRequestFileAttrib(self,1,s1,dtime1,msec1);
+            FRequestFileAttrib(self,2,s2,dtime2,msec2);
           end;
-          Diff(f1,f2,s1,s2,dtime1,msec1,dtime2,msec2,aDiff);
+          if Diff(f1,f2,s1,s2,dtime1,msec1,dtime2,msec2,aDiff)=0 then aDiff.Delete(x);
         end;
       end;
     end;
@@ -2365,7 +2421,7 @@ begin
         if b2 then
         begin
           bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-          if assigned(FBinDiff) then FBinDiff(self,s2);
+          if assigned(FBinDiff) then FBinDiff(self,2,s2);
         end else begin
           aDiff.Add('diff -ruN '+NormalizeFilePath(s1,true)+' '+NormalizeFilePath(s2,true));
           DiffNewFile(s1,s2,aDiff);
@@ -2378,7 +2434,7 @@ begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
             bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-            if assigned(FBinDiff) then FBinDiff(self,s2);
+            if assigned(FBinDiff) then FBinDiff(self,2,s2);
           end;
         end else begin
           list1.Delete(a);
@@ -2406,7 +2462,7 @@ begin
           if GetHashFile(s1)<>GetHashFile(s2) then
           begin
             bin.Add('Binarne pliki '+NormalizeFilePath(s1,true)+' i '+NormalizeFilePath(s2,true)+' różnią się');
-            if assigned(FBinDiff) then FBinDiff(self,s2);
+            if assigned(FBinDiff) then FBinDiff(self,2,s2);
           end;
         end else begin
           list2.Delete(a);
@@ -2485,7 +2541,7 @@ begin
       begin
         if f.Count>0 then
         begin
-          if assigned(FRequestSaveFile) then FRequestSaveFile(self,plik2,f);
+          if assigned(FRequestSaveFile) then FRequestSaveFile(self,2,plik2,f);
           f.Clear;
         end;
         plik:=NormalizeFilePath(GetLineToStr(s,3,' '));
@@ -2499,20 +2555,20 @@ begin
       begin
         dane_pliku(s,a1,a2,b1,b2);
         f.Clear;
-        if assigned(FRequestFileBody) then FRequestFileBody(self,plik2,f);
+        if assigned(FRequestFileBody) then FRequestFileBody(self,2,plik2,f);
         if (a1=0) and (a2=0) and (b1=0) and (b2=0) then
         begin
-          if assigned(FRequestDeleteFile) then FRequestDeleteFile(self,plik2);
+          if assigned(FRequestDeleteFile) then FRequestDeleteFile(self,2,plik2);
           f.Clear;
         end else patch_go(aFileDiff,f,i+1,a1,a2,b1,b2,wektor);
       end else
       if pos('B',s)=1 then
       begin
         pom:=NormalizeFilePath(GetLineToStr(s,5,' '));
-        if assigned(FBinPatch) then FBinPatch(self,pom);
+        if assigned(FBinPatch) then FBinPatch(self,2,pom);
       end;
     end;
-    if f.Count>0 then if assigned(FRequestSaveFile) then FRequestSaveFile(self,plik2,f);
+    if f.Count>0 then if assigned(FRequestSaveFile) then FRequestSaveFile(self,2,plik2,f);
   finally
     f.Free;
   end;
@@ -2581,7 +2637,7 @@ begin
         pom3:=StringReplace(pom3,'\\','\',[]);
         {$ENDIF}
         pom3:=NormalizeFilePath(pom3); //tak na wszelki wypadek
-        if assigned(FBinPatch) then FBinPatch(self,pom3);
+        if assigned(FBinPatch) then FBinPatch(self,2,pom3);
       end;
     end;
     if f.Count>0 then
