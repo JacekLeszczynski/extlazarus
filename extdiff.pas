@@ -1726,8 +1726,17 @@ begin
 end;
 
 function TExtDiff.GetHashFile(aBuffer: TMemoryStream): string;
+var
+  buf: pchar;
 begin
-  result:=MD5Print(MD5Buffer(aBuffer,aBuffer.Size));
+  GetMem(buf,aBuffer.Size+1);
+  try
+    aBuffer.Position:=0;
+    aBuffer.ReadBuffer(buf^,aBuffer.Size);
+    result:=MD5Print(MD5Buffer(buf^,aBuffer.Size));
+  finally
+    FreeMem(buf,aBuffer.Size+1);
+  end;
 end;
 
 function TExtDiff.IsTextFile(const sFile: TFileName; const aForceAll: boolean
