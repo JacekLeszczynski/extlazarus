@@ -447,9 +447,10 @@ end;
 
 procedure patch_go(d,f: TStrings; start,a1,a2,b1,b2: integer; var wektor: integer);
 var
-  i: integer;
+  i,w: integer;
   s,s1: string;
 begin
+  w:=wektor;
   for i:=start to d.Count-1 do
   begin
     s:=d[i];
@@ -462,12 +463,13 @@ begin
     if s[1]=' ' then continue;
     if s[1]='-' then
     begin
-      f.Delete(a1+i+wektor-start-1);
+      f.Delete(a1+i+w-start-1);
       dec(wektor);
+      dec(w);
     end;
     if s[1]='+' then
     begin
-      if (a1=0) and (a2=0) then f.Add(s1) else f.Insert(a1+i+wektor-start-1,s1);
+      if (a1+i+w-start-1>=f.Count) or ((a1=0) and (a2=0)) then f.Add(s1) else f.Insert(a1+i+w-start-1,s1);
       inc(wektor);
     end;
   end;
