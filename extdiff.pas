@@ -1868,7 +1868,11 @@ function TExtDiff.IsTextFile(const sFile: TFileName; const aForceAll: boolean
 //Created By Marcelo Castro - from Brazil
 var
   f: TFileStream;
+  {$IFDEF WIN32}
+  i,max: integer;
+  {$ELSE}
   i,max: int64;
+  {$ENDIF}
   b: Byte;
 begin
   result:=true;
@@ -1894,7 +1898,11 @@ end;
 function TExtDiff.IsTextFile(aMemoryStream: TMemoryStream;
   const aForceAll: boolean): boolean;
 var
+  {$IFDEF WIN32}
+  i,max: integer;
+  {$ELSE}
   i,max: int64;
+  {$ENDIF}
   b: byte;
 begin
   result:=true;

@@ -116,7 +116,7 @@ begin
   try
     sndPlaySound(PChar(plik),flags);
   except
-    ShowMessage('Unable to play '+plik);
+    //ShowMessage('Unable to play '+plik);
   end;
   {$ELSE}
   if FPlayCommand='<auto>' then playCmd:=DPlayCommand else playCmd:=FPlayCommand;
@@ -176,7 +176,7 @@ begin
   try
     //sndRecSound(PChar(plik),flags);
   except
-    ShowMessage('Unable to record '+plik);
+    //ShowMessage('Unable to record '+plik);
   end;
   {$ELSE}
   if FRecCommand='<auto>' then recCmd:=DRecCommand else recCmd:=FRecCommand;
