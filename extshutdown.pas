@@ -12,6 +12,7 @@ type
   { TExtShutdown }
 
   TExtShutdownOnShutdownMode = (smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom);
+  TExtShutdownOnMonitorMode = (mmGetMode, mmOn, mmOff, mmStandby, mmSuspend);
   TExtShutdown = class(TComponent)
   private
     FCustomCommand: string;
@@ -23,6 +24,8 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure execute;
+    procedure monitor(var aMonitorMode: TExtShutdownOnMonitorMode);
+    function monitor: boolean;
   published
     {Mode:}
     { KDE    - shutdown KDE mode}
@@ -137,6 +140,51 @@ begin
   end;
   {$ENDIF}
   if Assigned(FOnAfterShutdown) then FOnAfterShutdown(self);
+end;
+
+procedure TExtShutdown.monitor(var aMonitorMode: TExtShutdownOnMonitorMode);
+var
+  proc: TProcess;
+  ss: TStringList;
+begin
+  {$IFDEF UNIX}
+  proc:=TProcess.Create(self);
+  try
+    if aMonitorMode=mmGetMode then
+    begin
+      (* odczytanie mode monitora *)
+      proc.Options:=[poWaitOnExit,poUsePipes];
+      proc.CommandLine:='xset -q';
+      proc.Execute;
+      ss.LoadFromStream(proc.Output);
+      if pos('Monitor is On',ss.Text)>0 then aMonitorMode:=mmOn else
+      if pos('Monitor is Off',ss.Text)>0 then aMonitorMode:=mmOff else
+      if pos('Monitor is Standby',ss.Text)>0 then aMonitorMode:=mmStandby else
+      if pos('Monitor is Suspend',ss.Text)>0 then aMonitorMode:=mmSuspend else
+      aMonitorMode:=mmOn;
+    end else begin
+      (* ustawienie mode monitora *)
+      case aMonitorMode of
+        mmOn      : proc.CommandLine:='xset -display :0.0 dpms force on';
+        mmOff     : proc.CommandLine:='xset -display :0.0 dpms force off';
+        mmStandby : proc.CommandLine:='xset -display :0.0 dpms force standby';
+        mmSuspend : proc.CommandLine:='xset -display :0.0 dpms force suspend';
+      end;
+      proc.Execute;
+    end;
+  finally
+    proc.Free;
+  end;
+  {$ENDIF}
+end;
+
+function TExtShutdown.monitor: boolean;
+var
+  a: TExtShutdownOnMonitorMode;
+begin
+  a:=mmGetMode;
+  monitor(a);
+  result:=a=mmOn;
 end;
 
 end.
