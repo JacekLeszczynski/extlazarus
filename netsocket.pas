@@ -22,6 +22,7 @@ type
 
   TNetSocket = class(TComponent)
   private
+    FAReg: boolean;
     FOnTimeVector: TNetSocketOnInteger;
     FActive,FCrypt: boolean;
     FBinary: boolean;
@@ -42,6 +43,7 @@ type
     FPort: Word;
     FReuseAddress: boolean;
     FSecurity: TNetSocketSecurity;
+    FList: TList;
     FSSLCAFile: string;
     FSSLKeyFile: string;
     FSSLMethod: TNetSocketSSLMethod;
@@ -50,6 +52,7 @@ type
     tcp: TLTCPComponent;
     ssl: TLSSLSessionComponent;
     ntp_count,ntp_srednia,ntp_t1: integer;
+    function GetCount: integer;
     procedure _OnAccept(aSocket: TLSocket);
     procedure _OnCanSend(aSocket: TLSocket);
     procedure _OnConnect(aSocket: TLSocket);
@@ -71,7 +74,9 @@ type
     property Mode: TNetSocketMode read FMode write FMode;
     property Security: TNetSocketSecurity read FSecurity write FSecurity;
     property BinaryMode: boolean read FBinary write FBinary;
-    property Active: boolean read FActive; //Po połączeniu w kliencie wykonaj: Application.ProcessMessage!
+    {Po połączeniu w kliencie wykonaj:
+     -> Application.ProcessMessage <-}
+    property Active: boolean read FActive;
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort;
     property ReuseAddress: boolean read FReuseAddress write FReuseAddress;
@@ -80,8 +85,14 @@ type
     property SSLCAFile: string read FSSLCAFile write FSSLCAFile;
     property SSLKeyFile: string read FSSLKeyFile write FSSLKeyFile;
     property SSLPassword: string read FSSLPassword write FSSLPassword;
+    {Eksperymentalna opcja!}
+    property AutoRegister: boolean read FAReg write FAReg default false;
+    {Działa gdy AutoRegister jest ustawiony.}
+    property Count: integer read GetCount;
+    {Server: Gdy serwer zaakceptuje połączenie.}
     property OnAccept: TNetSocketOnASocket read FOnAccept write FOnAccept;
     property OnCanSend: TNetSocketOnASocket read FOnCanSend write FOnCanSend;
+    {Client: Po połączeniu się z serwerem.}
     property OnConnect: TNetSocketOnASocket read FOnConnect write FOnConnect;
     property OnDisconnect: TNetSocketOnASocket read FOnDisconnect write FOnDisconnect;
     property OnError: TNetSocketOnConstStringASocket read FOnError write FOnError;
@@ -150,7 +161,16 @@ end;
 
 procedure TNetSocket._OnAccept(aSocket: TLSocket);
 begin
-  FOnAccept(aSocket);
+  if FAReg then FList.Add(aSocket);
+  if Assigned(FOnAccept) then FOnAccept(aSocket);
+end;
+
+function TNetSocket.GetCount: integer;
+var
+  i: integer;
+begin
+  for i:=FList.Count-1 downto 0 do if TLSocket(FList[i]).Handle=-1 then FList.Delete(i);
+  result:=FList.Count;
 end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
@@ -165,7 +185,7 @@ end;
 
 procedure TNetSocket._OnDisconnect(aSocket: TLSocket);
 begin
-  FOnDisconnect(aSocket);
+  if Assigned(FOnDisconnect) then FOnDisconnect(aSocket);
   if FActive and (FMode=smClient) then Disconnect;
 end;
 
@@ -230,6 +250,8 @@ end;
 constructor TNetSocket.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FList:=TList.Create;
+  FAReg:=false;
   FActive:=false;
   FCrypt:=false;
   FSecurity:=ssNone;
@@ -245,6 +267,7 @@ end;
 destructor TNetSocket.Destroy;
 begin
   if FActive then Disconnect(true);
+  FList.Free;
   inherited Destroy;
 end;
 
@@ -254,10 +277,10 @@ begin
   tcp:=TLTCPComponent.Create(nil);
   tcp.Timeout:=FTimeout;
   tcp.ReuseAddress:=FReuseAddress;
-  if Assigned(FOnAccept) then tcp.OnAccept:=@_OnAccept;
+  tcp.OnAccept:=@_OnAccept;
   if Assigned(FOnCanSend) then tcp.OnCanSend:=@_OnCanSend;
   if Assigned(FOnConnect) then tcp.OnConnect:=@_OnConnect;
-  if Assigned(FOnDisconnect) then tcp.OnDisconnect:=@_OnDisconnect;
+  tcp.OnDisconnect:=@_OnDisconnect;
   tcp.OnError:=@_OnError;
   tcp.OnReceive:=@_OnReceive;
   if FSecurity=ssSSL then
