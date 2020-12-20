@@ -321,6 +321,7 @@ procedure TNetSocket.SendString(const aMessage: string; aSocket: TLSocket);
 var
   s: string;
 begin
+  if not FActive then exit;
   s:=aMessage;
   if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
   if FMode=smServer then
@@ -335,6 +336,7 @@ end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer): integer;
 begin
+  if not FActive then exit;
   if FMode=smServer then
   begin
     tcp.IterReset;
