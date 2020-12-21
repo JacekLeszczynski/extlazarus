@@ -299,9 +299,12 @@ begin
     ssl.Password:=FSSLPassword;
     ssl.SSLActive:=true;
   end;
-  if FMode=smServer then FActive:=tcp.Listen(FPort) else FActive:=tcp.Connect(FHost,FPort);
-  if Assigned(FGoPM) then FGoPM;
-  FActive:=tcp.Connected;
+  if FMode=smServer then FActive:=tcp.Listen(FPort) else
+  begin
+    FActive:=tcp.Connect(FHost,FPort);
+    if Assigned(FGoPM) then FGoPM;
+    FActive:=tcp.Connected;
+  end;
   if not FActive then
   begin
     if FSecurity=ssSSL then ssl.Free;
