@@ -12,6 +12,7 @@ type
   TNetSocketSecurity = (ssNone, ssSSL, ssCrypt);
   TNetSocketSSLMethod = TLSSLMethod;
   TNetSocketOnASocket = procedure(aSocket: TLSocket) of object;
+  TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
   TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket) of object;
   TNetSocketOnStatus = procedure(aActive, aCrypt: boolean) of object;
@@ -23,6 +24,7 @@ type
   TNetSocket = class(TComponent)
   private
     FAReg: boolean;
+    FGoPM: TNetSocketOnASocketNull;
     FOnTimeVector: TNetSocketOnInteger;
     FActive,FCrypt: boolean;
     FBinary: boolean;
@@ -33,7 +35,7 @@ type
     FOnConnect: TNetSocketOnASocket;
     FOnCryptString: TNetSocketOnCryptDecryptString;
     FOnDecryptString: TNetSocketOnCryptDecryptString;
-    FOnDisconnect: TNetSocketOnASocket;
+    FOnDisconnect: TNetSocketOnASocketNull;
     FOnError: TNetSocketOnConstStringASocket;
     FOnReceive: TNetSocketOnASocket;
     FOnReceiveString: TNetSocketOnReceiveStringASocket;
@@ -92,9 +94,13 @@ type
     {Server: Gdy serwer zaakceptuje połączenie.}
     property OnAccept: TNetSocketOnASocket read FOnAccept write FOnAccept;
     property OnCanSend: TNetSocketOnASocket read FOnCanSend write FOnCanSend;
+    {Wymagana pozycja!
+     Adding this:
+     -> Application.ProcessMessage <-}
+    property OnProcessMessage: TNetSocketOnASocketNull read FGoPM write FGoPM;
     {Client: Po połączeniu się z serwerem.}
     property OnConnect: TNetSocketOnASocket read FOnConnect write FOnConnect;
-    property OnDisconnect: TNetSocketOnASocket read FOnDisconnect write FOnDisconnect;
+    property OnDisconnect: TNetSocketOnASocketNull read FOnDisconnect write FOnDisconnect;
     property OnError: TNetSocketOnConstStringASocket read FOnError write FOnError;
     property OnReceive: TNetSocketOnASocket read FOnReceive write FOnReceive;
     property OnReceiveString: TNetSocketOnReceiveStringASocket read FOnReceiveString write FOnReceiveString;
@@ -185,7 +191,6 @@ end;
 
 procedure TNetSocket._OnDisconnect(aSocket: TLSocket);
 begin
-  if Assigned(FOnDisconnect) then FOnDisconnect(aSocket);
   if FActive and (FMode=smClient) then Disconnect;
 end;
 
@@ -295,12 +300,14 @@ begin
     ssl.SSLActive:=true;
   end;
   if FMode=smServer then FActive:=tcp.Listen(FPort) else FActive:=tcp.Connect(FHost,FPort);
+  if Assigned(FGoPM) then FGoPM;
+  FActive:=tcp.Connected;
   if not FActive then
   begin
     if FSecurity=ssSSL then ssl.Free;
     tcp.Free;
   end;
-  FCrypt:=FSecurity=ssCrypt;
+  FCrypt:=(FSecurity=ssCrypt) and FActive;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
   result:=FActive;
 end;
@@ -314,6 +321,7 @@ begin
   tcp.Free;
   FActive:=false;
   FCrypt:=false;
+  if Assigned(FOnDisconnect) then FOnDisconnect;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
 
