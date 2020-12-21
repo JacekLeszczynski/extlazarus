@@ -302,6 +302,7 @@ begin
   if FMode=smServer then FActive:=tcp.Listen(FPort) else
   begin
     FActive:=tcp.Connect(FHost,FPort);
+    sleep(250);
     if Assigned(FGoPM) then FGoPM;
     FActive:=tcp.Connected;
   end;
