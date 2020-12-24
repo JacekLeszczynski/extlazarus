@@ -23,7 +23,6 @@ type
 
   TNetSocket = class(TComponent)
   private
-    FAReg: boolean;
     FGoPM: TNetSocketOnASocketNull;
     FOnTimeVector: TNetSocketOnInteger;
     FActive,FCrypt: boolean;
@@ -45,7 +44,6 @@ type
     FPort: Word;
     FReuseAddress: boolean;
     FSecurity: TNetSocketSecurity;
-    FList: TList;
     FSSLCAFile: string;
     FSSLKeyFile: string;
     FSSLMethod: TNetSocketSSLMethod;
@@ -72,6 +70,7 @@ type
     procedure SendString(const aMessage: string; aSocket: TLSocket = nil);
     function SendBinary(const aBinary; aSize: integer): integer;
     procedure GetTimeVector;
+    function GetGUID: string;
   published
     property Mode: TNetSocketMode read FMode write FMode;
     property Security: TNetSocketSecurity read FSecurity write FSecurity;
@@ -87,8 +86,6 @@ type
     property SSLCAFile: string read FSSLCAFile write FSSLCAFile;
     property SSLKeyFile: string read FSSLKeyFile write FSSLKeyFile;
     property SSLPassword: string read FSSLPassword write FSSLPassword;
-    {Eksperymentalna opcja!}
-    property AutoRegister: boolean read FAReg write FAReg default false;
     {Działa gdy AutoRegister jest ustawiony.}
     property Count: integer read GetCount;
     {Server: Gdy serwer zaakceptuje połączenie.}
@@ -167,7 +164,6 @@ end;
 
 procedure TNetSocket._OnAccept(aSocket: TLSocket);
 begin
-  if FAReg then FList.Add(aSocket);
   if Assigned(FOnAccept) then FOnAccept(aSocket);
 end;
 
@@ -175,8 +171,7 @@ function TNetSocket.GetCount: integer;
 var
   i: integer;
 begin
-  for i:=FList.Count-1 downto 0 do if TLSocket(FList[i]).Handle=-1 then FList.Delete(i);
-  result:=FList.Count;
+  if FActive then result:=tcp.Count-1 else result:=0;
 end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
@@ -255,8 +250,6 @@ end;
 constructor TNetSocket.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FList:=TList.Create;
-  FAReg:=false;
   FActive:=false;
   FCrypt:=false;
   FSecurity:=ssNone;
@@ -272,7 +265,6 @@ end;
 destructor TNetSocket.Destroy;
 begin
   if FActive then Disconnect(true);
-  FList.Free;
   inherited Destroy;
 end;
 
@@ -363,6 +355,20 @@ begin
   ntp_srednia:=0;
   ntp_t1:=TimeToInteger(time);
   SendString('{NTP}');
+end;
+
+function TNetSocket.GetGUID: string;
+var
+  error: integer;
+  a: TGUID;
+  s: string;
+begin
+  error:=CreateGUID(a);
+  if error=0 then
+  begin
+    s:=GUIDToString(a);
+    result:=s;
+  end else result:='';
 end;
 
 end.

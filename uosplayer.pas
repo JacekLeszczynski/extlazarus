@@ -322,7 +322,20 @@ begin
     (* RECORD *)
     QVolume:=1;
     if FMute then a:=0 else a:=GetMixVolume;
-    uos_AddIntoFile(xindex,Pchar(FFileName));
+
+    if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName))
+    else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
+    {function uos_AddIntoMemoryStream(PlayerIndex: cint32; MemoryStream: TMemoryStream; SampleRate: LongInt;
+           SampleFormat: LongInt ; Channels: LongInt; FramesCount: LongInt): LongInt;
+     Add a Output into TMemoryStream
+     Parameters:
+       2. MemoryStream : the TMemoryStream to use to store memory.
+       3. SampleRate : delault : -1 (44100)
+       4. SampleFormat : default : -1 (2:Int16) ( 1:Int32, 2:Int16)
+       5. Channels : delault : -1 (2:stereo) (0: no channels, 1:mono, 2:stereo, ...)
+       6. FramesCount : default : -1 (= 4096)
+    }
+
     outindex:=uos_AddIntoDevOut(xindex);
     uos_outputsetenable(xindex,outindex,FListenMic);
     InIndex:=uos_AddFromDevIn(xindex);  /// add Input from mic into IN device with default parameters
