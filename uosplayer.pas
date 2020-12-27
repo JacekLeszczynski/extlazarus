@@ -20,6 +20,7 @@ type
   {$ENDIF}
 
   TUOSPlauerOnStop = procedure(Sender: TObject; aBusy,aPlaying,aPauseing,aPause: boolean) of object;
+  TUOSPlauerOnNull = procedure of object;
 
   TIDTag = record
     Title,Artist,Album: string[30];
@@ -46,12 +47,16 @@ type
     FMeter: boolean;
     FMode: TUOSPlayerMode;
     FMute: boolean;
+    FNoFreeOnStop: boolean;
     FOnLoop: TNotifyEvent;
     FOnStop: TUOSPlauerOnStop;
     FPause,FPausing: boolean;
     FPauseing: boolean;
+    FPlayRawMode: boolean;
     FPosition: boolean;
     FPPS: boolean;
+    FProcessMessage: TUOSPlauerOnNull;
+    FSleepForPlay: integer;
     FVolume: double;
     FVolumeGlobal: double;
     InIndex,OutIndex : integer;
@@ -108,7 +113,7 @@ type
     //Przy moPlayLoop wymagany CalcPosition!
     property Mode: TUOSPlayerMode read FMode write SetMode;
     property ListenMic: boolean read FListenMic write FListenMic default false; //Mik idzie na głośniki gdy włączone
-    property DeviceIndex: cardinal read FDevIndex write SetDevIndex default 0; //Dla każdej kontrolki wartość unikatowa
+    property DeviceIndex: cardinal read FDevIndex write SetDevIndex default 0; //Dla każdej kontrolki wartość unikalna
     //property IntoDeviceIndex: TUOSPlayer read FIntoPlayer write FIntoPlayer;
     property Volume: double read FVolume write SetVolume; //Sterowanie głośnością
     property VolumeGlobal: double read FVolumeGlobal write SetVolumeGlobal; //Sterowanie głośnością wyższego poziomu
@@ -119,6 +124,13 @@ type
     //Wyciszaj automatycznie zanim zatrzymasz utwór wewnątrz
     //i rób to samo, gdy wykonujesz Replay wewnątrz utworu!
     property AutoVolPPS: boolean read FPPS write FPPS default false;
+    //Nie zwalniaj strumienia po zatrzymaniu
+    property NoFreeOnStop: boolean read FNoFreeOnStop write FNoFreeOnStop default false;
+    //Odtwarzaj strumienie w locie
+    property PlayRawMode: boolean read FPlayRawMode write FPlayRawMode default false;
+    //Opóźnienie startu odtwarzania
+    //Wymaga metody OnProcessMessage!
+    property SleepForPlay: integer read FSleepForPlay write FSleepForPlay default 0;
     property BeforeStart: TNotifyEvent read FBeforeStart write FBeforeStart;
     property AfterStart: TNotifyEvent read FAfterStart write FAfterStart;
     property BeforeStop: TNotifyEvent read FBeforeStop write FBeforeStop;
@@ -127,6 +139,9 @@ type
     property AfterMute: TNotifyEvent read FAfterMute write FAfterMute;
     property OnStop: TUOSPlauerOnStop read FOnStop write FOnStop;
     property OnLoop: TNotifyEvent read FOnLoop write FOnLoop;  //Wyzwalacz do wyświetlania pozycji i poziomu sygnału
+    //Wykonaj Application.ProcessMessage
+    // - jeśli potrzebne.
+    property OnProcessMessage: TUOSPlauerOnNull read FProcessMessage write FProcessMessage;
   end;
 
 procedure Register;
@@ -134,7 +149,7 @@ procedure Register;
 implementation
 
 uses
-  uos_flat, math;
+  uos, uos_flat, math;
 
 var
   server_data: record
@@ -156,6 +171,9 @@ begin
   FBusy:=false;
   FPause:=false;
   FPauseing:=false;
+  FNoFreeOnStop:=false;
+  FPlayRawMode:=false;
+  FSleepForPlay:=0;
   FDevIndex:=0;
   xindex:=0;
   FMode:=moPlay;
@@ -226,12 +244,24 @@ procedure TUOSPlayer.wewnStart(aMemoryStream: TMemoryStream);
 var
   a: double;
   x: TMemoryStream;
+  Bufferinfos: Tuos_bufferinfos;
+  cc: integer;
 begin
   if not FDevEngine.Loaded then exit;
   if ((FMode<>moPlayLoop) and FBusy) or ((FMode=moPlayLoop) and FBusy and (not FPause)) then exit;
   QFORCE:=false;
   QFORCEEXIT:=false;
   QFORCEFPPS:=false;
+
+  if FSleepForPlay>0 then
+  begin
+    for cc:=1 to FSleepForPlay*100 do
+    begin
+      sleep(10);
+      if assigned(FProcessMessage) then FProcessMessage;
+    end;
+  end;
+
   uos_CreatePlayer(xindex);
   if FMode=moPlay then       //moShout
   begin
@@ -239,8 +269,13 @@ begin
     QVolume:=1;
     if FMute then a:=0 else a:=GetMixVolume;
     QTT:=0;
-    if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName))
-    else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
+
+    if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName)) else
+    if FPlayRawMode then
+    begin
+      uos_CustBufferInfos(Bufferinfos,44100,2,2,-1);
+      InIndex:=uos_AddFromMemoryStreamDec(xindex,aMemoryStream,Bufferinfos,-1,-1);
+    end else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
 
     OutIndex:=uos_AddIntoDevOut(xindex,-1,-1,uos_InputGetSampleRate(xindex,InIndex),uos_InputGetChannels(xindex,InIndex),-1,-1,-1);
     uos_InputAddDSP1ChanTo2Chan(xindex,InIndex);
@@ -250,7 +285,8 @@ begin
     if FPosition then uos_InputSetPositionEnable(xindex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(xindex,InIndex,@LoopPlayer);
     uos_EndProc(xindex,@ClosePlayer);
-    uos_Play(xindex);  /////// everything is ready to play...
+
+    if FNoFreeOnStop then uos_PlayNoFree(xindex) else uos_Play(xindex);  /////// everything is ready to play...
   end else if FMode=moPlayLoop then
   begin
     (* PLAY LOOP *)
@@ -294,7 +330,7 @@ begin
     if FPosition then uos_InputSetPositionEnable(xindex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(xindex,InIndex,@LoopPlayer);
     uos_EndProc(xindex,@ClosePlayer);
-    uos_Play(xindex,-1);  /////// everything is ready to play...
+    if FNoFreeOnStop then uos_PlayNoFree(xindex,-1) else uos_Play(xindex,-1);  /////// everything is ready to play...
     if FPPS then
     begin
 //      SetVolume(-1);
@@ -316,7 +352,7 @@ begin
     if FPosition then uos_InputSetPositionEnable(xindex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(xindex,InIndex,@LoopPlayer);
     uos_EndProc(xindex,@ClosePlayer);
-    uos_Play(xindex);
+    if FNoFreeOnStop then uos_PlayNoFree(xindex) else uos_Play(xindex);
   end else if FMode=moRecord then
   begin
     (* RECORD *)
@@ -343,7 +379,7 @@ begin
     uos_InputSetDSPVolume(xindex,InIndex,FVolume,FVolume,True); /// Set volume
     if FMeter then uos_InputSetLevelEnable(xindex,InIndex,1);
     if FCalcLoop then uos_LoopProcIn(xindex,InIndex,@LoopPlayer);
-    uos_Play(xindex);  /////// everything is ready to play...
+    if FNoFreeOnStop then uos_PlayNoFree(xindex) else uos_Play(xindex);  /////// everything is ready to play...
   end else if FMode=moInfo then
   begin
     (* INFO *)
