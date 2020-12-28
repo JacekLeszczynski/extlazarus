@@ -42,7 +42,10 @@ uses
   {$endif}
   
 {$IF DEFINED(synthesizer)}
-const // musical note ==> frequency in hertz
+const
+// musical note ==> frequency in hertz
+// Latin: Do, Ré, Mi, Fa, Sol, La, Si 
+// Dièse = _d example la0_d 
 la0  = 55.0; 
 la0_d = 58.3;
 si0 = 61.7;
@@ -104,6 +107,70 @@ fa4_d = 1480.0;
 sol4 = 1568.0;
 sol4_d = 1661.2;
 la5 = 1760.0;
+
+// English musique note
+// A, B, C, D, E, F, G
+a0  = 55.0; 
+a0_s = 58.3;
+b0 = 61.7;
+c0 =  65.4;
+c0_s = 69.3;
+d0 = 73.4;
+d0_s =77.8;
+e0  =82.4;
+f0  = 87.3; 
+f0_s = 92.5;
+g0 = 98.0;
+g0_s = 103.8;
+a1  = 110.0; 
+a1_s = 116.5;
+b1 = 123.5;
+c1 =  130.8;
+c1_s = 138.6;
+d1 = 146.8;
+d1_s =155.6;
+e1  =164.8;
+f1  = 174.6; 
+f1_s = 185.0;
+g1 = 196.0;
+g1_s = 207.7;
+a2 = 220.0; 
+a2_s = 233.1;
+b2 = 2246.9;
+c2 =  261.6;
+c2_s = 277.2;
+d2 = 293.7;
+d2_s =311.1;
+e2  =329.6;
+f2  = 349.2; 
+f2_s = 370.0;
+g2 = 392.0;
+g2_s = 415.3;
+a3  = 440.0;
+a3_s = 466.2;
+b3 = 493.9;
+c3 =  523.3;
+c3_s = 554.4;
+d3 = 587.3;
+d3_s = 622.3;
+e3 = 659.3;
+f3  = 698.5;
+f3_s = 740.0;
+g3 = 784.0;
+g3_s = 830.6;
+a4 = 880.0;
+a4_s = 932.4;
+b4 = 987.8;
+c4 =  1046.6;
+c4_s = 1108.8;
+d4 = 1174.6;
+d4_s = 1244.6;
+e4 = 1318.6;
+f4  = 1397.0;
+f4_s = 1480.0;
+g4 = 1568.0;
+g4_s = 1661.2;
+a5 = 1760.0;
 {$endif}
 
   type
@@ -390,28 +457,44 @@ function uos_AddFromEndlessMuted(PlayerIndex: cint32; Channels : cint32; FramesC
 // Channels = Channels of input-to-follow.
  
 {$IF DEFINED(synthesizer)}
-function uos_AddFromSynth(PlayerIndex: cint32; Frequency: float; VolumeL: float; VolumeR: float;
-Duration : cint32;  OutputIndex: cint32;
-  SampleFormat: cint32 ; SampleRate: cint32 ; FramesCount : cint32): cint32;
+function uos_AddFromSynth(PlayerIndex: cint32; Channels: integer; WaveTypeL, WaveTypeR: integer;
+ FrequencyL, FrequencyR: float; VolumeL, VolumeR: float;
+ duration : cint32; NbHarmonics: cint32; EvenHarmonics: cint32;
+ OutputIndex: cint32;  SampleFormat: cint32 ; SampleRate: cint32 ; FramesCount : cint32): cint32;
 // Add a input from Synthesizer with custom parameters
-// Frequency : default : -1 (440 htz)
-// VolumeL : default : -1 (= 1) (from 0 to 1) => volume left
-// VolumeR : default : -1 (= 1) (from 0 to 1) => volume right
-// Duration : default :  -1 (= 1000)  => duration in msec (0 = endless)
-// OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
-// SampleFormat : default : -1 (0: Float32) (0: Float32, 1:Int32, 2:Int16)
-// SampleRate : delault : -1 (44100)
-// FramesCount : -1 default : 1024
-//  result :  Input Index in array  -1 = error
-// example : InputIndex1 := AddFromSynth(0,880,-1,-1,-1,-1,-1,-1);
-  
-procedure uos_InputSetSynth(PlayerIndex: cint32; InputIndex: cint32; Frequency: float;
- VolumeL: float; VolumeR: float; Duration: cint32; Enable : boolean);
-// Frequency : in Hertz (-1 = do not change)
-// VolumeL :  from 0 to 1 (-1 = do not change)
-// VolumeR :  from 0 to 1 (-1 = do not change)
-// Duration : in msec (-1 = do not change)
-// Enabled : true or false ;
+// Channels: default: -1 (2) (1 = mono, 2 = stereo)
+// WaveTypeL: default: -1 (0) (0 = sine-wave 1 = square-wave, used for mono and stereo) 
+// WaveTypeR: default: -1 (0) (0 = sine-wave 1 = square-wave, used for stereo, ignored for mono) 
+// FrequencyL: default: -1 (440 htz) (Left frequency, used for mono)
+// FrequencyR: default: -1 (440 htz) (Right frequency, used for stereo, ignored for mono)
+// VolumeL: default: -1 (= 1) (from 0 to 1) => volume left
+// VolumeR: default: -1 (= 1) (from 0 to 1) => volume rigth (ignored for mono)
+// Duration: default:  -1 (= 1000)  => duration in msec (0 = endless)
+// NbHarmonics: default:  -1 (= 0) Number of Harmonics
+// EvenHarmonics: default: -1 (= 0) (0 = all harmonics, 1 = Only even harmonics)
+// OutputIndex: Output index of used output
+            // -1: all output, -2: no output, other cint32 refer to 
+            // a existing OutputIndex 
+            // (if multi-output then OutName = name of each output separeted by ';')
+// SampleFormat: default : -1 (0: Float32) (0: Float32, 1:Int32, 2:Int16)
+// SampleRate: delault : -1 (44100)
+// FramesCount: -1 default : 1024
+//  result:  Input Index in array  -1 = error
+
+procedure uos_InputSetSynth(PlayerIndex: cint32; InputIndex: cint32; WaveTypeL, WaveTypeR: integer;
+ FrequencyL, FrequencyR: float; VolumeL, VolumeR: float; duration: cint32; 
+  NbHarmonic: cint32; EvenHarmonics: cint32; Enable: boolean);
+// InputIndex: one existing input index   
+// WaveTypeL: do not change: -1 (0 = sine-wave 1 = square-wave, used for mono and stereo) 
+// WaveTypeR: do not change: -1 (0 = sine-wave 1 = square-wave, used for stereo, ignored for mono) 
+// FrequencyL: do not change: -1 (Left frequency, used for mono)
+// FrequencyR: do not change: -1 (440 htz) (Right frequency, used for stereo, ignored for mono)
+// VolumeL: do not change: -1 (= 1) (from 0 to 1) => volume left
+// VolumeR: do not change: -1 (from 0 to 1) => volume rigth (ignored for mono)
+// Duration: in msec (-1 = do not change)
+// NbHarmonic: Number of Harmonics (-1 not change)
+// EvenHarmonics: default: -1 (= 0) (0 = all harmonics, 1 = Only even harmonics)
+// Enable: true or false ;
 {$endif}
   
 procedure uos_BeginProc(PlayerIndex: cint32; Proc: TProc);
@@ -542,67 +625,86 @@ procedure uos_OutputSetDSP(PlayerIndex: cint32; OutputIndex: cint32; DSPoutIndex
 // Enable :  DSP enabled
 // example : uos_OutputSetDSP(0,OutputIndex1,DSPoutIndex1,True);
 
-function uos_InputAddFilter(PlayerIndex: cint32; InputIndex: cint32; LowFrequency: cint32;
-  HighFrequency: cint32; Gain: cfloat; TypeFilter: cint32;
-  AlsoBuf: boolean; Proc: TProc): cint32 ;
-// PlayerIndex : Index of a existing Player
+function uos_InputAddFilter(PlayerIndex: cint32; InputIndex: cint32;
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc): cint32;
 // InputIndex : InputIndex of a existing Input
-// LowFrequency : Lowest frequency of filter
-// HighFrequency : Highest frequency of filter
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : default = -1 = fBandSelect (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
-//  result : index of DSPIn in array  -1 = error
-// example :FilterInIndex1 := uos_InputAddFilter(0,InputIndex1,6000,16000,1,2,true,nil);
+// LoopProc : external procedure of object to synchronize after DSP done
+//  result :  index of DSPIn in array
 
-procedure uos_InputSetFilter(PlayerIndex: cint32; InputIndex: cint32; FilterIndex: cint32;
-  LowFrequency: cint32; HighFrequency: cint32; Gain: cfloat;
-  TypeFilter: cint32; AlsoBuf: boolean; Enable: boolean; Proc: TProc);
-// PlayerIndex : Index of a existing Player
+procedure uos_InputSetFilter(PlayerIndex: cint32; InputIndex: cint32; FilterIndex: cint32;  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc; Enable: boolean);
 // InputIndex : InputIndex of a existing Input
 // DSPInIndex : DSPInIndex of existing DSPIn
-// LowFrequency : Lowest frequency of filter ( -1 : current LowFrequency )
-// HighFrequency : Highest frequency of filter ( -1 : current HighFrequency )
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
+// LoopProc : external procedure of object to synchronize after DSP done
 // Enable :  Filter enabled
-// example : uos_InputSetFilter(0,InputIndex1,FilterInIndex1,-1,-1,-1,False,True,nil);
 
-function uos_OutputAddFilter(PlayerIndex: cint32; OutputIndex: cint32; LowFrequency: cint32;
-  HighFrequency: cint32; Gain: cfloat; TypeFilter: cint32;
-  AlsoBuf: boolean; Proc: TProc): cint32;
-// PlayerIndex : Index of a existing Player
-// OutputIndex : OutputIndex of a existing Output
-// LowFrequency : Lowest frequency of filter
-// HighFrequency : Highest frequency of filter
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : default = -1 = fBandSelect (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+function uos_OutputAddFilter(PlayerIndex: cint32; OutputIndex: cint32; 
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc): cint32;
+// Output : InputIndex of a existing Output
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
-//  result : index of DSPOut in array  -1 = error
-// example :FilterOutIndex1 := uos_OutputAddFilter(0,OutputIndex1,6000,16000,1,true,nil);
+// LoopProc : external procedure of object to synchronize after DSP done
+//  result :  index of DSPIn in array
 
 procedure uos_OutputSetFilter(PlayerIndex: cint32; OutputIndex: cint32; FilterIndex: cint32;
-  LowFrequency: cint32; HighFrequency: cint32; Gain: cfloat;
-  TypeFilter: cint32; AlsoBuf: boolean; Enable: boolean; Proc: TProc);
-// PlayerIndex : Index of a existing Player
-// OutputIndex : OutputIndex of a existing Output
-// FilterIndex : DSPOutIndex of existing DSPOut
-// LowFrequency : Lowest frequency of filter ( -1 : current LowFrequency )
-// HighFrequency : Highest frequency of filter ( -1 : current HighFrequency )
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc; Enable: boolean);
+// OuputIndex : InputIndex of a existing Output
+// DSPInIndex : DSPInIndex of existing DSPIn
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
+// LoopProc : external procedure of object to synchronize after DSP done
 // Enable :  Filter enabled
-// LoopProc : External procedure to execute after DSP done
-// example : uos_OutputSetFilter(0,OutputIndex1,FilterOutIndex1,1000,1500,-1,True,True,nil);
 
 function uos_AddPlugin(PlayerIndex: cint32; PlugName: PChar; SampleRate: cint32;
   Channels: cint32): cint32 ;
@@ -1103,96 +1205,124 @@ begin
 uosPlayers[PlayerIndex].OutputSetDSP(OutputIndex, DSPoutIndex, Enable) ;
 end;
 
-function uos_InputAddFilter(PlayerIndex: cint32; InputIndex: cint32; LowFrequency: cint32;
-  HighFrequency: cint32; Gain: cfloat; TypeFilter: cint32;
-  AlsoBuf: boolean; Proc: TProc): cint32;
-// PlayerIndex : Index of a existing Player
+function uos_InputAddFilter(PlayerIndex: cint32; InputIndex: cint32;
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc): cint32;
 // InputIndex : InputIndex of a existing Input
-// LowFrequency : Lowest frequency of filter
-// HighFrequency : Highest frequency of filter
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : default = -1 = fBandSelect (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
-//  result :  index of DSPIn in array  -1 = error
-// example :FilterInIndex1 := uos_InputAddFilter(0,InputIndex1,6000,16000,1,2,true,nil);
+//  result :  index of DSPIn in array
 begin
  result := -1 ;
   if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-result := uosPlayers[PlayerIndex].InputAddFilter(InputIndex, LowFrequency, HighFrequency, Gain, TypeFilter,
-  AlsoBuf, Proc) ;
+result := uosPlayers[PlayerIndex].InputAddFilter(InputIndex, 
+          TypeFilterL, LowFrequencyL, HighFrequencyL, GainL,
+          TypeFilterR, LowFrequencyR, HighFrequencyR, GainR, AlsoBuf, LoopProc) ;
 end;
 
 procedure uos_InputSetFilter(PlayerIndex: cint32; InputIndex: cint32; FilterIndex: cint32;
-  LowFrequency: cint32; HighFrequency: cint32; Gain: cfloat;
-  TypeFilter: cint32; AlsoBuf: boolean; Enable: boolean; Proc: TProc);
-// PlayerIndex : Index of a existing Player
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc; Enable: boolean);
 // InputIndex : InputIndex of a existing Input
 // DSPInIndex : DSPInIndex of existing DSPIn
-// LowFrequency : Lowest frequency of filter ( -1 : current LowFrequency )
-// HighFrequency : Highest frequency of filter ( -1 : current HighFrequency )
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
+// LoopProc : external procedure of object to synchronize after DSP done
 // Enable :  Filter enabled
-// example : uos_InputSetFilter(0,InputIndex1,FilterInIndex1,-1,-1,-1,False,True,nil);
+
 begin
 if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-  uosPlayers[PlayerIndex].InputSetFilter(InputIndex, FilterIndex, LowFrequency, HighFrequency, Gain,
-  TypeFilter, AlsoBuf, Enable, Proc);
+  uosPlayers[PlayerIndex].InputSetFilter(InputIndex, FilterIndex, 
+  TypeFilterL, LowFrequencyL, HighFrequencyL, GainL,
+  TypeFilterR, LowFrequencyR, HighFrequencyR, GainR,
+  AlsoBuf, LoopProc, Enable);
 end;
 
-function uos_OutputAddFilter(PlayerIndex: cint32; OutputIndex: cint32; LowFrequency: cint32;
-  HighFrequency: cint32; Gain: cfloat; TypeFilter: cint32;
-  AlsoBuf: boolean; Proc: TProc): cint32;
-// PlayerIndex : Index of a existing Player
-// OutputIndex : OutputIndex of a existing Output
-// LowFrequency : Lowest frequency of filter
-// HighFrequency : Highest frequency of filter
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : default = -1 = fBandSelect (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+function uos_OutputAddFilter(PlayerIndex: cint32; OutputIndex: cint32;
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc): cint32;
+// Output : InputIndex of a existing Output
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
-// LoopProc : External procedure to execute after DSP done
-//  result : index of DSPOut in array
-// example :FilterOutIndex1 := uos_OutputAddFilter(0,OutputIndex1,6000,16000,1,true,nil);
+// LoopProc : external procedure of object to synchronize after DSP done
+//  result :  index of DSPIn in array
 begin
  result := -1 ;
 if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-result := uosPlayers[PlayerIndex].OutputAddFilter(OutputIndex, LowFrequency, HighFrequency, Gain, TypeFilter,
-  AlsoBuf, Proc) ;
+  
+result := uosPlayers[PlayerIndex].OutputAddFilter(OutputIndex, 
+          TypeFilterL, LowFrequencyL, HighFrequencyL, GainL,
+          TypeFilterR, LowFrequencyR, HighFrequencyR, GainR, AlsoBuf, LoopProc) ;
+  
 end;
 
 procedure uos_OutputSetFilter(PlayerIndex: cint32; OutputIndex: cint32; FilterIndex: cint32;
-  LowFrequency: cint32; HighFrequency: cint32; Gain: cfloat;
-  TypeFilter: cint32; AlsoBuf: boolean; Enable: boolean; Proc: TProc);
-// PlayerIndex : Index of a existing Player
-// OutputIndex : OutputIndex of a existing Output
-// FilterIndex : DSPOutIndex of existing DSPOut
-// LowFrequency : Lowest frequency of filter ( -1 : current LowFrequency )
-// HighFrequency : Highest frequency of filter ( -1 : current HighFrequency )
-// Gain : gain to apply to filter
-// TypeFilter: Type of filter : ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
-// fBandPass = 3, fHighPass = 4, fLowPass = 5)
+  TypeFilterL: shortint; LowFrequencyL, HighFrequencyL, GainL: cfloat;
+  TypeFilterR: shortint; LowFrequencyR, HighFrequencyR, GainR: cfloat;
+     AlsoBuf: boolean; LoopProc: TProc; Enable: boolean);
+// OuputIndex : InputIndex of a existing Output
+// DSPInIndex : DSPInIndex of existing DSPIn
+// TypeFilterL: Type of filter left: 
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+          // fBandPass = 3, fLowPass = 4, fHighPass = 5)
+// LowFrequencyL : Lowest frequency left( -1 : current LowFrequency )
+// HighFrequencyL : Highest frequency left( -1 : current HighFrequency )
+// GainL : gain left to apply to filter
+// TypeFilterR: Type of filter right (ignored if mono):
+          // ( -1 = current filter ) (fBandAll = 0, fBandSelect = 1, fBandReject = 2
+// LowFrequencyR : Lowest frequency Right (ignored if mono) ( -1 : current LowFrequency )
+// HighFrequencyR : Highest frequency left( -1 : current HighFrequency )
+// GainR : gain right (ignored if mono) to apply to filter ( 0 to what reasonable )
 // AlsoBuf : The filter alter buffer aswell ( otherwise, only result is filled in fft.data )
+// LoopProc : external procedure of object to synchronize after DSP done
 // Enable :  Filter enabled
-// LoopProc : External procedure to execute after DSP done
-// example : uos_OutputSetFilter(0,OutputIndex1,FilterOutIndex1,1000,1500,-1,True,True,nil);
 begin
 if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-  uosPlayers[PlayerIndex].OutputSetFilter(OutputIndex, FilterIndex, LowFrequency, HighFrequency, Gain,
-  TypeFilter, AlsoBuf, Enable, Proc);
+  uosPlayers[PlayerIndex].OutputSetFilter(OutputIndex, FilterIndex, 
+  TypeFilterL, LowFrequencyL, HighFrequencyL, GainL,
+  TypeFilterR, LowFrequencyR, HighFrequencyR, GainR,
+  AlsoBuf, LoopProc, Enable);
 end;
 
 {$IF DEFINED(portaudio)}
@@ -1245,41 +1375,60 @@ function uos_AddFromEndlessMuted(PlayerIndex: cint32; Channels : cint32; FramesC
 end; 
 
 {$IF DEFINED(synthesizer)}
-function uos_AddFromSynth(PlayerIndex: cint32; Frequency: float; VolumeL: float; VolumeR: float;
-Duration : cint32;  OutputIndex: cint32;
-  SampleFormat: cint32 ; SampleRate: cint32 ; FramesCount : cint32): cint32;
+function uos_AddFromSynth(PlayerIndex: cint32; Channels: integer; WaveTypeL, WaveTypeR: integer;
+ FrequencyL, FrequencyR: float; VolumeL, VolumeR: float;
+ duration : cint32; NbHarmonics: cint32; EvenHarmonics: cint32;
+ OutputIndex: cint32;  SampleFormat: cint32 ; SampleRate: cint32 ; FramesCount : cint32): cint32;
 // Add a input from Synthesizer with custom parameters
-// Frequency : default : -1 (440 htz)
-// VolumeL : default : -1 (= 1) (from 0 to 1) => volume left
-// VolumeR : default : -1 (= 1) (from 0 to 1) => volume right
-// Duration : default :  -1 (= 1000)  => duration in msec (0 = endless)
-// OutputIndex : Output index of used output// -1: all output, -2: no output, other cint32 refer to a existing OutputIndex  (if multi-output then OutName = name of each output separeted by ';')
-// SampleFormat : default : -1 (0: Float32) (0: Float32, 1:Int32, 2:Int16)
-// SampleRate : delault : -1 (44100)
-// FramesCount : -1 default : 1024
-//  result :  Input Index in array  -1 = error
-// example : InputIndex1 := AddFromSynth(0,880,-1,-1,-1,-1,-1,-1);
+// Channels: default: -1 (2) (1 = mono, 2 = stereo)
+// WaveTypeL: default: -1 (0) (0 = sine-wave 1 = square-wave, used for mono and stereo) 
+// WaveTypeR: default: -1 (0) (0 = sine-wave 1 = square-wave, used for stereo, ignored for mono) 
+// FrequencyL: default: -1 (440 htz) (Left frequency, used for mono)
+// FrequencyR: default: -1 (440 htz) (Right frequency, used for stereo, ignored for mono)
+// VolumeL: default: -1 (= 1) (from 0 to 1) => volume left
+// VolumeR: default: -1 (= 1) (from 0 to 1) => volume rigth (ignored for mono)
+// Duration: default:  -1 (= 1000)  => duration in msec (0 = endless)
+// NbHarmonics: default:  -1 (= 0) Number of Harmonics
+// EvenHarmonics: default: -1 (= 0) (0 = all harmonics, 1 = Only even harmonics)
+// OutputIndex: Output index of used output
+            // -1: all output, -2: no output, other cint32 refer to 
+            // a existing OutputIndex 
+            // (if multi-output then OutName = name of each output separeted by ';')
+// SampleFormat: default : -1 (0: Float32) (0: Float32, 1:Int32, 2:Int16)
+// SampleRate: delault : -1 (44100)
+// FramesCount: -1 default : 1024
+//  result:  Input Index in array  -1 = error
  begin
   result := -1 ;
   if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-  Result :=  uosPlayers[PlayerIndex].AddFromSynth(Frequency, VolumeL, VolumeR, Duration, OutputIndex,
+  Result :=  uosPlayers[PlayerIndex].AddFromSynth(Channels,WaveTypeL, WaveTypeR, FrequencyL,
+   FrequencyR, VolumeL, VolumeR, Duration, NbHarmonics, EvenHarmonics, OutputIndex,
   SampleFormat, SampleRate,  FramesCount) ;
 end;
 
-procedure uos_InputSetSynth(PlayerIndex: cint32; InputIndex: cint32; Frequency: float;
- VolumeL: float; VolumeR: float; Duration: cint32; Enable : boolean);
-// Frequency : in Hertz (-1 = do not change)
-// VolumeL :  from 0 to 1 (-1 = do not change)
-// VolumeR :  from 0 to 1 (-1 = do not change)
-// Duration : in msec (-1 = do not change)
-// Enabled : true or false ;
+procedure uos_InputSetSynth(PlayerIndex: cint32; InputIndex: cint32; WaveTypeL, WaveTypeR: integer;
+ FrequencyL, FrequencyR: float; VolumeL, VolumeR: float; duration: cint32; 
+  NbHarmonic: cint32; EvenHarmonics: cint32; Enable: boolean);
+// InputIndex: one existing input index   
+// WaveTypeL: do not change: -1 (0 = sine-wave 1 = square-wave, used for mono and stereo) 
+// WaveTypeR: do not change: -1 (0 = sine-wave 1 = square-wave, used for stereo, ignored for mono) 
+// FrequencyL: do not change: -1 (Left frequency, used for mono)
+// FrequencyR: do not change: -1 (440 htz) (Right frequency, used for stereo, ignored for mono)
+// VolumeL: do not change: -1 (= 1) (from 0 to 1) => volume left
+// VolumeR: do not change: -1 (from 0 to 1) => volume rigth (ignored for mono)
+// Duration: in msec (-1 = do not change)
+// NbHarmonic: Number of Harmonics (-1 not change)
+// EvenHarmonics: default: -1 (= 0) (0 = all harmonics, 1 = Only even harmonics)
+// Enable: true or false;
+
   begin
   if (length(uosPlayers) > 0) and (PlayerIndex +1 <= length(uosPlayers)) then
   if  uosPlayersStat[PlayerIndex] = 1 then
   if assigned(uosPlayers[PlayerIndex]) then
-  uosPlayers[PlayerIndex].InputSetSynth(InputIndex, Frequency, VolumeL, VolumeR, Duration, Enable) ;
+  uosPlayers[PlayerIndex].InputSetSynth(InputIndex, WaveTypeL, WaveTypeR ,
+   FrequencyL, FrequencyR, VolumeL, VolumeR, Duration, NbHarmonic, EvenHarmonics, Enable) ;
 end;
 {$endif}
 
