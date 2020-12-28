@@ -67,6 +67,7 @@ type
     QVolume: double;
     QTT: integer;
     xindex: integer;
+    FStarting: boolean;
     procedure SetDevIndex(AValue: cardinal);
     procedure SetMode(AValue: TUOSPlayerMode);
     procedure SetMute(AValue: boolean);
@@ -83,6 +84,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Start(aMemoryStream: TMemoryStream = nil);
+    function Starting: boolean;
     procedure Stop(aForce: boolean = false);
     procedure Pause;
     procedure Replay;
@@ -168,6 +170,7 @@ end;
 
 procedure TUOSPlayer._init;
 begin
+  FStarting:=false;
   FBusy:=false;
   FPause:=false;
   FPauseing:=false;
@@ -252,6 +255,7 @@ begin
   QFORCE:=false;
   QFORCEEXIT:=false;
   QFORCEFPPS:=false;
+  FStarting:=true;
 
   if FSleepForPlay>0 then
   begin
@@ -403,6 +407,7 @@ begin
   FBusy:=true;
   FPause:=false;
   FPauseing:=false;
+  FStarting:=false;
 end;
 
 procedure TUOSPlayer.SetMode(AValue: TUOSPlayerMode);
@@ -507,6 +512,11 @@ begin
   end;
   wewnStart(aMemoryStream);
   if Assigned(FAfterStart) then FAfterStart(Self);
+end;
+
+function TUOSPlayer.Starting: boolean;
+begin
+  result:=FStarting;
 end;
 
 procedure TUOSPlayer.Stop(aForce: boolean);

@@ -9,6 +9,7 @@ uses
 
 type
   TNetSocketMode = (smServer, smClient);
+  TNetSocketProto = (spTCP, spUDP);
   TNetSocketSecurity = (ssNone, ssSSL, ssCrypt);
   TNetSocketSSLMethod = TLSSLMethod;
   TNetSocketOnASocket = procedure(aSocket: TLSocket) of object;
@@ -42,6 +43,7 @@ type
     FOnSSLConnect: TNetSocketOnASocket;
     FOnStatus: TNetSocketOnStatus;
     FPort: Word;
+    FProto: TNetSocketProto;
     FReuseAddress: boolean;
     FSecurity: TNetSocketSecurity;
     FSSLCAFile: string;
@@ -50,6 +52,7 @@ type
     FSSLPassword: string;
     FTimeout: integer;
     tcp: TLTCPComponent;
+    udp: TLUDPComponent;
     ssl: TLSSLSessionComponent;
     ntp_count,ntp_srednia,ntp_t1: integer;
     function GetCount: integer;
@@ -67,12 +70,13 @@ type
     destructor Destroy; override;
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
-    procedure SendString(const aMessage: string; aSocket: TLSocket = nil);
+    function SendString(const aMessage: string; aSocket: TLSocket = nil): integer;
     function SendBinary(const aBinary; aSize: integer): integer;
     procedure GetTimeVector;
     function GetGUID: string;
   published
     property Mode: TNetSocketMode read FMode write FMode;
+    property Protocol: TNetSocketProto read FProto write FProto default spTCP;
     property Security: TNetSocketSecurity read FSecurity write FSecurity;
     property BinaryMode: boolean read FBinary write FBinary;
     {Po połączeniu w kliencie wykonaj:
@@ -88,18 +92,25 @@ type
     property SSLPassword: string read FSSLPassword write FSSLPassword;
     {Działa gdy AutoRegister jest ustawiony.}
     property Count: integer read GetCount;
-    {Server: Gdy serwer zaakceptuje połączenie.}
+    {Server: Gdy serwer zaakceptuje połączenie.
+     Dostępne: tcp}
     property OnAccept: TNetSocketOnASocket read FOnAccept write FOnAccept;
+    {Dostępne: tcp/udp}
     property OnCanSend: TNetSocketOnASocket read FOnCanSend write FOnCanSend;
     {Wymagana pozycja!
      Adding this:
      -> Application.ProcessMessage <-}
     property OnProcessMessage: TNetSocketOnASocketNull read FGoPM write FGoPM;
-    {Client: Po połączeniu się z serwerem.}
+    {Client: Po połączeniu się z serwerem.
+     Dostępne: tcp}
     property OnConnect: TNetSocketOnASocket read FOnConnect write FOnConnect;
+    {Dostępne: tcp/udp*}
     property OnDisconnect: TNetSocketOnASocketNull read FOnDisconnect write FOnDisconnect;
+    {Dostępne: tcp/udp}
     property OnError: TNetSocketOnConstStringASocket read FOnError write FOnError;
+    {Dostępne: tcp/udp}
     property OnReceive: TNetSocketOnASocket read FOnReceive write FOnReceive;
+    {Dostępne: tcp/udp}
     property OnReceiveString: TNetSocketOnReceiveStringASocket read FOnReceiveString write FOnReceiveString;
     property OnStatus: TNetSocketOnStatus read FOnStatus write FOnStatus;
     property OnCryptString: TNetSocketOnCryptDecryptString read FOnCryptString write FOnCryptString;
@@ -171,7 +182,10 @@ function TNetSocket.GetCount: integer;
 var
   i: integer;
 begin
-  if FActive then result:=tcp.Count-1 else result:=0;
+  if FActive then
+  begin
+    if FProto=spTCP then result:=tcp.Count-1 else result:=udp.Count-1;
+  end else result:=0;
 end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
@@ -254,6 +268,7 @@ begin
   FCrypt:=false;
   FSecurity:=ssNone;
   FMode:=smServer;
+  FProto:=spTCP;
   FBinary:=false;
   FHost:='';
   FPort:=0;
@@ -271,15 +286,28 @@ end;
 function TNetSocket.Connect: boolean;
 begin
   if FActive then exit;
-  tcp:=TLTCPComponent.Create(nil);
-  tcp.Timeout:=FTimeout;
-  tcp.ReuseAddress:=FReuseAddress;
-  tcp.OnAccept:=@_OnAccept;
-  if Assigned(FOnCanSend) then tcp.OnCanSend:=@_OnCanSend;
-  if Assigned(FOnConnect) then tcp.OnConnect:=@_OnConnect;
-  tcp.OnDisconnect:=@_OnDisconnect;
-  tcp.OnError:=@_OnError;
-  tcp.OnReceive:=@_OnReceive;
+  (* ustawianie objektów *)
+  if FProto=spTCP then
+  begin
+    tcp:=TLTCPComponent.Create(nil);
+    tcp.Timeout:=FTimeout;
+    tcp.ReuseAddress:=FReuseAddress;
+    tcp.OnAccept:=@_OnAccept;
+    if Assigned(FOnCanSend) then tcp.OnCanSend:=@_OnCanSend;
+    if Assigned(FOnConnect) then tcp.OnConnect:=@_OnConnect;
+    tcp.OnDisconnect:=@_OnDisconnect;
+    tcp.OnError:=@_OnError;
+    tcp.OnReceive:=@_OnReceive;
+  end else begin
+    udp:=TLUDPComponent.Create(nil);
+    udp.Timeout:=FTimeout;
+    udp.ReuseAddress:=FReuseAddress;
+    if Assigned(FOnCanSend) then udp.OnCanSend:=@_OnCanSend;
+    udp.OnDisconnect:=@_OnDisconnect;
+    udp.OnError:=@_OnError;
+    udp.OnReceive:=@_OnReceive;
+  end;
+  (* ustawienia SSL *)
   if FSecurity=ssSSL then
   begin
     ssl:=TLSSLSessionComponent.Create(nil);
@@ -291,17 +319,30 @@ begin
     ssl.Password:=FSSLPassword;
     ssl.SSLActive:=true;
   end;
-  if FMode=smServer then FActive:=tcp.Listen(FPort) else
+  (* ustanowienie połączenia*)
+  if FProto=spTCP then
   begin
-    FActive:=tcp.Connect(FHost,FPort);
-    sleep(250);
-    if Assigned(FGoPM) then FGoPM;
-    FActive:=tcp.Connected;
+    if FMode=smServer then FActive:=tcp.Listen(FPort) else
+    begin
+      FActive:=tcp.Connect(FHost,FPort);
+      sleep(250);
+      if Assigned(FGoPM) then FGoPM;
+      FActive:=tcp.Connected;
+    end;
+  end else begin
+    if FMode=smServer then FActive:=udp.Listen(FPort) else
+    begin
+      FActive:=udp.Connect(FHost,FPort);
+      sleep(250);
+      if Assigned(FGoPM) then FGoPM;
+      FActive:=udp.Connected;
+    end;
   end;
+  (* jeśli nie uzyskano połączenia *)
   if not FActive then
   begin
     if FSecurity=ssSSL then ssl.Free;
-    tcp.Free;
+    if FProto=spTCP then tcp.Free else udp.Free;
   end;
   FCrypt:=(FSecurity=ssCrypt) and FActive;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
@@ -311,41 +352,64 @@ end;
 procedure TNetSocket.Disconnect(aForce: boolean);
 begin
   if not FActive then exit;
-  tcp.Disconnect(aForce);
+  if FProto=spTCP then tcp.Disconnect(aForce) else udp.Disconnect(aForce);
   sleep(250);
   if FSecurity=ssSSL then ssl.Free;
-  tcp.Free;
+  if FProto=spTCP then tcp.Free else udp.Free;
   FActive:=false;
   FCrypt:=false;
   if Assigned(FOnDisconnect) then FOnDisconnect;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
 
-procedure TNetSocket.SendString(const aMessage: string; aSocket: TLSocket);
+function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket
+  ): integer;
 var
   s: string;
+  c: integer;
 begin
   if not FActive then exit;
+  c:=0;
   s:=aMessage;
   if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
-  if FMode=smServer then
+  if FProto=spTCP then
   begin
-    if aSocket=nil then
+    (* TCP *)
+    if FMode=smServer then
     begin
-      tcp.IterReset;
-      while tcp.IterNext do tcp.SendMessage(s+#10,tcp.Iterator);
-    end else aSocket.SendMessage(s+#10);
-  end else tcp.SendMessage(s+#10);
+      if aSocket=nil then
+      begin
+        tcp.IterReset;
+        while tcp.IterNext do c:=c+tcp.SendMessage(s+#10,tcp.Iterator);
+      end else c:=aSocket.SendMessage(s+#10);
+    end else c:=tcp.SendMessage(s+#10);
+  end else begin
+    (* UDP *)
+    if aSocket=nil then c:=udp.SendMessage(s+#10,LADDR_BR) else c:=aSocket.SendMessage(s+#10);
+  end;
+  result:=c;
 end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer): integer;
+var
+  c: integer;
 begin
   if not FActive then exit;
-  if FMode=smServer then
+  c:=0;
+  if FProto=spTCP then
   begin
-    tcp.IterReset;
-    while tcp.IterNext do result:=tcp.Send(aBinary,aSize,tcp.Iterator);
-  end else result:=tcp.Send(aBinary,aSize);
+    (* TCP *)
+    if FMode=smServer then
+    begin
+      tcp.IterReset;
+      while tcp.IterNext do c:=c+tcp.Send(aBinary,aSize,tcp.Iterator);
+    end else c:=tcp.Send(aBinary,aSize);
+  end else begin
+    (* UDP *)
+    c:=udp.Send(aBinary,aSize);
+    //c:=udp.Send(aBinary,aSize,LADDR_BR);
+  end;
+  result:=c;
 end;
 
 procedure TNetSocket.GetTimeVector;
