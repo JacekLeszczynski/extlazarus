@@ -364,7 +364,11 @@ begin
     if FMute then a:=0 else a:=GetMixVolume;
 
     if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName))
-    else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
+    else uos_AddIntoMemoryStream(xindex,aMemoryStream,
+    {sample rate} -1,
+    {sample format} -1,
+    {channels} -1,
+    {framecount} -1);
     {function uos_AddIntoMemoryStream(PlayerIndex: cint32; MemoryStream: TMemoryStream; SampleRate: LongInt;
            SampleFormat: LongInt ; Channels: LongInt; FramesCount: LongInt): LongInt;
      Add a Output into TMemoryStream

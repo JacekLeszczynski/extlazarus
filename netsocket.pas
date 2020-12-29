@@ -13,6 +13,7 @@ type
   TNetSocketSecurity = (ssNone, ssSSL, ssCrypt);
   TNetSocketSSLMethod = TLSSLMethod;
   TNetSocketOnASocket = procedure(aSocket: TLSocket) of object;
+  TNetSocketOnCanSend = procedure(aSocket: TLSocket; aValue: string) of object;
   TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
   TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket) of object;
@@ -31,7 +32,7 @@ type
     FHost: string;
     FMode: TNetSocketMode;
     FOnAccept: TNetSocketOnASocket;
-    FOnCanSend: TNetSocketOnASocket;
+    FOnCanSend: TNetSocketOnCanSend;
     FOnConnect: TNetSocketOnASocket;
     FOnCryptString: TNetSocketOnCryptDecryptString;
     FOnDecryptString: TNetSocketOnCryptDecryptString;
@@ -74,6 +75,7 @@ type
     function SendBinary(const aBinary; aSize: integer): integer;
     procedure GetTimeVector;
     function GetGUID: string;
+    procedure SendCanSendMessage(aSocket: TLSocket; aValue: string);
   published
     property Mode: TNetSocketMode read FMode write FMode;
     property Protocol: TNetSocketProto read FProto write FProto default spTCP;
@@ -96,7 +98,7 @@ type
      Dostępne: tcp}
     property OnAccept: TNetSocketOnASocket read FOnAccept write FOnAccept;
     {Dostępne: tcp/udp}
-    property OnCanSend: TNetSocketOnASocket read FOnCanSend write FOnCanSend;
+    property OnCanSend: TNetSocketOnCanSend read FOnCanSend write FOnCanSend;
     {Wymagana pozycja!
      Adding this:
      -> Application.ProcessMessage <-}
@@ -190,7 +192,7 @@ end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
 begin
-  FOnCanSend(aSocket);
+  FOnCanSend(aSocket,'');
 end;
 
 procedure TNetSocket._OnConnect(aSocket: TLSocket);
@@ -433,6 +435,11 @@ begin
     s:=GUIDToString(a);
     result:=s;
   end else result:='';
+end;
+
+procedure TNetSocket.SendCanSendMessage(aSocket: TLSocket; aValue: string);
+begin
+  if assigned(FOnCanSend) then FOnCanSend(aSocket,aValue);
 end;
 
 end.
