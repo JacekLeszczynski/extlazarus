@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="45">
+    <Files Count="47">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -232,8 +232,17 @@
       <Item45>
         <Filename Value="extdiff.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="extdiff"/>
+        <UnitName Value="ExtDiff"/>
       </Item45>
+      <Item46>
+        <Filename Value="compressionflyunit.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="compressionflyunit"/>
+      </Item46>
+      <Item47>
+        <Filename Value="rnl.pas"/>
+        <UnitName Value="rnl"/>
+      </Item47>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
