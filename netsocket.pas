@@ -13,7 +13,7 @@ type
   TNetSocketSecurity = (ssNone, ssSSL, ssCrypt);
   TNetSocketSSLMethod = TLSSLMethod;
   TNetSocketOnASocket = procedure(aSocket: TLSocket) of object;
-  TNetSocketOnCanSend = procedure(aSocket: TLSocket; aValue: string) of object;
+  TNetSocketOnCanSend = procedure(aSocket: TLSocket; const aValue: string) of object;
   TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
   TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket) of object;
