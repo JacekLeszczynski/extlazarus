@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="47">
+    <Files Count="48">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -237,12 +237,17 @@
       <Item46>
         <Filename Value="compressionflyunit.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="compressionflyunit"/>
+        <UnitName Value="CompressionFlyUnit"/>
       </Item46>
       <Item47>
         <Filename Value="rnl.pas"/>
-        <UnitName Value="rnl"/>
+        <UnitName Value="RNL"/>
       </Item47>
+      <Item48>
+        <Filename Value="extdbgrid.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtDBGrid"/>
+      </Item48>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>

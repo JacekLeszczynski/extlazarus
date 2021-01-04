@@ -19,6 +19,10 @@ type
   TUOSPlayerMode = (moPlay, moPlayLoop, moRecord, moInfo, moURL);
   {$ENDIF}
 
+  TUOSPlayerSoundOption = (soRaw);
+  TUOSPlayerOptions = set of TUOSPlayerSoundOption;
+  TUOSPlayerSoundFormat = (sfWav,sfFlac,sfOgg,sfMp2,sfMp3);
+
   TUOSPlauerOnStop = procedure(Sender: TObject; aBusy,aPlaying,aPauseing,aPause: boolean) of object;
   TUOSPlauerOnNull = procedure of object;
 
@@ -39,9 +43,11 @@ type
     FBeforeStop: TNotifyEvent;
     FBusy: boolean;
     FCalcLoop: boolean;
+    FChannels: integer;
     FDevEngine: TUOSEngine;
     FFileName: string;
     FDevIndex: cardinal;
+    FSoundFormat: TUOSPlayerSoundFormat;
     //FIntoPlayer: TUOSPlayer;
     FListenMic: boolean;
     FMeter: boolean;
@@ -50,12 +56,13 @@ type
     FNoFreeOnStop: boolean;
     FOnLoop: TNotifyEvent;
     FOnStop: TUOSPlauerOnStop;
+    FOptions: TUOSPlayerOptions;
     FPause,FPausing: boolean;
     FPauseing: boolean;
-    FPlayRawMode: boolean;
     FPosition: boolean;
     FPPS: boolean;
     FProcessMessage: TUOSPlauerOnNull;
+    FSampleRate: integer;
     FSleepForPlay: integer;
     FVolume: double;
     FVolumeGlobal: double;
@@ -129,7 +136,10 @@ type
     //Nie zwalniaj strumienia po zatrzymaniu
     property NoFreeOnStop: boolean read FNoFreeOnStop write FNoFreeOnStop default false;
     //Odtwarzaj strumienie w locie
-    property PlayRawMode: boolean read FPlayRawMode write FPlayRawMode default false;
+    property Option: TUOSPlayerOptions read FOptions write FOptions default [];
+    property SoundFormat: TUOSPlayerSoundFormat read FSoundFormat write FSoundFormat default sfWav;
+    property SampleRate: integer read FSampleRate write FSampleRate default 44100;
+    property Channels: integer read FChannels write FChannels default 2;
     //Opóźnienie startu odtwarzania
     //Wymaga metody OnProcessMessage!
     property SleepForPlay: integer read FSleepForPlay write FSleepForPlay default 0;
@@ -175,7 +185,6 @@ begin
   FPause:=false;
   FPauseing:=false;
   FNoFreeOnStop:=false;
-  FPlayRawMode:=false;
   FSleepForPlay:=0;
   FDevIndex:=0;
   xindex:=0;
@@ -188,6 +197,10 @@ begin
   FMeter:=false;
   FPosition:=false;
   FPPS:=false;
+  FOptions:=[];
+  FSoundFormat:=sfWav;
+  FSampleRate:=44100;
+  FChannels:=2;
 end;
 
 procedure TUOSPlayer.ClosePlayer;
@@ -275,9 +288,10 @@ begin
     QTT:=0;
 
     if aMemoryStream=nil then InIndex:=uos_AddFromFile(xindex,Pchar(FFileName)) else
-    if FPlayRawMode then
+    if soRaw in FOptions then
     begin
       uos_CustBufferInfos(Bufferinfos,44100,2,2,-1);
+      //if FRecFormatOgg then Bufferinfos.SampleFormat:=2;
       InIndex:=uos_AddFromMemoryStreamDec(xindex,aMemoryStream,Bufferinfos,-1,-1);
     end else InIndex:=uos_AddFromMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
 
@@ -363,12 +377,16 @@ begin
     QVolume:=1;
     if FMute then a:=0 else a:=GetMixVolume;
 
-    if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName))
-    else uos_AddIntoMemoryStream(xindex,aMemoryStream,
-    {sample rate} -1,
-    {sample format} -1,
-    {channels} -1,
-    {framecount} -1);
+    if FSoundFormat=sfOgg then
+    begin
+      writeln('OGG');
+      if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName),-1,-1,-1,1024*4,3) //yes - ogg!
+      else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1); //only wave!
+    end else begin
+      writeln('WAV');
+      if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName))
+      else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
+    end;
     {function uos_AddIntoMemoryStream(PlayerIndex: cint32; MemoryStream: TMemoryStream; SampleRate: LongInt;
            SampleFormat: LongInt ; Channels: LongInt; FramesCount: LongInt): LongInt;
      Add a Output into TMemoryStream
