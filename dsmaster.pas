@@ -27,6 +27,8 @@ type
     procedure Open;
     procedure Close;
     procedure Reopen;
+    procedure State(aDataSource: TDataSource; var aActive,aNoEmpty,aEdited: boolean);
+    procedure State(aDataSource: TObject; var aActive,aNoEmpty,aEdited: boolean);
   published
     //Źródło nadrzędne
     property DataSource: TDataSource read FDataSource write FDataSource;
@@ -123,6 +125,27 @@ begin
   finally
     FDataSource.DataSet.EnableControls;
   end;
+end;
+
+procedure TDSMaster.State(aDataSource: TDataSource; var aActive, aNoEmpty,
+  aEdited: boolean);
+var
+  b: TDataSet;
+begin
+  b:=aDataSource.DataSet;
+  aActive:=b.Active and (not (aDataSource.State in [dsEdit,dsInsert]));
+  aNoEmpty:=aActive and (not b.IsEmpty);
+  aEdited:=b.Active and (aDataSource.State in [dsEdit,dsInsert]);
+end;
+
+procedure TDSMaster.State(aDataSource: TObject; var aActive, aNoEmpty,
+  aEdited: boolean);
+var
+  a: TDataSource;
+  b: TDataSet;
+begin
+  a:=TDataSource(aDataSource);
+  State(a,aActive,aNoEmpty,aEdited);
 end;
 
 end.
