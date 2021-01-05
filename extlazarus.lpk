@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="48">
+    <Files Count="49">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -248,6 +248,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="ExtDBGrid"/>
       </Item48>
+      <Item49>
+        <Filename Value="extzquery.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="extzquery"/>
+      </Item49>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
