@@ -5,7 +5,7 @@ unit CompressionFlyUnit;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs;
+  Classes, SysUtils, LResources;
 
 const
   BUFFER_SIZE = 100000;

@@ -5,7 +5,7 @@ unit ExtDBGrid;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, DBGrids;
+  Classes, SysUtils, LResources, DBGrids;
 
 type
 

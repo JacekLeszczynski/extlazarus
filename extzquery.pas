@@ -1,11 +1,12 @@
-unit extzquery;
+unit ExtZQuery;
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ZDataset;
+  //Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ZDataset;
+  Classes, SysUtils, LResources, ZDataset;
 
 type
 
@@ -13,10 +14,9 @@ type
 
   TZQueryPlus = class(TZQuery)
   private
+    FBeforeOpenII: TNotifyEvent;
     FSQLDef: TStrings;
     FSQLScript: TStrings;
-    procedure SetSQLDef(AValue: TStrings);
-    procedure SetSQLScript(AValue: TStrings);
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -25,14 +25,12 @@ type
     procedure ClearDefs;
     procedure AddDef(aDef,aValue: string);
   published
+    property BeforeOpenII: TNotifyEvent read FBeforeOpenII write FBeforeOpenII;
   end;
 
 procedure Register;
 
 implementation
-
-const
-  textseparator='"';
 
 procedure Register;
 begin
@@ -40,52 +38,7 @@ begin
   RegisterComponents('Zeos Access',[TZQueryPlus]);
 end;
 
-function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
-var
-  i,ll,dl: integer;
-  b: boolean;
-begin
-  b:=false;
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=textseparator then b:=not b;
-    if (not b) and (s[i]=separator) then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  b:=false;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=textseparator then b:=not b;
-    if (not b) and (s[i]=separator) then break;
-  end;
-  delete(s,i,dl);
-  if (s<>'') and (s[1]=textseparator) then
-  begin
-    delete(s,1,1);
-    delete(s,length(s),1);
-  end;
-  if s='' then s:=wynik;
-  result:=s;
-end;
-
 { TZQueryPlus }
-
-procedure TZQueryPlus.SetSQLScript(AValue: TStrings);
-begin
-  if FSQLScript.Text=AValue.Text then Exit;
-  FSQLScript.Assign(AValue);
-end;
-
-procedure TZQueryPlus.SetSQLDef(AValue: TStrings);
-begin
-  if FSQLDef.Text=AValue.Text then Exit;
-  FSQLDef.Assign(AValue);
-end;
 
 constructor TZQueryPlus.Create(AOwner: TComponent);
 begin
@@ -121,6 +74,7 @@ begin
   end;
   SQL.Clear;
   SQL.AddText(pom);
+  if assigned(FBeforeOpenII) then FBeforeOpenII(self);
 end;
 
 procedure TZQueryPlus.ClearDefs;
