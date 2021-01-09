@@ -1,4 +1,4 @@
-unit ExtZQuery;
+unit zqueryplus;
 
 {$mode objfpc}{$H+}
 
@@ -34,7 +34,7 @@ implementation
 
 procedure Register;
 begin
-  {$I extzquery_icon.lrs}
+  {$I zqueryplus_icon.lrs}
   RegisterComponents('Zeos Access',[TZQueryPlus]);
 end;
 

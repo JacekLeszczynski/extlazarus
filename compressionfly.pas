@@ -1,4 +1,4 @@
-unit CompressionFlyUnit;
+unit compressionfly;
 
 {$mode objfpc}{$H+}
 
@@ -59,7 +59,7 @@ uses
 
 procedure Register;
 begin
-  {$I compressionflyunit_icon.lrs}
+  {$I compressionfly_icon.lrs}
   RegisterComponents('System',[TCompressionFly]);
 end;
 

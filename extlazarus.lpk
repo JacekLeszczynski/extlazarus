@@ -235,23 +235,23 @@
         <UnitName Value="ExtDiff"/>
       </Item45>
       <Item46>
-        <Filename Value="compressionflyunit.pas"/>
+        <Filename Value="compressionfly.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="CompressionFlyUnit"/>
+        <UnitName Value="compressionfly"/>
       </Item46>
       <Item47>
         <Filename Value="rnl.pas"/>
         <UnitName Value="RNL"/>
       </Item47>
       <Item48>
-        <Filename Value="extdbgrid.pas"/>
+        <Filename Value="dbgridplus.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="ExtDBGrid"/>
+        <UnitName Value="dbgridplus"/>
       </Item48>
       <Item49>
-        <Filename Value="extzquery.pas"/>
+        <Filename Value="zqueryplus.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="extzquery"/>
+        <UnitName Value="zqueryplus"/>
       </Item49>
     </Files>
     <RequiredPkgs Count="9">

@@ -1,4 +1,4 @@
-LazarusResources.Add('TExtDBGrid','PNG',[
+LazarusResources.Add('TDBGridPlus','PNG',[
   #137'PNG'#13#10#26#10#0#0#0#13'IHDR'#0#0#0#24#0#0#0#24#8#6#0#0#0#224'w='#248#0
   +#0#1'|iCCPicc'#0#0'('#145'}'#145'=H'#195'P'#20#133'OS'#165'"-'#14#22#20'q'
   +#200'P'#157','#136#138'8j'#21#138'P!'#212#10#173':'#152#188#244#15#154'4$).'
@@ -536,7 +536,7 @@ LazarusResources.Add('TExtDBGrid','PNG',[
   +'on'#0'GIMP built-in sRGBLgA'#19#0#0#0#21'tEXticc:manufacturer'#0'GIMPL'#158
   +#144#202#0#0#0#14'tEXticc:model'#0'sRGB[`IC'#0#0#0#0'IEND'#174'B`'#130
 ]);
-LazarusResources.Add('TExtDBGrid_150','PNG',[
+LazarusResources.Add('TDBGridPlus_150','PNG',[
   #137'PNG'#13#10#26#10#0#0#0#13'IHDR'#0#0#0'$'#0#0#0'$'#8#6#0#0#0#225#0#152#152
   +#0#0#1'|iCCPicc'#0#0'('#145'}'#145'=H'#195'P'#20#133'OS'#165'"-'#14#22#20'q'
   +#200'P'#157','#136#138'8j'#21#138'P!'#212#10#173':'#152#188#244#15#154'4$).'
@@ -1118,7 +1118,7 @@ LazarusResources.Add('TExtDBGrid_150','PNG',[
   +'on'#0'GIMP built-in sRGBLgA'#19#0#0#0#21'tEXticc:manufacturer'#0'GIMPL'#158
   +#144#202#0#0#0#14'tEXticc:model'#0'sRGB[`IC'#0#0#0#0'IEND'#174'B`'#130
 ]);
-LazarusResources.Add('TExtDBGrid_200','PNG',[
+LazarusResources.Add('TDBGridPlus_200','PNG',[
   #137'PNG'#13#10#26#10#0#0#0#13'IHDR'#0#0#0'0'#0#0#0'0'#8#6#0#0#0'W'#2#249#135
   +#0#0#1'|iCCPicc'#0#0'('#145'}'#145'=H'#195'P'#20#133'OS'#165'"-'#14#22#20'q'
   +#200'P'#157','#136#138'8j'#21#138'P!'#212#10#173':'#152#188#244#15#154'4$).'

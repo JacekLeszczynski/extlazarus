@@ -1,4 +1,4 @@
-unit ExtDBGrid;
+unit DBGridPlus;
 
 {$mode objfpc}{$H+}
 
@@ -9,9 +9,9 @@ uses
 
 type
 
-  { TExtDBGrid }
+  { TDBGridPlus }
 
-  TExtDBGrid = class(TDBGrid)
+  TDBGridPlus = class(TDBGrid)
   private
     FBlockAutoResizeCols: string;
   protected
@@ -37,8 +37,8 @@ const
 
 procedure Register;
 begin
-  {$I extdbgrid_icon.lrs}
-  RegisterComponents('Data Controls',[TExtDBGrid]);
+  {$I dbgridplus_icon.lrs}
+  RegisterComponents('Data Controls',[TDBGridPlus]);
 end;
 
 function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
@@ -76,18 +76,18 @@ end;
 
 { TExtDBGrid }
 
-constructor TExtDBGrid.Create(AOwner: TComponent);
+constructor TDBGridPlus.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FBlockAutoResizeCols:='';
 end;
 
-destructor TExtDBGrid.Destroy;
+destructor TDBGridPlus.Destroy;
 begin
   inherited Destroy;
 end;
 
-procedure TExtDBGrid.AutoScaleColumns;
+procedure TDBGridPlus.AutoScaleColumns;
 var
   pominiete,max,i,a: integer;
   s,pom: string;
