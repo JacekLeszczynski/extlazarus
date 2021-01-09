@@ -6,11 +6,11 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <OtherUnitFiles Value="../../lib;../mouseandkeyinput"/>
+        <OtherUnitFiles Value="../mouseandkeyinput"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="49">
+    <Files Count="50">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -246,13 +246,17 @@
       <Item48>
         <Filename Value="dbgridplus.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="dbgridplus"/>
+        <UnitName Value="DBGridPlus"/>
       </Item48>
       <Item49>
         <Filename Value="zqueryplus.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="zqueryplus"/>
       </Item49>
+      <Item50>
+        <Filename Value="ecode_unit.pas"/>
+        <UnitName Value="ecode_unit"/>
+      </Item50>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>

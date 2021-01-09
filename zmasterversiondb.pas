@@ -107,7 +107,7 @@ procedure Register;
 implementation
 
 uses
-  lconvencoding, ZDbcIntfs, ZScriptParser;
+  ecode_unit, lconvencoding, ZDbcIntfs, ZScriptParser;
 
 var
   ERR: integer;
@@ -126,40 +126,6 @@ procedure Register;
 begin
   {$I zmasterversiondb_icon.lrs}
   RegisterComponents('Zeos Access',[TZMasterVersionDB]);
-end;
-
-function MyDir(Filename:string):string;
-var
-  s: string;
-begin
-  s:=ExtractFilePath(ParamStr(0));
-  delete(s,length(s),1);
-  {$IFDEF WINDOWS}
-  if Filename<>'' then s:=StringReplace(s+'\'+Filename,'/','\',[rfReplaceAll]);
-  {$ELSE}
-  if Filename<>'' then s:=StringReplace(s+'/'+Filename,'\','/',[rfReplaceAll]);
-  {$ENDIF}
-  result:=s;
-end;
-
-function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
-var
-  i,ll,dl: integer;
-begin
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=separator then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  for i:=1 to length(s) do if s[i]=separator then break;
-  delete(s,i,dl);
-  if s='' then s:=wynik;
-  result:=s;
 end;
 
 function czy_sekcja(find_str,full_str:string):boolean;

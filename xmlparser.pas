@@ -132,6 +132,7 @@ procedure Register;
 implementation
 
 uses
+  ecode_unit,
   {$IFDEF LAZARUS}
   lconvencoding, parsery_utf8;
   {$ELSE}
@@ -160,50 +161,6 @@ begin
 end;
 
 { TXmlParser }
-
-//Funkcja zwraca n-ty (l) ciag stringu (s), o wskazanym separatorze.
-function GetLineToStr(s:string;l:integer;separator:char):string;
-var
-  i,ll,dl: integer;
-begin
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=separator then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  for i:=1 to length(s) do if s[i]=separator then break;
-  delete(s,i,dl);
-  result:=s;
-end;
-
-function ConvOdczyt(s: string): string;
-var
-  pom: string;
-begin
-  {$IFDEF LAZARUS}
-  pom:=ConvertEncoding(s,'cp1250','utf8');
-  {$ELSE}
-  pom:=UTF8Encode(s);
-  {$ENDIF}
-  result:=pom;
-end;
-
-function ConvZapis(s: string): string;
-var
-  pom: string;
-begin
-  {$IFDEF LAZARUS}
-  pom:=ConvertEncoding(s,'utf8','cp1250');
-  {$ELSE}
-  pom:=UTF8Decode(s);
-  {$ENDIF}
-  result:=pom;
-end;
 
 procedure AktualizujAdres(klucz: string; level: integer);
 var

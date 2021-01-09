@@ -17,7 +17,7 @@ uses
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
   DirectoryPack, Presentation, DSMaster, FullscreenMenu, ExtDiff, 
-  compressionfly, RNL, DBGridPlus, zqueryplus, LazarusPackageIntf;
+  compressionfly, RNL, DBGridPlus, zqueryplus, ecode_unit, LazarusPackageIntf;
 
 implementation
 

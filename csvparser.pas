@@ -72,6 +72,7 @@ procedure Register;
 implementation
 
 uses
+  ecode_unit,
   {$IFDEF LAZARUS}
   lconvencoding, parsery_utf8;
   {$ELSE}
@@ -96,57 +97,6 @@ begin
   {$ELSE}
   result:=UTF8Encode(s);
   {$ENDIF}
-end;
-
-function GetLineToStr(s:string;l:integer;separator,textseparator:char;wynik:string=''):string;
-var
-  i,ll,dl: integer;
-  b: boolean;
-begin
-  b:=false;
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=textseparator then b:=not b;
-    if (not b) and (s[i]=separator) then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  b:=false;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=textseparator then b:=not b;
-    if (not b) and (s[i]=separator) then break;
-  end;
-  delete(s,i,dl);
-  if (s<>'') and (s[1]=textseparator) then
-  begin
-    delete(s,1,1);
-    delete(s,length(s),1);
-  end;
-  if s='' then s:=wynik;
-  result:=s;
-end;
-
-function GetLineCount(s: string; separator,textseparator: char): integer;
-var
-  ll,i,ost: integer;
-begin
-  //licze separatory by zdiagnozowac maksymalna ilosc sekcji
-  ll:=1;
-  for i:=1 to length(s) do if s[i]=separator then inc(ll);
-  //szukam ostatniej nie bialej zawartosci sekcji
-  ost:=0;
-  for i:=ll downto 1 do if GetLineToStr(s,i,separator,textseparator)<>'' then
-  begin
-    ost:=i;
-    break;
-  end;
-  //wyjscie
-  result:=ost;
 end;
 
 { TCsvParser }

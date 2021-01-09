@@ -93,7 +93,7 @@ procedure Register;
 implementation
 
 uses
-  ecode;
+  ecode_unit;
 
 procedure Register;
 begin

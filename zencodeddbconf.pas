@@ -62,7 +62,6 @@ type
     Fzmienna_09: String;
     Fzmienna_10: String;
     function GetRandom(q: integer): string;
-    function GetLineToStr(s:string;l:integer;separator:char):string;
     function EncryptStr(s:string):string;
     function DecryptStr(s:string):string;
     function ProtoToStr:string;
@@ -106,7 +105,7 @@ procedure Register;
 implementation
 
 uses
-  Registry, Sockets;
+  ecode_unit, Registry, Sockets;
 
 const
   MAX_BUFOR = 500;
@@ -127,26 +126,6 @@ begin
   if q=0 then q:=random(11)+5;
   s:='';
   for i:=1 to q do s:=s+Chr(random(90)+33);
-  result:=s;
-end;
-
-function TZEncodedDBConf.GetLineToStr(s: string; l: integer; separator: char
-  ): string;
-var
-  i,ll,dl: integer;
-begin
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=separator then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  for i:=1 to length(s) do if s[i]=separator then break;
-  delete(s,i,dl);
   result:=s;
 end;
 

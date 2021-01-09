@@ -62,6 +62,7 @@ procedure Register;
 implementation
 
 uses
+  ecode_unit,
   {$IFDEF LAZARUS}
   lconvencoding, parsery_utf8;
   {$ELSE}
@@ -87,25 +88,6 @@ begin
   {$ELSE}
   result:=s;
   {$ENDIF}
-end;
-
-function GetLineToStr(s:string;l:integer;separator:char):string;
-var
-  i,ll,dl: integer;
-begin
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]=separator then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  for i:=1 to length(s) do if s[i]=separator then break;
-  delete(s,i,dl);
-  result:=s;
 end;
 
 { TSymfoniaParser }

@@ -259,6 +259,7 @@ function SHtmlColorToColor(s: string; out Len: integer; Default: TColor): TColor
 implementation
 
 uses
+  ecode_unit,
   {$IFDEF WINDOWS}
   dos,
   {$ENDIF}
@@ -289,67 +290,6 @@ procedure Register;
 begin
   {$I polfan_icon.lrs}
   RegisterComponents('lNet',[TPolfan]);
-end;
-
-function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
-var
-  i,ll,dl: integer;
-  b: boolean;
-begin
-  b:=false;
-  dl:=length(s);
-  ll:=1;
-  s:=s+separator;
-  for i:=1 to length(s) do
-  begin
-    if s[i]='"' then b:=not b;
-    if (not b) and (s[i]=separator) then inc(ll);
-    if ll=l then break;
-  end;
-  if ll=1 then dec(i);
-  delete(s,1,i);
-  b:=false;
-  for i:=1 to length(s) do
-  begin
-    if s[i]='"' then b:=not b;
-    if (not b) and (s[i]=separator) then break;
-  end;
-  delete(s,i,dl);
-  if (s<>'') and (s[1]='"') then
-  begin
-    delete(s,1,1);
-    delete(s,length(s),1);
-  end;
-  if s='' then s:=wynik;
-  result:=s;
-end;
-
-function TimeToInteger(Hour,Minutes,Second,Milisecond: word): integer;
-begin
-  result:=(Hour*60*60*1000)+(Minutes*60*1000)+(Second*1000)+Milisecond;
-end;
-
-function TimeToInteger(Time: TDateTime): integer;
-var
-  godz,min,sec,milisec: word;
-begin
-  DecodeTime(Time,godz,min,sec,milisec);
-  result:=(godz*60*60*1000)+(min*60*1000)+(sec*1000)+milisec;
-end;
-
-function TimeToInteger: integer;
-begin
-  result:=TimeToInteger(time);
-end;
-
-function IsCharWord(ch: char): boolean;
-begin
-  Result:= ch in ['a'..'z', 'A'..'Z', '_', '0'..'9'];
-end;
-
-function IsCharHex(ch: char): boolean;
-begin
-  Result:= ch in ['0'..'9', 'a'..'f', 'A'..'F'];
 end;
 
 function SColorToHtmlColor(Color: TColor): string;

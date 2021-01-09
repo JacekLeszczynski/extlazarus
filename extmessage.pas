@@ -130,7 +130,7 @@ procedure Register;
 implementation
 
 uses
-  eCode,
+  ecode_unit,
 {$IFDEF LAZARUS}
   lconvencoding, extlazarus_utf8,
 {$ELSE}
