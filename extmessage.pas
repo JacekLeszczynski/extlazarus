@@ -118,6 +118,7 @@ type
     property PosLeft: integer read FLeft write FLeft;
     property ResultButton: TResultDlgBtn read FResultButton write FResultButton default rsOK;
     property Result: TResultDlgBtn read FResult;
+    {Wstawia znak nowej linii}
     property StringToCR: string read FS2CR write FS2CR;
     property SplashForm: boolean read FSplashForm default false;
     property OnBeforeShow: TNotifyEvent read FOnBeforeShow write FOnBeforeShow;
@@ -242,7 +243,7 @@ begin
   FMessage:=TStringList.Create;
   FStrReplace:=TStringList.Create;
   FStrDelete:=TStringList.Create;
-  FS2CR:='';
+  FS2CR:='^';
   FSplashForm:=false;
   SetDefault;
 end;

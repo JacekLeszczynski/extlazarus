@@ -1,4 +1,4 @@
-unit zqueryplus;
+unit ZQueryPlus;
 
 {$mode objfpc}{$H+}
 
@@ -58,7 +58,7 @@ procedure TZQueryPlus.DoBeforeOpen;
 var
   pom,s,s1,s2: string;
   i: integer;
-  a,b: integer;
+  a: integer;
 begin
   if FSqlScript.Count=0 then FSqlScript.Assign(SQL);
   inherited DoBeforeOpen;
