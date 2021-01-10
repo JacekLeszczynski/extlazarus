@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="50">
+    <Files Count="51">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -251,12 +251,16 @@
       <Item49>
         <Filename Value="zqueryplus.pas"/>
         <HasRegisterProc Value="True"/>
-        <UnitName Value="zqueryplus"/>
+        <UnitName Value="ZQueryPlus"/>
       </Item49>
       <Item50>
         <Filename Value="ecode_unit.pas"/>
         <UnitName Value="ecode_unit"/>
       </Item50>
+      <Item51>
+        <Filename Value="list_unit.pas"/>
+        <UnitName Value="list_unit"/>
+      </Item51>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>

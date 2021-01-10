@@ -17,7 +17,8 @@ uses
   ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
   DirectoryPack, Presentation, DSMaster, FullscreenMenu, ExtDiff, 
-  compressionfly, RNL, DBGridPlus, zqueryplus, ecode_unit, LazarusPackageIntf;
+  compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, 
+  LazarusPackageIntf;
 
 implementation
 
@@ -67,7 +68,7 @@ begin
   RegisterUnit('ExtDiff', @ExtDiff.Register);
   RegisterUnit('compressionfly', @compressionfly.Register);
   RegisterUnit('DBGridPlus', @DBGridPlus.Register);
-  RegisterUnit('zqueryplus', @zqueryplus.Register);
+  RegisterUnit('ZQueryPlus', @ZQueryPlus.Register);
 end;
 
 initialization
