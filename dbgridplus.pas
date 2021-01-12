@@ -17,6 +17,7 @@ type
     FBlockAutoScaleCols: string;
     wWidth: integer;
     list: TListOfInt;
+    procedure SetAutoScaleCols(AValue: boolean);
   protected
     procedure Paint; override;
   public
@@ -26,7 +27,7 @@ type
   published
     {Włączenie autoskalowania, metoda:
       "AutoScaleColumns" - staje się aktywna.}
-    property AutoScaleCols: boolean read FAutoScaleCols write FAutoScaleCols default false;
+    property AutoScaleCols: boolean read FAutoScaleCols write SetAutoScaleCols default false;
     {Wyłączenie wybranych kolumn z autoskalowania,
      wypisz ich indeksy oddzielając przecinkami.
      Przykład użycia: 0,1,4
@@ -48,6 +49,13 @@ begin
 end;
 
 { TExtDBGrid }
+
+procedure TDBGridPlus.SetAutoScaleCols(AValue: boolean);
+begin
+  if FAutoScaleCols=AValue then Exit;
+  FAutoScaleCols:=AValue;
+  if FAutoScaleCols then AutoScaleColumns else list.Clear;
+end;
 
 procedure TDBGridPlus.Paint;
 begin
@@ -77,11 +85,18 @@ var
   s,pom: string;
   ind: integer;
 begin
+  //{ $IFDEF LAZARUSIDE}
+  //exit;
+  //{ $ENDIF}
   if wWidth=Width then exit;
   if not FAutoScaleCols then exit;
   wWidth:=Width;
   pominiete:=0; max:=0;
-  if list.isEmpty then for i:=0 to Columns.Count-1 do list.Add(Columns[i].Width);
+  if list.Count<>Columns.Count then
+  begin
+    list.Clear;
+    for i:=0 to Columns.Count-1 do list.Add(Columns[i].Width);
+  end;
   if dgIndicator in self.Options then ind:=25 else ind:=0;
   (* suma wszystkich pominiętych kolumn *)
   i:=0;
@@ -92,11 +107,9 @@ begin
     if s='' then break;
     a:=StrToInt(s);
     if not Columns[a].Visible then continue;
-    //pominiete:=pominiete+Columns[a].Width;
     pominiete:=pominiete+list.getItem(a);
   end;
   (* suma wszystkich kolumn *)
-  //for i:=0 to Columns.Count-1 do if Columns[i].Visible then max:=max+Columns[i].Width;
   for i:=0 to Columns.Count-1 do if Columns[i].Visible then max:=max+list.getItem(i);
   (* ustawienie kolumn *)
   pom:=','+FBlockAutoScaleCols+',';
@@ -104,7 +117,6 @@ begin
   begin
     if not Columns[i].Visible then continue;
     if pos(','+IntToStr(i)+',',pom)>0 then continue;
-    //Columns[i].Width:=round(Columns[i].Width*(Width-pominiete-ind)/(max-pominiete));
     Columns[i].Width:=round(list.getItem(i)*(Width-pominiete-ind)/(max-pominiete));
   end;
 end;
