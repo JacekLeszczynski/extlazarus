@@ -18,6 +18,8 @@ type
     wWidth: integer;
     list: TListOfInt;
     procedure SetAutoScaleCols(AValue: boolean);
+    procedure AutoScaleStart;
+    procedure AutoScaleStop;
   protected
     procedure Paint; override;
   public
@@ -54,7 +56,27 @@ procedure TDBGridPlus.SetAutoScaleCols(AValue: boolean);
 begin
   if FAutoScaleCols=AValue then Exit;
   FAutoScaleCols:=AValue;
-  if FAutoScaleCols then AutoScaleColumns else list.Clear;
+  if FAutoScaleCols then AutoScaleColumns else AutoScaleStop;
+end;
+
+procedure TDBGridPlus.AutoScaleStart;
+var
+  i: integer;
+begin
+  if list.Count>0 then AutoScaleStop;
+  for i:=0 to Columns.Count-1 do list.Add(Columns[i].Width);
+end;
+
+procedure TDBGridPlus.AutoScaleStop;
+var
+  a,b,i: integer;
+begin
+  a:=Columns.Count;
+  b:=list.Count;
+  if b<a then a:=b;
+  for i:=0 to a-1 do Columns[i].Width:=list.getItem(i);
+  list.Clear;
+  wWidth:=-1;
 end;
 
 procedure TDBGridPlus.Paint;
@@ -74,7 +96,6 @@ end;
 
 destructor TDBGridPlus.Destroy;
 begin
-  list.Clear;
   list.Free;
   inherited Destroy;
 end;
@@ -92,11 +113,7 @@ begin
   if not FAutoScaleCols then exit;
   wWidth:=Width;
   pominiete:=0; max:=0;
-  if list.Count<>Columns.Count then
-  begin
-    list.Clear;
-    for i:=0 to Columns.Count-1 do list.Add(Columns[i].Width);
-  end;
+  if list.Count<>Columns.Count then AutoScaleStart;
   if dgIndicator in self.Options then ind:=25 else ind:=0;
   (* suma wszystkich pominiętych kolumn *)
   i:=0;

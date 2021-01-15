@@ -245,6 +245,11 @@ type
     procedure SetAudioSamplerate(aSamplerate: integer);
     procedure SetAudioEQ(s: string = '');
     procedure SetAF(aValue: string = '');
+    function SingleMpToTime(AValue: single): TTime;
+    function SingleMpToInteger(AValue: single): integer;
+    function TimeToSingleMp(AValue: TTime): single;
+    function IntegerToSingleMp(AValue: integer): single;
+    procedure SetPositionEx(aPosition,aMax: integer);
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -1300,6 +1305,31 @@ begin
     ExecuteSockProcess('{ "command": ["set_property", "af", ""] }')
   else
     ExecuteSockProcess('{ "command": ["set_property", "af", "'+aValue+'"] }');
+end;
+
+function TCustomMPlayerControl.SingleMpToTime(AValue: single): TTime;
+begin
+  result:=AValue/SecsPerDay;
+end;
+
+function TCustomMPlayerControl.SingleMpToInteger(AValue: single): integer;
+begin
+  result:=TimeToInteger(SingleMpToTime(AValue));
+end;
+
+function TCustomMPlayerControl.TimeToSingleMp(AValue: TTime): single;
+begin
+  result:=SecsPerDay*AValue;
+end;
+
+function TCustomMPlayerControl.IntegerToSingleMp(AValue: integer): single;
+begin
+  result:=TimeToSingleMp(IntegerToTime(AValue));
+end;
+
+procedure TCustomMPlayerControl.SetPositionEx(aPosition, aMax: integer);
+begin
+  SetPosition(round(FDuration*aPosition/aMax));
 end;
 
 procedure TCustomMPlayerControl.InitialiseInfo;
