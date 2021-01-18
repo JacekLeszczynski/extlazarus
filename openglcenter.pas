@@ -49,6 +49,8 @@ type
     function LoadTextureFromResource(nazwa: string; ResourceName: string; drugi_plan: boolean = false): pointer;
     function LoadTextureFromResource(nazwa: string; drugi_plan: boolean = false): pointer;
     procedure CreateFont(nazwa: string; rodzaj: string; wielkosc: integer; kolor: TColor; drugi_plan: boolean = false);
+    procedure BlockTextureData(nazwa: string);
+    procedure BlockFontData(nazwa: string);
     procedure SetTextureData(nazwa: string; x,y: single);
     procedure SetTextureData(nazwa: string; x,y,wielkosc: single);
     procedure SetFontData(nazwa: string; x,y: single);
@@ -97,6 +99,7 @@ type
     x,y: single;
     wielkosc: single;
     drugi_plan: boolean;
+    blocked: boolean;
   end;
   PElement = ^TElement;
 
@@ -192,6 +195,7 @@ begin
   bmp.ResampleFilter:=rfBestQuality;
   element.tex^:=bmp.MakeTextureAndFree;
   element.drugi_plan:=drugi_plan;
+  element.blocked:=true;
   tab.Add;
 end;
 
@@ -217,6 +221,7 @@ begin
   finally
     res.Free;
   end;
+  element.blocked:=true;
   tab.Add;
 end;
 
@@ -247,7 +252,52 @@ begin
   element.drugi_plan:=drugi_plan;
   new(element.font);
   element.font^:=BGLFont(rodzaj,wielkosc,kolor);
+  element.blocked:=true;
   tab.Add;
+end;
+
+procedure TOpenGLCenter.BlockTextureData(nazwa: string);
+var
+  i: integer;
+  b: boolean;
+begin
+  b:=false;
+  for i:=0 to tab.Count do
+  begin
+    tab.Read(i);
+    if (element.rodzaj=reTextura) and (element.nazwa=nazwa) then
+    begin
+      b:=true;
+      break;
+    end;
+  end;
+  if b then
+  begin
+    element.blocked:=true;
+    tab.Edit(i);
+  end;
+end;
+
+procedure TOpenGLCenter.BlockFontData(nazwa: string);
+var
+  i: integer;
+  b: boolean;
+begin
+  b:=false;
+  for i:=0 to tab.Count do
+  begin
+    tab.Read(i);
+    if (element.rodzaj=reFont) and (element.nazwa=nazwa) then
+    begin
+      b:=true;
+      break;
+    end;
+  end;
+  if b then
+  begin
+    element.blocked:=true;
+    tab.Edit(i);
+  end;
 end;
 
 procedure TOpenGLCenter.SetTextureData(nazwa: string; x, y: single);
@@ -269,6 +319,7 @@ begin
   begin
     element.x:=x;
     element.y:=y;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -293,6 +344,7 @@ begin
     element.x:=x;
     element.y:=y;
     element.wielkosc:=wielkosc;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -316,6 +368,7 @@ begin
   begin
     element.x:=x;
     element.y:=y;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -340,6 +393,7 @@ begin
     element.text:=text;
     element.x:=x;
     element.y:=y;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -364,6 +418,7 @@ begin
     element.text:=text;
     element.x:=x;
     element.y:=y;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -386,6 +441,7 @@ begin
   if b then
   begin
     element.text:=text;
+    element.blocked:=false;
     tab.Edit(i);
   end;
 end;
@@ -408,6 +464,7 @@ begin
   for i:=0 to tab.Count-1 do
   begin
     tab.Read(i);
+    if element.blocked then continue;
     if element.rodzaj=reTextura then tex:=element.tex^;
     if element.drugi_plan then
     begin
@@ -423,7 +480,8 @@ begin
     end;
     case element.rodzaj of
       reTextura: begin
-                   tex.StretchDrawAngle(x,y,w,w/tex.Width*tex.Height,0,PointF(tex.Width/2,tex.Height/2),False);
+                   if (x<OpenGLControl.Width+100) and (y<OpenGLControl.Height+100) and (x>-100) and (y>-100) then
+                     tex.StretchDrawAngle(x,y,w,w/tex.Width*tex.Height,0,PointF(tex.Width/2,tex.Height/2),False);
                    if Assigned(FOnPaintAfterTexture) then FOnPaintAfterTexture(self,element.nazwa,element.x,element.y,element.wielkosc);
                  end;
       reFont: element.font^.TextOut(x,y,Utf8ToAnsi(element.text));
@@ -502,7 +560,8 @@ begin
   x:=x+mx;
   y:=y+my;
 
-  tex.StretchDrawAngle(x,y,w,w/tex.Width*tex.Height,0,PointF(tex.Width/2,tex.Height/2),False);
+  if (x<OpenGLControl.Width+100) and (y<OpenGLControl.Height+100) and (x>-100) and (y>-100) then
+    tex.StretchDrawAngle(x,y,w,w/tex.Width*tex.Height,0,PointF(tex.Width/2,tex.Height/2),False);
 end;
 
 procedure TOpenGLCenter.PaintTexture(aObject: pointer; aX, aY, aWielkosc: single
@@ -522,7 +581,8 @@ begin
   x:=x+mx;
   y:=y+my;
 
-  o^.StretchDrawAngle(x,y,w,w/o^.Width*o^.Height,0,PointF(o^.Width/2,o^.Height/2),False);
+  if (x<OpenGLControl.Width+100) and (y<OpenGLControl.Height+100) and (x>-100) and (y>-100) then
+    o^.StretchDrawAngle(x,y,w,w/o^.Width*o^.Height,0,PointF(o^.Width/2,o^.Height/2),False);
 end;
 
 procedure TOpenGLCenter.Invalidate;
