@@ -11,7 +11,7 @@ uses
 type
 
   { TOpenGLCenter }
-  TNotifyPaintAfterTexture = procedure(Sender: TObject; nazwa: string; x,y,wielkosc: single) of object;
+  TNotifyPaintAfterTexture = procedure(Sender: TObject; aNazwa: string; aX,aY,aWielkosc: single) of object;
 
   TOpenGLCenter = class(TComponent)
   private
@@ -21,9 +21,13 @@ type
     FOnMouseWheel: TMouseWheelEvent;
     FOnPaint: TNotifyEvent;
     FOnPaintAfterTexture: TNotifyPaintAfterTexture;
+    FProcent: double;
+    FScaleFollow: boolean;
     FVX,FVY,FScale: single;
     tab: TPointerTab;
     OpenGLControl: TOpenGLControl;
+    tex: IBGLTexture;
+    vcenter: pointer;
     procedure TabCreateElement(Sender: TObject; var AWskaznik: Pointer);
     procedure TabDestroyElement(Sender: TObject; var AWskaznik: Pointer);
     procedure TabReadElement(Sender: TObject; var AWskaznik: Pointer);
@@ -39,11 +43,11 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure LoadTextureFromFile(nazwa: string; filename: string; drugi_plan: boolean = false);
-    procedure LoadTextureFromResource(nazwa: string; ResourceName: string; wielkosc: single = 0; drugi_plan: boolean = false);
-    procedure LoadTextureFromResource(nazwa: string; wielkosc: single = 0; drugi_plan: boolean = false);
-    procedure LoadTextureFromResource(nazwa: string; ResourceName: string; drugi_plan: boolean = false);
-    procedure LoadTextureFromResource(nazwa: string; drugi_plan: boolean = false);
+    function LoadTextureFromFile(nazwa: string; filename: string; drugi_plan: boolean = false): pointer;
+    function LoadTextureFromResource(nazwa: string; ResourceName: string; wielkosc: single = 0; drugi_plan: boolean = false): pointer;
+    function LoadTextureFromResource(nazwa: string; wielkosc: single = 0; drugi_plan: boolean = false): pointer;
+    function LoadTextureFromResource(nazwa: string; ResourceName: string; drugi_plan: boolean = false): pointer;
+    function LoadTextureFromResource(nazwa: string; drugi_plan: boolean = false): pointer;
     procedure CreateFont(nazwa: string; rodzaj: string; wielkosc: integer; kolor: TColor; drugi_plan: boolean = false);
     procedure SetTextureData(nazwa: string; x,y: single);
     procedure SetTextureData(nazwa: string; x,y,wielkosc: single);
@@ -53,16 +57,20 @@ type
     procedure SetFontData(nazwa,text: string);
     procedure Init(ParentControl: TWinControl);
     procedure Paint;
+    procedure PaintTexture(aX,aY,aWielkosc: single);
+    procedure PaintTexture(aObject: pointer; aX,aY,aWielkosc: single);
     procedure Invalidate;
   published
-    property MouseMove: boolean read FMouseMove write FMouseMove default false;
-    property MouseScale: boolean read FMouseScale write FMouseScale default false;
-    property MouseScaleReverse: boolean read FMouseScaleReverse write FMouseScaleReverse default false;
-    property Scale: single read FScale write FScale default 1;
-    property vector_x: single read FVX write FVX default 0;
-    property vector_y: single read FVY write FVY default 0;
-    property OnPaint: TNotifyEvent read FOnPaint write FOnPaint; //Server code
-    property OnPaintAfterTexture: TNotifyPaintAfterTexture read FOnPaintAfterTexture write FOnPaintAfterTexture;
+    property MouseMove: boolean read FMouseMove write FMouseMove default false; //Przesuwanie ekranu myszą
+    property MouseScale: boolean read FMouseScale write FMouseScale default false; //Skalowanie ekranu za pomocą kółka myszy
+    property MouseScaleReverse: boolean read FMouseScaleReverse write FMouseScaleReverse default false; //Kierunek skalowania
+    property Scale: single read FScale write FScale default 1; //Skala domyślna
+    property ScalePercent: double read FProcent write FProcent; //Moc skalowania ekranu
+    property ScaleFollow: boolean read FScaleFollow write FScaleFollow default false; //Skalując ekran podążaj za kursorem myszy
+    property vector_x: single read FVX write FVX default 0; //Wektor przesunięcia w poziomie
+    property vector_y: single read FVY write FVY default 0; //Wektor przesunięcia w pionie
+    property OnPaint: TNotifyEvent read FOnPaint write FOnPaint; //Kod rysowania po ekranie
+    property OnPaintAfterTexture: TNotifyPaintAfterTexture read FOnPaintAfterTexture write FOnPaintAfterTexture; //Kod rysowania - dodatkowy
     property OnMouseDown: TMouseEvent read FOnMouseDown write FOnMouseDown;
     property OnMouseMove: TMouseMoveEvent read FOnMouseMove write FOnMouseMove;
     property OnMouseWheel: TMouseWheelEvent read FOnMouseWheel write FOnMouseWheel;
@@ -155,6 +163,8 @@ begin
   tab.OnReadElement:=@TabReadElement;
   tab.OnWriteElement:=@TabWriteElement;
   FScale:=1;
+  FProcent:=5;
+  FScaleFollow:=false;
   FVX:=0;
   FVY:=0;
   FMouseMove:=false;
@@ -169,14 +179,15 @@ begin
   inherited Destroy;
 end;
 
-procedure TOpenGLCenter.LoadTextureFromFile(nazwa: string; filename: string;
-  drugi_plan: boolean);
+function TOpenGLCenter.LoadTextureFromFile(nazwa: string; filename: string;
+  drugi_plan: boolean): pointer;
 var
   bmp: TBGLBitmap;
 begin
   element.nazwa:=nazwa;
   element.rodzaj:=reTextura;
   new(element.tex);
+  result:=element.tex;
   bmp:=TBGLBitmap.Create(ExtractFilePath(Application.ExeName)+filename);
   bmp.ResampleFilter:=rfBestQuality;
   element.tex^:=bmp.MakeTextureAndFree;
@@ -184,8 +195,8 @@ begin
   tab.Add;
 end;
 
-procedure TOpenGLCenter.LoadTextureFromResource(nazwa: string;
-  ResourceName: string; wielkosc: single; drugi_plan: boolean);
+function TOpenGLCenter.LoadTextureFromResource(nazwa: string;
+  ResourceName: string; wielkosc: single; drugi_plan: boolean): pointer;
 var
   s: string;
   bmp: TBGLBitmap;
@@ -197,6 +208,7 @@ begin
   element.wielkosc:=wielkosc;
   element.drugi_plan:=drugi_plan;
   new(element.tex);
+  result:=element.tex;
   try
     res:=TResourceStream.Create(hInstance,s,RT_RCDATA);
     bmp:=TBGLBitmap.Create(res);
@@ -208,22 +220,22 @@ begin
   tab.Add;
 end;
 
-procedure TOpenGLCenter.LoadTextureFromResource(nazwa: string;
-  wielkosc: single; drugi_plan: boolean);
+function TOpenGLCenter.LoadTextureFromResource(nazwa: string; wielkosc: single;
+  drugi_plan: boolean): pointer;
 begin
-  LoadTextureFromResource(nazwa,nazwa,wielkosc,drugi_plan);
+  result:=LoadTextureFromResource(nazwa,nazwa,wielkosc,drugi_plan);
 end;
 
-procedure TOpenGLCenter.LoadTextureFromResource(nazwa: string;
-  ResourceName: string; drugi_plan: boolean);
+function TOpenGLCenter.LoadTextureFromResource(nazwa: string;
+  ResourceName: string; drugi_plan: boolean): pointer;
 begin
-  LoadTextureFromResource(nazwa,ResourceName,0,drugi_plan);
+  result:=LoadTextureFromResource(nazwa,ResourceName,0,drugi_plan);
 end;
 
-procedure TOpenGLCenter.LoadTextureFromResource(nazwa: string;
-  drugi_plan: boolean);
+function TOpenGLCenter.LoadTextureFromResource(nazwa: string;
+  drugi_plan: boolean): pointer;
 begin
-  LoadTextureFromResource(nazwa,nazwa,0,drugi_plan);
+  result:=LoadTextureFromResource(nazwa,nazwa,0,drugi_plan);
 end;
 
 procedure TOpenGLCenter.CreateFont(nazwa: string; rodzaj: string;
@@ -386,14 +398,13 @@ end;
 procedure TOpenGLCenter.Paint(Sender: TObject);
 var
   i: integer;
-  tex: IBGLTexture;
   x,y,w: single;
   mx,my: single;
 begin
+  BGLViewPort(OpenGLControl.Width,OpenGLControl.Height,BGRABlack);
   if Assigned(FOnPaint) then FOnPaint(Sender);
   mx:=OpenGLControl.Width/2;
   my:=OpenGLControl.Height/2;
-  BGLViewPort(OpenGLControl.Width,OpenGLControl.Height,BGRABlack);
   for i:=0 to tab.Count-1 do
   begin
     tab.Read(i);
@@ -449,17 +460,69 @@ end;
 procedure TOpenGLCenter.OpenGLControlMouseWheel(Sender: TObject;
   Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint;
   var Handled: Boolean);
+var
+  a: integer;
+  x2,y2,xx,yy,b,z: single;
 begin
   if Assigned(FOnMouseWheel) then FOnMouseWheel(self,Shift,WheelDelta,MousePos,Handled);
   if not FMouseScale then exit;
-  if FMouseScaleReverse then FScale-=WheelDelta/1000 else FScale+=WheelDelta/1000;
+  b:=FScale;
+  if WheelDelta>0 then a:=1 else a:=-1;
+  if FMouseScaleReverse then FScale-=FScale*FProcent/100*a else FScale+=FScale*FProcent/100*a;
   if FScale<0 then FScale:=0;
+  if FScaleFollow then
+  begin
+    x2:=OpenGLControl.Width/2;
+    y2:=OpenGLControl.Height/2;
+    xx:=MousePos.X-x2;
+    yy:=MousePos.Y-y2;
+    z:=(FScale-b)/2;
+    FVX+=xx/z/OpenGLControl.Width;
+    FVY+=yy/z/OpenGLControl.Height;
+  end;
   OpenGLControl.Invalidate;
 end;
 
 procedure TOpenGLCenter.Paint;
 begin
   OpenGLControl.Paint;
+end;
+
+procedure TOpenGLCenter.PaintTexture(aX, aY, aWielkosc: single);
+var
+  x,y,w: single;
+  mx,my: single;
+begin
+  mx:=OpenGLControl.Width/2;
+  my:=OpenGLControl.Height/2;
+
+  x:=(aX-FVX)*FScale;
+  y:=(aY-FVY)*FScale;
+  w:=aWielkosc*FScale;
+  x:=x+mx;
+  y:=y+my;
+
+  tex.StretchDrawAngle(x,y,w,w/tex.Width*tex.Height,0,PointF(tex.Width/2,tex.Height/2),False);
+end;
+
+procedure TOpenGLCenter.PaintTexture(aObject: pointer; aX, aY, aWielkosc: single
+  );
+var
+  o: ^IBGLTexture;
+  x,y,w: single;
+  mx,my: single;
+begin
+  o:=aObject;
+  mx:=OpenGLControl.Width/2;
+  my:=OpenGLControl.Height/2;
+
+  x:=(aX-FVX)*FScale;
+  y:=(aY-FVY)*FScale;
+  w:=aWielkosc*FScale;
+  x:=x+mx;
+  y:=y+my;
+
+  o^.StretchDrawAngle(x,y,w,w/o^.Width*o^.Height,0,PointF(o^.Width/2,o^.Height/2),False);
 end;
 
 procedure TOpenGLCenter.Invalidate;

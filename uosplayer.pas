@@ -99,6 +99,7 @@ type
     procedure GetMeter(var ALeft,ARight: single);
     procedure GetMeter(var ALeft,ARight: double);
     procedure GetMeter(var ALeft,ARight: integer);
+    procedure GetMeterEx(var aLeft,aRight: single);
     function GetLength: longword;
     function GetLengthSeconds: single;
     function GetLengthTime: TTime;
@@ -520,6 +521,7 @@ procedure TUOSPlayer.Start(aMemoryStream: TMemoryStream);
 begin
   if FBusy then exit;
   if Assigned(FBeforeStart) then FBeforeStart(Self);
+  if FMode=moPlay then Stop else
   if FMode=moPlayLoop then
   begin
     {$IFDEF CRQ}
@@ -672,6 +674,34 @@ begin
     ALeft:=round(uos_InputGetLevelLeft(xindex,OutIndex)*100*FVolume);
     ARight:=round(uos_InputGetLevelRight(xindex,OutIndex)*100*FVolume);
   end;
+end;
+
+procedure TUOSPlayer.GetMeterEx(var aLeft, aRight: single);
+var
+  vPosL,vPosR: single;
+  l,r: single;
+  ll,rr: single;
+begin
+  (*
+    INFO: procedura pobiera wartości obu kanałów i nanosi na nie wartości aktualne
+          w taki sposób, by był symulowany efekt bezwładności wskazówek.
+    - zalecany czas odpalania kodu: 100ms
+    - zwracane wartości: min = 0, max = 105
+  *)
+  vPosL:=aLeft;
+  vPosR:=aRight;
+  if vPosL>0 then vPosL:=vPosL-5;
+  if vPosR>0 then vPosR:=vPosR-5;
+  aLeft:=vPosL;
+  aRight:=vPosR;
+  if (not FBusy) or FPause then exit;
+  GetMeter(ll,rr);
+  l:=ll*101;
+  r:=rr*101;
+  if vPosL<l then vPosL:=vPosL+(l-vPosL)*0.5;
+  if vPosR<r then vPosR:=vPosR+(r-vPosR)*0.5;
+  aLeft:=vPosL;
+  aRight:=vPosR;
 end;
 
 function TUOSPlayer.GetLength: longword;
