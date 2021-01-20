@@ -24,6 +24,7 @@ type
     procedure Stop;
     function GetIndexTime: integer;
     function GetIndexStartTime: integer;
+    procedure SetIndexStartTime(aTimeIndexStart: integer);
   published
     property Active: boolean read FActive default false;
     property Correction: integer read FCorrection write FCorrection default 0;
@@ -79,6 +80,11 @@ end;
 function TLiveTimer.GetIndexStartTime: integer;
 begin
   result:=czas_start;
+end;
+
+procedure TLiveTimer.SetIndexStartTime(aTimeIndexStart: integer);
+begin
+  czas_start:=aTimeIndexStart;
 end;
 
 end.
