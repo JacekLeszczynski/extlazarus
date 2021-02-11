@@ -34,13 +34,43 @@ procedure Register;
 
 implementation
 
-uses
-  ecode;
-
 procedure Register;
 begin
   {$I livetimer_icon.lrs}
   RegisterComponents('System',[TLiveTimer]);
+end;
+
+function TimeToInteger(Hour, Minutes, Second, Milisecond: word): longword;
+begin
+  result:=(Hour*60*60*1000)+(Minutes*60*1000)+(Second*1000)+Milisecond;
+end;
+
+function TimeToInteger(Time: TDateTime): longword;
+var
+  godz,min,sec,milisec: word;
+begin
+  DecodeTime(Time,godz,min,sec,milisec);
+  result:=(godz*60*60*1000)+(min*60*1000)+(sec*1000)+milisec;
+end;
+
+function TimeToInteger: longword;
+begin
+  result:=TimeToInteger(time);
+end;
+
+function IntegerToTime(czas: longword; no_milisecond: boolean): TDateTime;
+var
+  c: longword;
+  godz,min,sec,milisec: word;
+begin
+  c:=czas;
+  godz:=c div 3600000;
+  c:=c-(godz*3600000);
+  min:=c div 60000;
+  c:=c-(min*60000);
+  sec:=c div 1000;
+  if no_milisecond then milisec:=0 else milisec:=c-(sec*1000);
+  result:=EncodeTime(godz,min,sec,milisec);
 end;
 
 { TLiveTimer }

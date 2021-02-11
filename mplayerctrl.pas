@@ -964,6 +964,7 @@ begin
 
   if FEngine=meMplayer then
   begin
+    FDuration:=-1;
     if not FindMPlayerPath then
       raise Exception.Create(MPlayerPath+' not found');
   end else begin
@@ -994,6 +995,7 @@ begin
   end;
   if FEngine=meMplayer then
   begin
+    FPlayerProcess.Parameters.Add('-softvol');   // allow us to soft volume!
     FPlayerProcess.Parameters.Add('-slave');     // allow us to control mplayer
     FPlayerProcess.Parameters.Add('-identify');  // Request stats on playing file
     if FCapture then FPlayerProcess.Parameters.Add('-capture');
@@ -1052,6 +1054,8 @@ begin
     {$IFDEF LINUX}
     FPlayerProcess.Parameters.Add('xv');
     {$ELSE}
+    FPlayerProcess.Parameters.Add('directx');
+    //FPlayerProcess.Parameters.Add('direct3d');
     {$ENDIF}
   end else begin
     FPlayerProcess.Parameters.Add('-vo');

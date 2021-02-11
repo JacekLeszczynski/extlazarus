@@ -99,7 +99,7 @@ type
     procedure GetMeter(var ALeft,ARight: single);
     procedure GetMeter(var ALeft,ARight: double);
     procedure GetMeter(var ALeft,ARight: integer);
-    procedure GetMeterEx(var aLeft,aRight: single);
+    function GetMeterEx(var aLeft,aRight: single): boolean;
     function GetLength: longword;
     function GetLengthSeconds: single;
     function GetLengthTime: TTime;
@@ -676,7 +676,7 @@ begin
   end;
 end;
 
-procedure TUOSPlayer.GetMeterEx(var aLeft, aRight: single);
+function TUOSPlayer.GetMeterEx(var aLeft, aRight: single): boolean;
 var
   vPosL,vPosR: single;
   l,r: single;
@@ -686,18 +686,19 @@ begin
     INFO: procedura pobiera wartości obu kanałów i nanosi na nie wartości aktualne
           w taki sposób, by był symulowany efekt bezwładności wskazówek.
     - zalecany czas odpalania kodu: 100ms
-    - zwracane wartości: min = 0, max = 105
+    - zwracane wartości: min = 0, max = 100
   *)
   vPosL:=aLeft;
   vPosR:=aRight;
-  if vPosL>0 then vPosL:=vPosL-5;
-  if vPosR>0 then vPosR:=vPosR-5;
+  if vPosL>0 then vPosL:=vPosL-5 else vPosL:=0;
+  if vPosR>0 then vPosR:=vPosR-5 else vPosR:=0;
   aLeft:=vPosL;
   aRight:=vPosR;
+  if FBusy then result:=true else result:=(vPosL>0) or (vPosR>0);
   if (not FBusy) or FPause then exit;
   GetMeter(ll,rr);
-  l:=ll*101;
-  r:=rr*101;
+  l:=ll*108;
+  r:=rr*108;
   if vPosL<l then vPosL:=vPosL+(l-vPosL)*0.5;
   if vPosR<r then vPosR:=vPosR+(r-vPosR)*0.5;
   aLeft:=vPosL;
