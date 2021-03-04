@@ -56,6 +56,9 @@ type
     udp: TLUDPComponent;
     ssl: TLSSLSessionComponent;
     ntp_count,ntp_srednia,ntp_t1: integer;
+    TabKeys: TStringList;
+    TabSocket: TList;
+    TabSocketKeys: TStringList;
     function GetCount: integer;
     procedure _OnAccept(aSocket: TLSocket);
     procedure _OnCanSend(aSocket: TLSocket);
@@ -76,6 +79,10 @@ type
     procedure GetTimeVector;
     function GetGUID: string;
     procedure SendCanSendMessage(aSocket: TLSocket; aValue: string);
+    procedure RegisterKey(aKey: string; aSocket: TLSocket = nil);
+    function KeyToSocket(aKey: string): TLSocket;
+    function KeyExist(aKey: string): boolean;
+    procedure Clear;
   published
     property Mode: TNetSocketMode read FMode write FMode;
     property Protocol: TNetSocketProto read FProto write FProto default spTCP;
@@ -180,37 +187,34 @@ var
 begin
   if Assigned(FOnReceive) then FOnReceive(aSocket);
   if FBinary then exit;
-  if Assigned(FOnReceiveString) then
+  if aSocket.GetMessage(ss)>0 then
   begin
-    if aSocket.GetMessage(ss)>0 then
+    ll:=1;
+    while true do
     begin
-      ll:=1;
-      while true do
+      s:=GetLineToStr(ss,ll,#10);
+      if s='' then break;
+      inc(ll);
+      if (FSecurity=ssCrypt) and Assigned(FOnDecryptString) then FOnDecryptString(s);
+      if (FMode=smServer) and (s='{NTP}') then SendString('NTP$'+IntToStr(TimeToInteger(time)),aSocket) else
+      if (FMode=smClient) and (GetLineToStr(s,1,'$')='NTP') then
       begin
-        s:=GetLineToStr(ss,ll,#10);
-        if s='' then break;
-        inc(ll);
-        if (FSecurity=ssCrypt) and Assigned(FOnDecryptString) then FOnDecryptString(s);
-        if (FMode=smServer) and (s='{NTP}') then SendString('NTP$'+IntToStr(TimeToInteger(time)),aSocket) else
-        if (FMode=smClient) and (GetLineToStr(s,1,'$')='NTP') then
+        t1:=ntp_t1;
+        t2:=StrToInt(GetLineToStr(s,2,'$'));
+        t3:=t2;
+        t4:=TimeToInteger(time);
+        srednia:=round(((t2-t1)+(t3-t4))/2);
+        ntp_srednia:=ntp_srednia+srednia;
+        inc(ntp_count);
+        if ntp_count<100 then
         begin
-          t1:=ntp_t1;
-          t2:=StrToInt(GetLineToStr(s,2,'$'));
-          t3:=t2;
-          t4:=TimeToInteger(time);
-          srednia:=round(((t2-t1)+(t3-t4))/2);
-          ntp_srednia:=ntp_srednia+srednia;
-          inc(ntp_count);
-          if ntp_count<100 then
-          begin
-            ntp_t1:=t4;
-            SendString('{NTP}');
-          end else begin
-            wektor_czasu:=round(ntp_srednia/ntp_count);
-            if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
-          end;
-        end else FOnReceiveString(s,aSocket);
-      end;
+          ntp_t1:=t4;
+          SendString('{NTP}');
+        end else begin
+          wektor_czasu:=round(ntp_srednia/ntp_count);
+          if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
+        end;
+      end else if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket);
     end;
   end;
 end;
@@ -228,6 +232,10 @@ end;
 constructor TNetSocket.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  TabKeys:=TStringList.Create;
+  TabKeys.Sorted:=true;
+  TabSocket:=TList.Create;
+  TabSocketKeys:=TStringList.Create;
   FActive:=false;
   FCrypt:=false;
   FSecurity:=ssNone;
@@ -242,7 +250,12 @@ begin
 end;
 
 destructor TNetSocket.Destroy;
+var
+  i: integer;
 begin
+  TabKeys.Free;
+  TabSocket.Free;
+  TabSocketKeys.Free;
   if FActive then Disconnect(true);
   inherited Destroy;
 end;
@@ -322,6 +335,7 @@ begin
   if FProto=spTCP then tcp.Free else udp.Free;
   FActive:=false;
   FCrypt:=false;
+  TabKeys.Clear;
   if Assigned(FOnDisconnect) then FOnDisconnect;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
@@ -402,6 +416,39 @@ end;
 procedure TNetSocket.SendCanSendMessage(aSocket: TLSocket; aValue: string);
 begin
   if assigned(FOnCanSend) then FOnCanSend(aSocket,aValue);
+end;
+
+procedure TNetSocket.RegisterKey(aKey: string; aSocket: TLSocket);
+begin
+  TabKeys.Add(aKey);
+  TabSocketKeys.Add(aKey);
+  TabSocket.Add(aSocket);
+end;
+
+function TNetSocket.KeyToSocket(aKey: string): TLSocket;
+var
+  i: integer;
+begin
+  result:=nil;
+  for i:=0 to TabSocketKeys.Count-1 do if TabSocketKeys[i]=aKey then
+  begin
+    result:=TLSocket(TabSocket[i]);
+    break;
+  end;
+end;
+
+function TNetSocket.KeyExist(aKey: string): boolean;
+var
+  index: integer;
+begin
+  result:=TabKeys.Find(aKey,index);
+end;
+
+procedure TNetSocket.Clear;
+begin
+  TabKeys.Clear;
+  TabSocketKeys.Clear;
+  TabSocket.Clear;
 end;
 
 end.
