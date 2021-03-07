@@ -359,11 +359,11 @@ begin
       begin
         tcp.IterReset;
         while tcp.IterNext do c:=c+tcp.SendMessage(s+#10,tcp.Iterator);
-      end else c:=aSocket.SendMessage(s+#10);
+      end else if aSocket.Handle>0 then c:=aSocket.SendMessage(s+#10);
     end else c:=tcp.SendMessage(s+#10);
   end else begin
     (* UDP *)
-    if aSocket=nil then c:=udp.SendMessage(s+#10,LADDR_BR) else c:=aSocket.SendMessage(s+#10);
+    if aSocket=nil then c:=udp.SendMessage(s+#10,LADDR_BR) else if aSocket.Handle>0 then c:=aSocket.SendMessage(s+#10);
   end;
   result:=c;
 end;
