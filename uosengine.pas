@@ -33,6 +33,7 @@ type
     procedure SetLibDirectory(AValue: string);
     procedure _init;
     function TestOSInfo: TUOSEngineOsInfo;
+    function GetAutoDir: string;
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -170,6 +171,47 @@ begin
   {$ENDIF}
 end;
 
+function TUOSEngine.GetAutoDir: string;
+var
+  s,md,snd: string;
+begin
+  md:=ExtractFilePath(ParamStr(0));
+  {$IFDEF Windows}
+    {$if defined(cpu64)}
+      snd:='LibSndFile-64.dll';
+    {$else}
+      snd:='LibSndFile-32.dll';
+    {$endif}
+  {$ENDIF}
+  {$if defined(cpu64) and defined(linux) }
+    snd:='LibSndFile-64.so';
+  {$ENDIF}
+  {$if defined(cpu86) and defined(linux)}
+    snd:='LibSndFile-32.so';
+  {$ENDIF}
+  {$IFDEF freebsd}
+    {$if defined(cpu64)}
+      snd:='libsndfile-64.so';
+    {$else}
+      snd:='libsndfile-32.so';
+    {$endif}
+  {$ENDIF}
+  {$IFDEF UNIX}
+    if FileExists('/usr/lib/uos/'+snd) then s:='/usr/lib/uos' else
+    if FileExists('/usr/local/lib/uos/'+snd) then s:='/usr/local/lib/uos' else
+    if FileExists(md+'/uos/'+snd) then s:=md+'/uos' else
+    s:=md;
+  {$ELSE}
+    if FileExists('c:\windows\uos\'+snd) then s:='c:\windows\uos' else
+    if FileExists('c:\windows\system\uos\'+snd) then s:='c:\windows\system\uos' else
+    if FileExists('c:\windows\system32\uos\'+snd) then s:='c:\windows\system32\uos' else
+    if FileExists('c:\windows\system64\uos\'+snd) then s:='c:\windows\system64\uos' else
+    if FileExists(md+'\uos\'+snd) then s:=md+'\uos' else
+    s:=md;
+  {$ENDIF}
+  result:=s;
+end;
+
 constructor TUOSEngine.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -191,13 +233,13 @@ var
   {$IFDEF SOUTH}
   s11,s22: string;
   p11,p22: pchar;
-  {$ENDIF}
   err: integer;
+  {$ENDIF}
 begin
   result:=FLoaded;
   if FLoaded then exit;
   s:=FLibDirectory;
-  if (s='<auto>') or (s='.') then s:=ExtractFilePath(ParamStr(0)) else s:=s+_FF;
+  if (s='<auto>') or (s='.') then s:=StringReplace(GetAutoDir+_FF,_FF+_FF,_FF,[rfReplaceAll]) else s:=StringReplace(s+_FF,_FF+_FF,_FF,[rfReplaceAll]);
   s1:=s+libPortAudio;
   s2:=s+libSndDFile;
   s3:=s+Mpg123FileName;
