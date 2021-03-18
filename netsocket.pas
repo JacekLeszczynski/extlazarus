@@ -110,8 +110,7 @@ type
      Adding this:
      -> Application.ProcessMessage <-}
     property OnProcessMessage: TNetSocketOnASocketNull read FGoPM write FGoPM;
-    {Client: Po połączeniu się z serwerem.
-     Dostępne: tcp}
+    {Client (tcp) / Server (tcp,udp)}
     property OnConnect: TNetSocketOnASocket read FOnConnect write FOnConnect;
     {Dostępne: tcp/udp*}
     property OnDisconnect: TNetSocketOnASocketNull read FOnDisconnect write FOnDisconnect;
@@ -321,6 +320,7 @@ begin
     if FSecurity=ssSSL then ssl.Free;
     if FProto=spTCP then tcp.Free else udp.Free;
   end;
+  if FMode=smServer then if FActive then if Assigned(FOnConnect) then FOnConnect(nil);
   FCrypt:=(FSecurity=ssCrypt) and FActive;
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
   result:=FActive;
