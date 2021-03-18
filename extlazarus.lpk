@@ -10,7 +10,7 @@
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="51">
+    <Files Count="52">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -261,6 +261,11 @@
         <Filename Value="list_unit.pas"/>
         <UnitName Value="list_unit"/>
       </Item51>
+      <Item52>
+        <Filename Value="upnp.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="Upnp"/>
+      </Item52>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
