@@ -13,6 +13,7 @@ type
 
   TUpnp = class(TComponent)
   private
+    UPNP_OK: boolean;
     FActive: boolean;
     FDiscover: boolean;
     FDeviceIP: string;
@@ -23,14 +24,14 @@ type
     fTitle: string;
     function GetLocalIpAddress: string;
     function IsDiscovered: boolean;
-    procedure Discover;
+    function Discover: boolean;
     procedure SetTCP(AValue: TStrings);
     procedure SetUDP(AValue: TStrings);
   protected
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure Init;
+    function Init: boolean;
     procedure Open;
     procedure Close;
     function AddPortMapping(const aPort: word; aProto: string = 'tcp'; aTitle: string = ''): boolean;
@@ -104,6 +105,7 @@ end;
 constructor TUpnp.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  UPNP_OK:=false;
   FActive:=false;
   FDiscover:=false;
   FDeviceIP:='';
@@ -121,15 +123,16 @@ begin
   inherited Destroy;
 end;
 
-procedure TUpnp.Init;
+function TUpnp.Init: boolean;
 begin
-  Discover;
+  result:=Discover;
 end;
 
 procedure TUpnp.Open;
 var
   i: integer;
 begin
+  if not UPNP_OK then exit;
   if FActive then exit;
   for i:=0 to FTCP.Count-1 do AddPortMapping(StrToInt(FTCP[i]),'tcp',FTitle);
   for i:=0 to FUDP.Count-1 do AddPortMapping(StrToInt(FUDP[i]),'udp',FTitle);
@@ -140,13 +143,14 @@ procedure TUpnp.Close;
 var
   i: integer;
 begin
+  if not UPNP_OK then exit;
   if not FActive then exit;
   for i:=0 to FTCP.Count-1 do DeletePortMapping(StrToInt(FTCP[i]),'tcp');
   for i:=0 to FUDP.Count-1 do DeletePortMapping(StrToInt(FUDP[i]),'udp');
   FActive:=false;
 end;
 
-procedure TUpnp.Discover;
+function TUpnp.Discover: boolean;
 var
   a: integer;
   s,uri,adres,service_type: string;
@@ -235,8 +239,10 @@ begin
         mem.Free;
       end;
     end;
-  end;
+    UPNP_OK:=true;
+  end else UPNP_OK:=false;
   FDiscover:=true;
+  result:=UPNP_OK;
 end;
 
 procedure TUpnp.SetTCP(AValue: TStrings);
@@ -260,6 +266,7 @@ var
   LHeaderStr: string;
   LResponseStr: string;
 begin
+  if not UPNP_OK then exit;
   if aTitle='' then n1:='NONAME' else n1:=AnsiUpperCase(aTitle);
   LSendData:=TStringStream.Create('');
   try
@@ -302,6 +309,7 @@ var
   LHeaderStr: string;
   LResponseStr: string;
 begin
+  if not UPNP_OK then exit;
   LSendData:=TStringStream.Create('');
   try
     LSendData.WriteString('<?xml version="1.0" encoding="utf-8"?>');
@@ -364,6 +372,7 @@ var
   end;
 
 begin
+  if not UPNP_OK then exit;
   result:=FExternalIP;
   if (result='') then
   begin
