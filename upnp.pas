@@ -13,22 +13,34 @@ type
 
   TUpnp = class(TComponent)
   private
+    FActive: boolean;
+    FDiscover: boolean;
     FDeviceIP: string;
     FDevicePort: word;
     FDeviceControlURL: string;
-    FExternalIP: string;
+    FLocalIP,FExternalIP: string;
+    FTCP,FUDP: TStrings;
+    fTitle: string;
     function GetLocalIpAddress: string;
-    function GetDiscovered: boolean;
+    function IsDiscovered: boolean;
+    procedure Discover;
+    procedure SetTCP(AValue: TStrings);
+    procedure SetUDP(AValue: TStrings);
   protected
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure Discover;
+    procedure Init;
+    procedure Open;
+    procedure Close;
     function AddPortMapping(const aPort: word; aProto: string = 'tcp'; aTitle: string = ''): boolean;
     procedure DeletePortMapping(const aPort: word; aProto: string = 'tcp');
     function GetExternalIP: string;
   published
-
+    {Nazwa pod którą będą widziane otwarte porty}
+    property Title: string read fTitle write fTitle;
+    property PortsTcp: TStrings read FTCP write SetTCP;
+    property PortsUdp: TStrings read FUDP write SetUDP;
   end;
 
 procedure Register;
@@ -63,25 +75,28 @@ var
   HostAddr: TSockAddr;
   len: Integer;
 begin
-  err:=0;
-  sock:=fpsocket(AF_INET,SOCK_DGRAM,0);
-  assert(sock<>-1);
-  UnixAddr.sin_family:=AF_INET;
-  UnixAddr.sin_port:=htons(CN_GDNS_PORT);
-  UnixAddr.sin_addr:=StrToHostAddr(CN_GDNS_ADDR);
-  if (fpConnect(sock,@UnixAddr,SizeOf(UnixAddr))=0) then
+  if FLocalIP='' then
   begin
-    try
-      len:=SizeOf(HostAddr);
-      if (fpgetsockname(sock,@HostAddr,@len)=0) then result:=NetAddrToStr(HostAddr.sin_addr) else err:=socketError;
-    finally
-      if (fpclose(sock)<>0) then err:=socketError;
-    end;
-  end else err:=socketError;
-  if (err<>0) then result:='';
+    err:=0;
+    sock:=fpsocket(AF_INET,SOCK_DGRAM,0);
+    assert(sock<>-1);
+    UnixAddr.sin_family:=AF_INET;
+    UnixAddr.sin_port:=htons(CN_GDNS_PORT);
+    UnixAddr.sin_addr:=StrToHostAddr(CN_GDNS_ADDR);
+    if (fpConnect(sock,@UnixAddr,SizeOf(UnixAddr))=0) then
+    begin
+      try
+        len:=SizeOf(HostAddr);
+        if (fpgetsockname(sock,@HostAddr,@len)=0) then result:=NetAddrToStr(HostAddr.sin_addr) else err:=socketError;
+      finally
+        if (fpclose(sock)<>0) then err:=socketError;
+      end;
+    end else err:=socketError;
+    if (err<>0) then result:='';
+  end else result:=FLocalIP;
 end;
 
-function TUpnp.GetDiscovered: boolean;
+function TUpnp.IsDiscovered: boolean;
 begin
   result:=FDeviceIP<>'';
 end;
@@ -89,14 +104,46 @@ end;
 constructor TUpnp.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FActive:=false;
+  FDiscover:=false;
   FDeviceIP:='';
   FDevicePort:=0;
   FExternalIP:='';
+  FLocalIP:='';
+  FTCP:=TStringList.Create;
+  FUDP:=TStringList.Create;
 end;
 
 destructor TUpnp.Destroy;
 begin
+  FTCP.Free;
+  FUDP.Free;
   inherited Destroy;
+end;
+
+procedure TUpnp.Init;
+begin
+  Discover;
+end;
+
+procedure TUpnp.Open;
+var
+  i: integer;
+begin
+  if FActive then exit;
+  for i:=0 to FTCP.Count-1 do AddPortMapping(StrToInt(FTCP[i]),'tcp',FTitle);
+  for i:=0 to FUDP.Count-1 do AddPortMapping(StrToInt(FUDP[i]),'udp',FTitle);
+  FActive:=true;
+end;
+
+procedure TUpnp.Close;
+var
+  i: integer;
+begin
+  if not FActive then exit;
+  for i:=0 to FTCP.Count-1 do DeletePortMapping(StrToInt(FTCP[i]),'tcp');
+  for i:=0 to FUDP.Count-1 do DeletePortMapping(StrToInt(FUDP[i]),'udp');
+  FActive:=false;
 end;
 
 procedure TUpnp.Discover;
@@ -136,6 +183,7 @@ var
   end;
 
 begin
+  if FDiscover then exit;
   LSendStr:='M-SEARCH * HTTP/1.1'+EOL+'MX: 2'+EOL+'HOST: 239.255.255.250:1900'+EOL+'MAN: "ssdp:discover"'+EOL+'ST: urn:schemas-upnp-org:service:%s'+EOL+EOL;
   LNet:=TUDPBlockSocket.Create;
   try
@@ -188,6 +236,19 @@ begin
       end;
     end;
   end;
+  FDiscover:=true;
+end;
+
+procedure TUpnp.SetTCP(AValue: TStrings);
+begin
+  if FTCP.Text=AValue.Text then Exit;
+  FTCP.Assign(AValue);
+end;
+
+procedure TUpnp.SetUDP(AValue: TStrings);
+begin
+  if FUDP.Text=AValue.Text then Exit;
+  FUDP.Assign(AValue);
 end;
 
 function TUpnp.AddPortMapping(const aPort: word; aProto: string; aTitle: string
