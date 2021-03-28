@@ -49,7 +49,7 @@ procedure Register;
 implementation
 
 uses
-  baseunix, blcksock, sockets, synautil, NetSynHTTP, DOM, XMLRead;
+  {$IFDEF UNIX}baseunix,{$ENDIF} blcksock, sockets, synautil, NetSynHTTP, DOM, XMLRead;
 
 const
   EOL = #13#10;
@@ -64,6 +64,8 @@ begin
 end;
 
 { TUpnp }
+
+{$IFDEF UNIX}
 
 function TUpnp.GetLocalIpAddress: string;
 const
@@ -423,4 +425,75 @@ begin
   end;
 end;
 
+{$ELSE}
+
+function TUpnp.GetLocalIpAddress: string;
+begin
+
+end;
+
+function TUpnp.IsDiscovered: boolean;
+begin
+
+end;
+
+function TUpnp.Discover: boolean;
+begin
+
+end;
+
+procedure TUpnp.SetTCP(AValue: TStrings);
+begin
+
+end;
+
+procedure TUpnp.SetUDP(AValue: TStrings);
+begin
+
+end;
+
+constructor TUpnp.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+end;
+
+destructor TUpnp.Destroy;
+begin
+  inherited Destroy;
+end;
+
+function TUpnp.Init: boolean;
+begin
+
+end;
+
+procedure TUpnp.Open;
+begin
+
+end;
+
+procedure TUpnp.Close;
+begin
+
+end;
+
+function TUpnp.AddPortMapping(const aPort: word; aProto: string; aTitle: string
+  ): boolean;
+begin
+
+end;
+
+procedure TUpnp.DeletePortMapping(const aPort: word; aProto: string);
+begin
+
+end;
+
+function TUpnp.GetExternalIP: string;
+begin
+
+end;
+
+{$ENDIF}
+
 end.
+
