@@ -17,7 +17,7 @@ type
   TNetSocketOnCanSend = procedure(aSocket: TLSocket; const aValue: string) of object;
   TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
-  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket) of object;
+  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket; aID: integer) of object;
   TNetSocketOnReceiveBinaryASocket = procedure(const outdata; size: longword; aSocket: TLSocket) of object;
   TNetSocketOnStatus = procedure(aActive, aCrypt: boolean) of object;
   TNetSocketOnCryptDecryptString = procedure(var aText: string) of object;
@@ -30,6 +30,7 @@ type
   private
     FCommunication: TNetSocketCommunication;
     FGoPM: TNetSocketOnASocketNull;
+    FMaxBuffer: word;
     FOnCryptBinary: TNetSocketOnCryptDecryptBinary;
     FOnDecryptBinary: TNetSocketOnCryptDecryptBinary;
     FOnReceiveBinary: TNetSocketOnReceiveBinaryASocket;
@@ -83,7 +84,8 @@ type
     destructor Destroy; override;
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
-    function SendString(const aMessage: string; aSocket: TLSocket = nil): integer;
+    function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1): integer;
+    function SendString(const aMessage: string; aID: integer): integer;
     function SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
     procedure GetTimeVector;
     function GetGUID: string;
@@ -105,6 +107,7 @@ type
     property Port: Word read FPort write FPort;
     property ReuseAddress: boolean read FReuseAddress write FReuseAddress;
     property Timeout: integer read FTimeout write FTimeout;
+    property MaxBuffer: word read FMaxBuffer write FMaxBuffer default 65535;
     property SSLMethod: TNetSocketSSLMethod read FSSLMethod write FSSLMethod;
     property SSLCAFile: string read FSSLCAFile write FSSLCAFile;
     property SSLKeyFile: string read FSSLKeyFile write FSSLKeyFile;
@@ -147,6 +150,9 @@ implementation
 
 uses
   ecode_unit;
+
+const
+  znaczek = #1;
 
 procedure Register;
 begin
@@ -214,10 +220,20 @@ end;
 
 procedure TNetSocket.GetStringReceive(aMsg: string; aSocket: TLSocket);
 var
-  s: string;
+  s1,s: string;
   t1,t2,t3,t4,srednia,wektor_czasu: integer;
+  id: integer;
 begin
-  s:=aMsg;
+  id:=-1; // "#ID#{NTP}"
+  if aMsg[1]=znaczek then
+  begin
+    try
+      id:=StrToInt(GetLineToStr(aMsg,2,znaczek));
+    except
+      id:=-1;
+    end;
+    s:=GetLineToStr(aMsg,3,znaczek);
+  end else s:=aMsg;
   if (FMode=smServer) and (s='{NTP}') then SendString('NTP$'+IntToStr(TimeToInteger(time)),aSocket) else
   if (FMode=smClient) and (GetLineToStr(s,1,'$')='NTP') then
   begin
@@ -236,7 +252,7 @@ begin
       wektor_czasu:=round(ntp_srednia/ntp_count);
       if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
     end;
-  end else if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket);
+  end else if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,id);
 end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
@@ -284,7 +300,7 @@ begin
   end else
   if FCommunication=cmBinary then
   begin
-    bsize:=aSocket.Get(bin,65535);
+    bsize:=aSocket.Get(bin,FMaxBuffer);
     if bsize>0 then
     begin
       if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
@@ -298,7 +314,9 @@ begin
   end else
   if FCommunication=cmMixed then
   begin
-    bsize:=aSocket.Get(bin,65535);
+    FillChar(bin,FMaxBuffer,0);
+    FillChar(bout,FMaxBuffer,0);
+    bsize:=aSocket.Get(bin,FMaxBuffer);
     if bsize>0 then
     begin
       if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
@@ -414,6 +432,7 @@ begin
   FHost:='';
   FPort:=0;
   FReuseAddress:=false;
+  FMaxBuffer:=65535;
   FSSLMethod:=msSSLv2or3;
   FTimeout:=0;
 end;
@@ -510,8 +529,8 @@ begin
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
 
-function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket
-  ): integer;
+function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket;
+  aID: integer): integer;
 var
   s,ss: string;
   l: integer;
@@ -519,12 +538,13 @@ var
   o: array [0..65535] of byte;
 begin
   if not FActive then exit;
-  s:=aMessage;
+  if aID=-1 then s:=aMessage else s:=znaczek+IntToStr(aID)+znaczek+aMessage;
   if FCommunication=cmMixed then
   begin
     l:=length(s)+1;
     if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
     begin
+      FillChar(o,FMaxBuffer,0);
       FOnCryptBinary(&s[1],&o[4],l);
       ss:=StrBase(IntToSys(l,16),4);
       o[0]:=ord(ss[1]);
@@ -540,6 +560,11 @@ begin
     if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
     result:=_SendString(s+#10,aSocket);
   end;
+end;
+
+function TNetSocket.SendString(const aMessage: string; aID: integer): integer;
+begin
+  result:=SendString(aMessage,nil,aID);
 end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer; aSocket: TLSocket
