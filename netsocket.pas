@@ -95,6 +95,7 @@ type
     function KeyToSocket(aKey: string): TLSocket;
     function KeyExist(aKey: string): boolean;
     procedure Clear;
+    function IsOpenPort(aIPAdr: string; aPort: word; aSendString: string = ''; aID: integer = -1): boolean;
   published
     property Mode: TNetSocketMode read FMode write FMode;
     property Protocol: TNetSocketProto read FProto write FProto default spTCP;
@@ -149,7 +150,7 @@ procedure Register;
 implementation
 
 uses
-  ecode_unit;
+  ecode_unit, blcksock;
 
 const
   znaczek = #1;
@@ -653,6 +654,87 @@ begin
   TabKeys.Clear;
   TabSocketKeys.Clear;
   TabSocket.Clear;
+end;
+
+{
+function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1): integer;
+var
+  s,ss: string;
+  l: integer;
+  p: pchar;
+  o: array [0..65535] of byte;
+begin
+  if not FActive then exit;
+  if aID=-1 then s:=aMessage else s:=znaczek+IntToStr(aID)+znaczek+aMessage;
+  if FCommunication=cmMixed then
+  begin
+    l:=length(s)+1;
+    if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
+    begin
+      FillChar(o,FMaxBuffer,0);
+      FOnCryptBinary(&s[1],&o[4],l);
+      ss:=StrBase(IntToSys(l,16),4);
+      o[0]:=ord(ss[1]);
+      o[1]:=ord(ss[2]);
+      o[2]:=ord(ss[3]);
+      o[3]:=ord(ss[4]);
+      result:=_SendBinary(o,l+4,aSocket);
+    end else begin
+      ss:=StrBase(IntToSys(l,16),4)+s;
+      result:=_SendBinary(&ss[1],l+4,aSocket);
+    end;
+  end else begin
+    if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
+    result:=_SendString(s+#10,aSocket);
+  end;
+end;
+}
+
+function TNetSocket.IsOpenPort(aIPAdr: string; aPort: word;
+  aSendString: string; aID: integer): boolean;
+var
+  socket: TBlockSocket;
+  b: boolean;
+var
+  s,ss: string;
+  l: integer;
+  p: pchar;
+  o: array [0..65535] of byte;
+begin
+  socket:=TTCPBlockSocket.Create;
+  try
+    socket.Connect(aIPAdr,IntToStr(aPort));
+    b:=socket.LastError=0;
+    if b and (aSendString<>'') then
+    begin
+      if aID=-1 then s:=aSendString else s:=znaczek+IntToStr(aID)+znaczek+aSendString;
+      if FCommunication=cmMixed then
+      begin
+        l:=length(s)+1;
+        if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
+        begin
+          FillChar(o,FMaxBuffer,0);
+          FOnCryptBinary(&s[1],&o[4],l);
+          ss:=StrBase(IntToSys(l,16),4);
+          o[0]:=ord(ss[1]);
+          o[1]:=ord(ss[2]);
+          o[2]:=ord(ss[3]);
+          o[3]:=ord(ss[4]);
+          socket.SendBufferTo(pointer(@o),l+4);
+        end else begin
+          ss:=StrBase(IntToSys(l,16),4)+s;
+          socket.SendBuffer(pointer(@ss[1]),l+4);
+        end;
+      end else begin
+        if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
+        socket.SendString(s+#10);
+      end;
+    end;
+    socket.CloseSocket;
+  finally
+    socket.Free;
+  end;
+  result:=b;
 end;
 
 end.

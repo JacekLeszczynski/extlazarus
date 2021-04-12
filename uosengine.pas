@@ -40,6 +40,7 @@ type
     destructor Destroy; override;
     function LoadLibrary: boolean;
     procedure UnLoadLibrary;
+    function GetErrorStr: string;
   published
     property OSInfo: TUOSEngineOsInfo read FOSInfo; //Information from OS System.
     property LibDirectory: string read FLibDirectory write SetLibDirectory;
@@ -286,6 +287,11 @@ begin
     FLoadedServers:=false;
   end;
   {$ENDIF}
+end;
+
+function TUOSEngine.GetErrorStr: string;
+begin
+  result:=GetLoadErrorStr;
 end;
 
 end.

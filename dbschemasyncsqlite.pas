@@ -383,7 +383,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add('drop view '+v1[i]);
         try
-          writeln('drop view '+v1[i]);
           qq.ExecSQL;
         except
           log.Add('SYNC-DELETE: Błąd podczas usuwania podglądu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
@@ -407,7 +406,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add('drop index '+v1[i]);
         try
-          writeln('drop index '+v1[i]);
           qq.ExecSQL;
         except
           log.Add('SYNC-DELETE: Błąd podczas usuwania indeksu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
@@ -431,7 +429,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add('drop table '+v1[i]);
         try
-          writeln('drop table '+v1[i]);
           qq.ExecSQL;
         except
           log.Add('SYNC-DELETE: Błąd podczas usuwania tabeli: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
@@ -473,7 +470,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add('drop view '+v1[i]);
         try
-          writeln('(2) drop view '+v1[i]);
           qq.ExecSQL;
         except
           log.Add('SYNC-DELETE: Błąd podczas usuwania podglądu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
@@ -563,7 +559,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add(sq1.FieldByName('definicja').AsString);
         try
-          writeln('create view '+sq1.FieldByName('nazwa').AsString);
           qq.ExecSQL;
         except
           log.Add('SYNC-CREATE-VIEW: Błąd podczas dodawania widoku: ['+sq1.FieldByName('nazwa').AsString+']:'+#10#13+qq.SQL.Text);
@@ -588,7 +583,6 @@ begin
         qq.SQL.Clear;
         qq.SQL.Add(sq1.FieldByName('definicja').AsString);
         try
-          writeln('create index '+sq1.FieldByName('nazwa').AsString);
           qq.ExecSQL;
         except
           log.Add('SYNC-CREATE-INDEX: Błąd podczas dodawania indeksu: ['+sq1.FieldByName('nazwa').AsString+']:'+#10#13+qq.SQL.Text);
@@ -623,7 +617,6 @@ begin
     (* tej tabeli nie ma - tworzę ją *)
     q1.SQL.Assign(s1);
     try
-      writeln('create table '+nazwa);
       q1.ExecSQL;
       tabela_ok:=true;
     except
@@ -646,7 +639,6 @@ begin
       q1.SQL.Clear;
       q1.SQL.Add('ALTER TABLE '+nazwa+' RENAME COLUMN '+e2+' TO '+e1);
       try
-        writeln('alter table '+nazwa+' RENAME COLUMN '+e2+' TO '+e1);
         q1.ExecSQL;
       except
         log.Add('SYNC-ALTER: Błąd podczas zmiany nazwy kolumny z tabeli: ['+nazwa+']:'+#10#13+q1.SQL.Text);
@@ -861,7 +853,6 @@ function TDBSchemaSyncSqlite.akt_restrukturyzacja(cialo, stare: TStrings;
 var
   s: string;
 begin
-  writeln('restrukturyzacja tabeli: '+nazwa);
   s:=CalculateDiffPool(cialo,stare);
   try
     q1.SQL.Clear;
