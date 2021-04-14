@@ -435,7 +435,7 @@ begin
   FReuseAddress:=false;
   FMaxBuffer:=65535;
   FSSLMethod:=msSSLv2or3;
-  FTimeout:=0;
+  FTimeout:=4;
 end;
 
 destructor TNetSocket.Destroy;
@@ -450,13 +450,15 @@ begin
 end;
 
 function TNetSocket.Connect: boolean;
+var
+  i: integer;
 begin
   if FActive then exit;
   (* ustawianie objektów *)
   if FProto=spTCP then
   begin
     tcp:=TLTCPComponent.Create(nil);
-    tcp.Timeout:=FTimeout;
+    tcp.Timeout:=0;
     tcp.ReuseAddress:=FReuseAddress;
     tcp.OnAccept:=@_OnAccept;
     if Assigned(FOnCanSend) then tcp.OnCanSend:=@_OnCanSend;
@@ -466,7 +468,7 @@ begin
     tcp.OnReceive:=@_OnReceive;
   end else begin
     udp:=TLUDPComponent.Create(nil);
-    udp.Timeout:=FTimeout;
+    udp.Timeout:=0;
     udp.ReuseAddress:=FReuseAddress;
     if Assigned(FOnCanSend) then udp.OnCanSend:=@_OnCanSend;
     udp.OnDisconnect:=@_OnDisconnect;
@@ -491,16 +493,26 @@ begin
     if FMode=smServer then FActive:=tcp.Listen(FPort) else
     begin
       FActive:=tcp.Connect(FHost,FPort);
-      sleep(250);
-      if Assigned(FGoPM) then FGoPM;
+      for i:=1 to FTimeout*10 do
+      begin
+        sleep(100);
+        if Assigned(FGoPM) then FGoPM;
+        FActive:=tcp.Connected;
+        if FActive then break;
+      end;
       FActive:=tcp.Connected;
     end;
   end else begin
     if FMode=smServer then FActive:=udp.Listen(FPort) else
     begin
       FActive:=udp.Connect(FHost,FPort);
-      sleep(250);
-      if Assigned(FGoPM) then FGoPM;
+      for i:=1 to FTimeout*10 do
+      begin
+        sleep(100);
+        if Assigned(FGoPM) then FGoPM;
+        FActive:=udp.Connected;
+        if FActive then break;
+      end;
       FActive:=udp.Connected;
     end;
   end;
