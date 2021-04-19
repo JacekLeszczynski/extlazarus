@@ -11,11 +11,14 @@ type
 
   { TDBSchemaSyncSqlite }
 
+  TDBSchemaSyncSqliteOnStringListEvent = procedure (aValue: TStringList) of object;
   TDBSchemaSyncSqlite = class(TComponent)
   private
     dbsql: string;
     //list: TStringList;
     FDB: TZConnection;
+    FMemoryDB: boolean;
+    FOnLoadMemStruct: TDBSchemaSyncSqliteOnStringListEvent;
     sdb,sdb2: TZConnection;
     sq1,sq2: TZQuery;
     q1,q2,qq: TZQuery;
@@ -56,6 +59,8 @@ type
   published
     property DB_Connection: TZConnection read FDB write FDB;
     property StructFileName: string read dbsql write dbsql;
+    property MemoryDB: boolean read FMemoryDB write FMemoryDB default false;
+    property OnLoadMemStruct: TDBSchemaSyncSqliteOnStringListEvent read FOnLoadMemStruct write FOnLoadMemStruct;
   end;
 
 procedure Register;
@@ -899,6 +904,7 @@ end;
 constructor TDBSchemaSyncSqlite.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FMemoryDB:=false;
   log:=TStringList.Create;
   sdb:=TZConnection.Create(nil);
   sdb2:=TZConnection.Create(nil);
@@ -1080,14 +1086,14 @@ var
   i: integer;
   pom,vv: TStringList;
   czas: TDateTime;
-  wektor: string;
+  wektor,s,s1: string;
 begin
   pom:=TStringList.Create;
   vv:=TStringList.Create;
   try
     if FileExists(dbsql) then DeleteFile(dbsql);
     sdb.Protocol:='sqlite-3';
-    sdb.Database:=dbsql;
+    if FMemoryDB then sdb.Database:=':memory:' else sdb.Database:=dbsql;
     sdb.Connect;
     (* przygotowanie bazy do zapisu struktury *)
     sq1.SQL.Clear;
@@ -1137,6 +1143,24 @@ begin
       sq1.ExecSQL;
     end;
     Commit;
+    if FMemoryDB then
+    begin
+      vv.Clear;
+      sq1.SQL.Clear;
+      sq1.SQL.Add('select nazwa,wektor,typ,znacznik_czasu,definicja from tabele order by id');
+      sq1.Open;
+      while not sq1.EOF do
+      begin
+        if sq1.FieldByName('znacznik_czasu').IsNull then s1:='' else s1:=IntToStr(TimeToInteger(sq1.FieldByName('znacznik_czasu').AsDateTime));
+        s:=sq1.FieldByName('nazwa').AsString+';'+sq1.FieldByName('wektor').AsString+';'+sq1.FieldByName('typ').AsString+';'+s1+';'+sq1.FieldByName('definicja').AsString;
+        s:=StringReplace(s,#13,'{13}',[rfReplaceAll]);
+        s:=StringReplace(s,#10,'{10}',[rfReplaceAll]);
+        vv.Add(s);
+        sq1.Next;
+      end;
+      sq1.Close;
+      vv.SaveToFile(dbsql);
+    end;
     sdb.Disconnect;
   finally
     pom.Free;
@@ -1148,7 +1172,9 @@ function TDBSchemaSyncSqlite.SyncSchema: boolean;
 var
   pragma_fk: boolean;
   b: boolean;
-  ee: integer;
+  i,ee: integer;
+  ss: TStringList;
+  s,s2: string;
 begin
   if not FileExists(dbsql) then
   begin
@@ -1158,8 +1184,46 @@ begin
     exit;
   end;
   sdb.Protocol:='sqlite-3';
-  sdb.Database:=dbsql;
+  if FMemoryDB then sdb.Database:=':memory:' else sdb.Database:=dbsql;
   sdb.Connect;
+  if FMemoryDB then
+  begin
+    (* przygotowanie bazy do zapisu struktury *)
+    sq1.SQL.Clear;
+    sq1.SQL.Add('create table tabele (id integer primary key autoincrement,nazwa text,wektor text,typ integer,znacznik_czasu datetime,definicja blob)');
+    sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_nazwa on tabele(nazwa)'); sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_wektor on tabele(wektor)'); sq1.ExecSQL;
+    sq1.SQL.Clear; sq1.SQL.Add('create index tabele_index_typ on tabele(typ)'); sq1.ExecSQL;
+    sq1.SQL.Clear;
+    sq1.SQL.Add('insert into tabele (nazwa,wektor,typ,znacznik_czasu,definicja) values (:nazwa,:wektor,:typ,:z_czasu,:definicja)');
+    sq1.Prepare;
+    (* wstawienie danych z pliku *)
+    ss:=TStringList.Create;
+    try
+      if assigned(FOnLoadMemStruct) then FOnLoadMemStruct(ss) else ss.LoadFromFile(dbsql);
+      StartTransaction;
+      for i:=0 to ss.Count-1 do
+      begin
+        s:=ss[i];
+        s2:=GetLineToStr(s,1,';'); if s2='' then sq1.ParamByName('nazwa').Clear else sq1.ParamByName('nazwa').AsString:=s2;
+        s2:=GetLineToStr(s,2,';'); if s2='' then sq1.ParamByName('wektor').Clear else sq1.ParamByName('wektor').AsString:=s2;
+        s2:=GetLineToStr(s,3,';'); if s2='' then sq1.ParamByName('typ').Clear else sq1.ParamByName('typ').AsInteger:=StrToInt(s2);
+        s2:=GetLineToStr(s,4,';'); if s2='' then sq1.ParamByName('z_czasu').Clear else sq1.ParamByName('z_czasu').AsDateTime:=IntegerToTime(StrToInt(s2));
+        s2:=GetLineToStr(s,5,';');
+        if s2='' then sq1.ParamByName('definicja').Clear else
+        begin
+          s2:=StringReplace(s2,'{13}',#13,[rfReplaceAll]);
+          s2:=StringReplace(s2,'{10}',#10,[rfReplaceAll]);
+          sq1.ParamByName('definicja').AsString:=s2;
+        end;
+        sq1.ExecSQL;
+      end;
+      Commit;
+    finally
+      ss.Free;
+    end;
+  end;
   try
     try
       pragma_fk:=PragmaForeignKeys;
