@@ -96,6 +96,7 @@ type
     function KeyExist(aKey: string): boolean;
     procedure Clear;
     function IsOpenPort(aIPAdr: string; aPort: word; aSendString: string = ''; aID: integer = -1): boolean;
+    function GetAddressIp: string;
   published
     property Mode: TNetSocketMode read FMode write FMode;
     property Protocol: TNetSocketProto read FProto write FProto default spTCP;
@@ -747,6 +748,25 @@ begin
     socket.Free;
   end;
   result:=b;
+end;
+
+function TNetSocket.GetAddressIp: string;
+var
+  s: string;
+begin
+  if FProto=spTCP then
+  begin
+    s:=tcp.Socks[0].LocalAddress;
+    s:=s+':'+IntToStr(tcp.Socks[0].LocalPort);
+    s:=s+'/'+tcp.Socks[0].PeerAddress;
+    s:=s+':'+IntToStr(tcp.Socks[0].PeerPort);
+  end else begin
+    s:=udp.Socks[0].LocalAddress;
+    s:=s+':'+IntToStr(udp.Socks[0].LocalPort);
+    s:=s+'/'+udp.Socks[0].PeerAddress;
+    s:=s+':'+IntToStr(udp.Socks[0].PeerPort);
+  end;
+  result:=s;
 end;
 
 end.
