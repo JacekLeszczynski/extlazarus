@@ -59,6 +59,7 @@ type
     FSSLMethod: TNetSocketSSLMethod;
     FSSLPassword: string;
     FTimeout: integer;
+    FUDPBroadcast: boolean;
     tcp: TLTCPComponent;
     udp: TLUDPComponent;
     ssl: TLSSLSessionComponent;
@@ -108,6 +109,7 @@ type
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort;
     property ReuseAddress: boolean read FReuseAddress write FReuseAddress;
+    property UDPBroadcast: boolean read FUDPBroadcast write FUDPBroadcast default false;
     property Timeout: integer read FTimeout write FTimeout;
     property MaxBuffer: word read FMaxBuffer write FMaxBuffer default 65535;
     property SSLMethod: TNetSocketSSLMethod read FSSLMethod write FSSLMethod;
@@ -389,7 +391,10 @@ begin
     end else c:=tcp.SendMessage(aMessage);
   end else begin
     (* UDP *)
-    if aSocket=nil then c:=udp.SendMessage(aMessage,LADDR_BR) else try if aSocket.ConnectionStatus=scConnected then c:=aSocket.SendMessage(aMessage); except c:=0; end;
+    if aSocket=nil then
+    begin               //LADDR_BR
+      if FUDPBroadcast then c:=udp.SendMessage(aMessage,LADDR_BR) else c:=udp.SendMessage(aMessage,FHost);
+    end else try if aSocket.ConnectionStatus=scConnected then c:=aSocket.SendMessage(aMessage); except c:=0; end;
   end;
   result:=c;
 end;
@@ -413,7 +418,10 @@ begin
     end else c:=tcp.Send(aBinary,aSize);
   end else begin
     (* UDP *)
-    if aSocket=nil then c:=udp.Send(aBinary,aSize,LADDR_BR) else try if aSocket.ConnectionStatus=scConnected then c:=aSocket.Send(aBinary,aSize); except c:=0; end;
+    if aSocket=nil then
+    begin
+      if FUDPBroadcast then c:=udp.Send(aBinary,aSize,LADDR_BR) else c:=udp.Send(aBinary,aSize,FHost);
+    end else try if aSocket.ConnectionStatus=scConnected then c:=aSocket.Send(aBinary,aSize); except c:=0; end;
   end;
   result:=c;
 end;
@@ -434,6 +442,7 @@ begin
   FHost:='';
   FPort:=0;
   FReuseAddress:=false;
+  FUDPBroadcast:=false;
   FMaxBuffer:=65535;
   FSSLMethod:=msSSLv2or3;
   FTimeout:=4;
