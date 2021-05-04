@@ -15,6 +15,10 @@ type
   TDBSchemaSyncSqlite = class(TComponent)
   private
     dbsql: string;
+    FAfterSave: TNotifyEvent;
+    FAfterSync: TNotifyEvent;
+    FBeforeSave: TNotifyEvent;
+    FBeforeSync: TNotifyEvent;
     //list: TStringList;
     FDB: TZConnection;
     FMemoryDB: boolean;
@@ -61,6 +65,10 @@ type
     property StructFileName: string read dbsql write dbsql;
     property MemoryDB: boolean read FMemoryDB write FMemoryDB default false;
     property OnLoadMemStruct: TDBSchemaSyncSqliteOnStringListEvent read FOnLoadMemStruct write FOnLoadMemStruct;
+    property OnBeforeSave: TNotifyEvent read FBeforeSave write FBeforeSave;
+    property OnAfterSave: TNotifyEvent read FAfterSave write FAfterSave;
+    property OnBeforeSync: TNotifyEvent read FBeforeSync write FBeforeSync;
+    property OnAfterSync: TNotifyEvent read FAfterSync write FAfterSync;
   end;
 
 procedure Register;
@@ -1088,6 +1096,7 @@ var
   czas: TDateTime;
   wektor,s,s1: string;
 begin
+  if assigned(FBeforeSave) then FBeforeSave(self);
   pom:=TStringList.Create;
   vv:=TStringList.Create;
   try
@@ -1166,6 +1175,7 @@ begin
     pom.Free;
     vv.Clear;
   end;
+  if assigned(FAfterSave) then FAfterSave(self);
 end;
 
 function TDBSchemaSyncSqlite.SyncSchema: boolean;
@@ -1183,6 +1193,7 @@ begin
     result:=false;
     exit;
   end;
+  if assigned(FBeforeSync) then FBeforeSync(self);
   sdb.Protocol:='sqlite-3';
   if FMemoryDB then sdb.Database:=':memory:' else sdb.Database:=dbsql;
   sdb.Connect;
@@ -1253,6 +1264,7 @@ begin
     err:=0;
     error:='';
   end;
+  if assigned(FAfterSync) then FAfterSync(self);
   result:=b;
 end;
 
