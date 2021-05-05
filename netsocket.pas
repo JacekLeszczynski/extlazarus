@@ -85,8 +85,8 @@ type
     destructor Destroy; override;
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
-    function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1): integer;
-    function SendString(const aMessage: string; aID: integer): integer;
+    function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
+    function SendString(const aMessage: string; aID: integer; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
     function SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
     procedure GetTimeVector;
     function GetGUID: string;
@@ -552,23 +552,36 @@ begin
   if Assigned(FOnStatus) then FOnStatus(FActive,FCrypt);
 end;
 
+type
+  TByteArray = array [0..65535] of byte;
+  PByteArray = ^TByteArray;
+
 function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket;
-  aID: integer): integer;
+  aID: integer; aBlock: pointer; aBlockSize: integer): integer;
 var
   s,ss: string;
-  l: integer;
-  p: pchar;
-  o: array [0..65535] of byte;
+  pom,l,j: integer;
+  p: PByteArray;
+  i,o: array [0..65535] of byte;
 begin
   if not FActive then exit;
   if aID=-1 then s:=aMessage else s:=znaczek+IntToStr(aID)+znaczek+aMessage;
   if FCommunication=cmMixed then
   begin
-    l:=length(s)+1;
+    pom:=length(s);
+    l:=pom+1;
     if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
     begin
+      p:=aBlock;
       FillChar(o,FMaxBuffer,0);
-      FOnCryptBinary(&s[1],&o[4],l);
+      if aBlockSize>0 then
+      begin
+        FillChar(i,FMaxBuffer,0);
+        l:=l+aBlockSize;
+        for j:=0 to pom-1 do i[j]:=ord(s[j+1]);
+        for j:=0 to aBlockSize-1 do i[j+pom]:=p^[j];
+        FOnCryptBinary(&i[0],&o[4],l);
+      end else FOnCryptBinary(&s[1],&o[4],l);
       ss:=StrBase(IntToSys(l,16),4);
       o[0]:=ord(ss[1]);
       o[1]:=ord(ss[2]);
@@ -585,9 +598,10 @@ begin
   end;
 end;
 
-function TNetSocket.SendString(const aMessage: string; aID: integer): integer;
+function TNetSocket.SendString(const aMessage: string; aID: integer;
+  aBlock: pointer; aBlockSize: integer): integer;
 begin
-  result:=SendString(aMessage,nil,aID);
+  result:=SendString(aMessage,nil,aID,aBlock,aBlockSize);
 end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer; aSocket: TLSocket
