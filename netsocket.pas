@@ -17,7 +17,7 @@ type
   TNetSocketOnCanSend = procedure(aSocket: TLSocket; const aValue: string) of object;
   TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
-  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket; aID: integer) of object;
+  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket; aID: integer; var aBinVec, aBinSize: integer) of object;
   TNetSocketOnReceiveBinaryASocket = procedure(const outdata; size: longword; aSocket: TLSocket) of object;
   TNetSocketOnStatus = procedure(aActive, aCrypt: boolean) of object;
   TNetSocketOnCryptDecryptString = procedure(var aText: string) of object;
@@ -68,7 +68,7 @@ type
     TabSocket: TList;
     TabSocketKeys: TStringList;
     function GetCount: integer;
-    procedure GetStringReceive(aMsg: string; aSocket: TLSocket);
+    procedure GetStringReceive(aMsg: string; aSocket: TLSocket; var aBinVec, aBinSize: integer);
     procedure _OnAccept(aSocket: TLSocket);
     procedure _OnCanSend(aSocket: TLSocket);
     procedure _OnConnect(aSocket: TLSocket);
@@ -222,7 +222,8 @@ begin
   end else result:=0;
 end;
 
-procedure TNetSocket.GetStringReceive(aMsg: string; aSocket: TLSocket);
+procedure TNetSocket.GetStringReceive(aMsg: string; aSocket: TLSocket;
+  var aBinVec, aBinSize: integer);
 var
   s1,s: string;
   t1,t2,t3,t4,srednia,wektor_czasu: integer;
@@ -256,7 +257,11 @@ begin
       wektor_czasu:=round(ntp_srednia/ntp_count);
       if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
     end;
-  end else if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,id);
+  end else begin
+    aBinVec:=0;
+    aBinSize:=0;
+    if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,id,aBinVec,aBinSize);
+  end;
 end;
 
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
@@ -286,6 +291,7 @@ var
   bin,bout: array [0..65535] of char;
   ll,i: integer;
   wsk,bsize,blok,a,b: longword;
+  b_vec,b_size,b_tag: integer;
 begin
   if FCommunication=cmString then
   begin
@@ -297,7 +303,7 @@ begin
         s:=GetLineToStr(ss,ll,#10);
         if s='' then break;
         if (FSecurity=ssCrypt) and assigned(FOnDecryptString) then FOnDecryptString(s);
-        GetStringReceive(s,aSocket);
+        GetStringReceive(s,aSocket,b_vec,b_size);
         inc(ll);
       end;
     end;
@@ -338,7 +344,8 @@ begin
           FOnDecryptBinary(&bin[wsk+4],bout,blok);
           p:=@bout+0;
           s:=p;
-          GetStringReceive(s,aSocket);
+          GetStringReceive(s,aSocket,b_vec,b_size);
+          if (b_size>0) and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bout[b_vec],b_size,aSocket);
           wsk:=wsk+4+blok;
         end;
       end else begin
@@ -352,7 +359,8 @@ begin
           blok:=HexToDec(copy(ss,wsk,4));
           //if blok=0 then break;
           s:=copy(ss,wsk+4,blok);
-          GetStringReceive(s,aSocket);
+          GetStringReceive(s,aSocket,b_vec,b_size);
+          if (b_size>0) and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bin[wsk+3+b_vec],b_size,aSocket);
           wsk:=wsk+4+blok;
         end;
       end;
