@@ -23,6 +23,7 @@ type
   TNetSocketOnCryptDecryptString = procedure(var aText: string) of object;
   TNetSocketOnCryptDecryptBinary = procedure(const indata; var outdata; var size: longword) of object;
   TNetSocketOnInteger = procedure(aTimeVector: integer) of object;
+  TNetSocketOnMonitorDataSize = procedure(aLevel: integer; const aData; aSize: integer) of object;
 
   { TNetSocket }
 
@@ -33,6 +34,8 @@ type
     FMaxBuffer: word;
     FOnCryptBinary: TNetSocketOnCryptDecryptBinary;
     FOnDecryptBinary: TNetSocketOnCryptDecryptBinary;
+    FOnMonRecvData: TNetSocketOnMonitorDataSize;
+    FOnMonSendData: TNetSocketOnMonitorDataSize;
     FOnReceiveBinary: TNetSocketOnReceiveBinaryASocket;
     FOnTimeVector: TNetSocketOnInteger;
     FActive,FCrypt: boolean;
@@ -85,8 +88,11 @@ type
     destructor Destroy; override;
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
+    {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
     function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
+    {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
     function SendString(const aMessage: string; aID: integer; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
+    {Wysyłanie danych binarnych}
     function SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
     procedure GetTimeVector;
     function GetGUID: string;
@@ -109,8 +115,14 @@ type
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort;
     property ReuseAddress: boolean read FReuseAddress write FReuseAddress;
+    {Po włączeniu wszystkie pakiety
+     lecą na broadcast, przy wyłączonej
+     opcji lecą na adres Hosta}
     property UDPBroadcast: boolean read FUDPBroadcast write FUDPBroadcast default false;
+    {Wewnętrzny Timeout}
     property Timeout: integer read FTimeout write FTimeout;
+    {Jeśli nie używasz całej pamięci,
+     warto tu istawić max używanej}
     property MaxBuffer: word read FMaxBuffer write FMaxBuffer default 65535;
     property SSLMethod: TNetSocketSSLMethod read FSSLMethod write FSSLMethod;
     property SSLCAFile: string read FSSLCAFile write FSSLCAFile;
@@ -135,8 +147,9 @@ type
     property OnError: TNetSocketOnConstStringASocket read FOnError write FOnError;
     {Dostępne: tcp/udp}
     property OnReceive: TNetSocketOnASocket read FOnReceive write FOnReceive;
-    {Dostępne: tcp/udp}
+    {Dostępne: tcp/udp (String/Mixed)}
     property OnReceiveString: TNetSocketOnReceiveStringASocket read FOnReceiveString write FOnReceiveString;
+    {Dostępne: tcp/udp (Binary/Mixed)}
     property OnReceiveBinary: TNetSocketOnReceiveBinaryASocket read FOnReceiveBinary write FOnReceiveBinary;
     property OnStatus: TNetSocketOnStatus read FOnStatus write FOnStatus;
     property OnCryptString: TNetSocketOnCryptDecryptString read FOnCryptString write FOnCryptString;
@@ -145,7 +158,18 @@ type
     property OnDecryptBinary: TNetSocketOnCryptDecryptBinary read FOnDecryptBinary write FOnDecryptBinary;
     property OnSSLAccept: TNetSocketOnASocket read FOnSSLAccept write FOnSSLAccept;
     property OnSSLConnect: TNetSocketOnASocket read FOnSSLConnect write FOnSSLConnect;
+    {Odpowiedź synchronizacji czasu}
     property OnTimeVector: TNetSocketOnInteger read FOnTimeVector write FOnTimeVector;
+    {Monitorowanie wyjścia
+     Level (poziom warstwy):
+     0 - dane na wyjściu
+     1 - dane wewnątrz (zawsze jawne)}
+    property OnMonSendData: TNetSocketOnMonitorDataSize read FOnMonSendData write FOnMonSendData;
+    {Monitorowanie wejścia
+     Level (poziom warstwy):
+     0 - dane na wejściu
+     1 - dane wewnątrz (zawsze jawne)}
+    property OnMonRecvData: TNetSocketOnMonitorDataSize read FOnMonRecvData write FOnMonRecvData;
   end;
 
 procedure Register;
@@ -229,6 +253,8 @@ var
   t1,t2,t3,t4,srednia,wektor_czasu: integer;
   id: integer;
 begin
+  aBinVec:=0;
+  aBinSize:=0;
   id:=-1; // "#ID#{NTP}"
   if aMsg[1]=znaczek then
   begin
@@ -258,8 +284,6 @@ begin
       if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
     end;
   end else begin
-    aBinVec:=0;
-    aBinSize:=0;
     if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,id,aBinVec,aBinSize);
   end;
 end;
@@ -297,6 +321,7 @@ begin
   begin
     if aSocket.GetMessage(ss)>0 then
     begin
+      if assigned(FOnMonRecvData) then FOnMonRecvData(0,ss,length(ss));
       ll:=1;
       while true do
       begin
@@ -311,6 +336,7 @@ begin
   if FCommunication=cmBinary then
   begin
     bsize:=aSocket.Get(bin,FMaxBuffer);
+    if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize);
     if bsize>0 then
     begin
       if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
@@ -327,6 +353,7 @@ begin
     FillChar(bin,FMaxBuffer,0);
     FillChar(bout,FMaxBuffer,0);
     bsize:=aSocket.Get(bin,FMaxBuffer);
+    if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize);
     if bsize>0 then
     begin
       if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
@@ -385,6 +412,7 @@ function TNetSocket._SendString(const aMessage: string; aSocket: TLSocket
 var
   c: integer;
 begin
+  if assigned(FOnMonSendData) then FOnMonSendData(0,aMessage,length(aMessage));
   c:=0;
   if FProto=spTCP then
   begin
@@ -412,6 +440,7 @@ function TNetSocket._SendBinary(const aBinary; aSize: integer; aSocket: TLSocket
 var
   c: integer;
 begin
+  if assigned(FOnMonSendData) then FOnMonSendData(0,aBinary,aSize);
   c:=0;
   if FProto=spTCP then
   begin
