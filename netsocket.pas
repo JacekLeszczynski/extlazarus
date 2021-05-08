@@ -70,6 +70,7 @@ type
     TabKeys: TStringList;
     TabSocket: TList;
     TabSocketKeys: TStringList;
+    buffer_client: TMemoryStream;
     function GetCount: integer;
     procedure GetStringReceive(aMsg: string; aSocket: TLSocket; var aBinVec, aBinSize: integer);
     procedure _OnAccept(aSocket: TLSocket);
@@ -316,6 +317,7 @@ var
   ll,i: integer;
   wsk,bsize,blok,a,b: longword;
   b_vec,b_size,b_tag: integer;
+  tab: array [1..4] of char;
 begin
   if FCommunication=cmString then
   begin
@@ -350,9 +352,26 @@ begin
   end else
   if FCommunication=cmMixed then
   begin
+    bsize:=aSocket.Get(bin,FMaxBuffer);
+
+    buffer_client.Position:=buffer_client.Size;
+    buffer_client.WriteBuffer(bin,bsize);
+    if buffer_client.Size<5 then exit;
+    buffer_client.Position:=0;
+    buffer_client.ReadBuffer(tab,4); SetLength(pom,4); pom[1]:=tab[1]; pom[2]:=tab[2]; pom[3]:=tab[3]; pom[4]:=tab[4];
+    blok:=HexToDec(pom);
+    if blok=0 then
+    begin
+      buffer_client.Clear;
+      exit;
+    end;
+    if blok>buffer_client.Size+4 then exit;
     FillChar(bin,FMaxBuffer,0);
     FillChar(bout,FMaxBuffer,0);
-    bsize:=aSocket.Get(bin,FMaxBuffer);
+    buffer_client.Position:=0;
+    bsize:=buffer_client.Read(bin,buffer_client.Size);
+    buffer_client.Clear;
+
     if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize);
     if bsize>0 then
     begin
@@ -483,12 +502,14 @@ begin
   FMaxBuffer:=65535;
   FSSLMethod:=msSSLv2or3;
   FTimeout:=4;
+  buffer_client:=TMemoryStream.Create;
 end;
 
 destructor TNetSocket.Destroy;
 var
   i: integer;
 begin
+  buffer_client.Free;
   TabKeys.Free;
   TabSocket.Free;
   TabSocketKeys.Free;
