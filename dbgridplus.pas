@@ -23,7 +23,7 @@ type
     procedure AutoScaleStop;
     procedure SetAutoScaleVector(AValue: integer);
   protected
-    procedure Paint; override;
+    procedure Resize; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -91,9 +91,9 @@ begin
   AutoscaleColumns;
 end;
 
-procedure TDBGridPlus.Paint;
+procedure TDBGridPlus.Resize;
 begin
-  inherited Paint;
+  inherited Resize;
   AutoScaleColumns;
 end;
 
