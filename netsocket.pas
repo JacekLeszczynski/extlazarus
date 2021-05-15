@@ -5,7 +5,7 @@ unit NetSocket;
 interface
 
 uses
-  Classes, SysUtils, LResources, lNet, lNetComponents, lNetSSL;
+  Classes, SysUtils, LResources, lNet, lNetComponents, lNetSSL, Pipes;
 
 type
   TNetSocketMode = (smServer, smClient);
@@ -17,7 +17,7 @@ type
   TNetSocketOnCanSend = procedure(aSocket: TLSocket; const aValue: string) of object;
   TNetSocketOnASocketNull = procedure of object;
   TNetSocketOnConstStringASocket = procedure(const aMsg: string; aSocket: TLSocket) of object;
-  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket; aID: integer; var aBinVec, aBinSize: integer) of object;
+  TNetSocketOnReceiveStringASocket = procedure(aMsg: string; aSocket: TLSocket; aBinSize: integer; var aReadBin: boolean) of object;
   TNetSocketOnReceiveBinaryASocket = procedure(const outdata; size: longword; aSocket: TLSocket) of object;
   TNetSocketOnStatus = procedure(aActive, aCrypt: boolean) of object;
   TNetSocketOnCryptDecryptString = procedure(var aText: string) of object;
@@ -71,8 +71,10 @@ type
     TabSocket: TList;
     TabSocketKeys: TStringList;
     buffer_client: TMemoryStream;
+    pipein : TInputPipeStream;
+    pipeout : TOutputPipeStream;
     function GetCount: integer;
-    procedure GetStringReceive(aMsg: string; aSocket: TLSocket; var aBinVec, aBinSize: integer);
+    procedure GetStringReceive(aMsg: string; aSocket: TLSocket; aBinSize: integer; var aReadBin: boolean);
     procedure _OnAccept(aSocket: TLSocket);
     procedure _OnCanSend(aSocket: TLSocket);
     procedure _OnConnect(aSocket: TLSocket);
@@ -81,8 +83,8 @@ type
     procedure _OnReceive(aSocket: TLSocket);
     procedure _OnSSLAccept(aSocket: TLSocket);
     procedure _OnSSLConnect(aSocket: TLSocket);
-    function _SendString(const aMessage: string; aSocket: TLSocket = nil): integer;
-    function _SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
+    function _SendString(const aMessage: string; aSocket: TLSocket = nil): integer; //wysyła dokładnie to co dostaje
+    function _SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer; //wysyła dokładnie to co dostaje
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -90,9 +92,8 @@ type
     function Connect: boolean;
     procedure Disconnect(aForce: boolean = false);
     {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
-    function SendString(const aMessage: string; aSocket: TLSocket = nil; aID: integer = -1; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
-    {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
-    function SendString(const aMessage: string; aID: integer; aBlock: pointer = nil; aBlockSize: integer = 0): integer;
+    function SendString(const aMessage: string; aBlock: pointer = nil; aBlockSize: integer = 0; aSocket: TLSocket = nil): integer;
+    function SendString(const aMessage: string; aSocket: TLSocket): integer;
     {Wysyłanie danych binarnych}
     function SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
     procedure GetTimeVector;
@@ -180,6 +181,10 @@ implementation
 uses
   ecode_unit, blcksock;
 
+type
+  TTBuffer256 = array [0..255] of char;
+  PPBuffer256 = ^TTBuffer256;
+
 const
   znaczek = #1;
 
@@ -187,6 +192,61 @@ procedure Register;
 begin
   {$I netsocket_icon.lrs}
   RegisterComponents('lNet',[TNetSocket]);
+end;
+
+function StrBase(aValue: string; aBase: integer): string;
+var
+  s: string;
+begin
+  s:=aValue;
+  while length(s)<aBase do s:='0'+s;
+  result:=s;
+end;
+
+function IntToB256(liczba: longword; var buffer; size: integer): integer;
+var
+  p: PPBuffer256;
+  l,i,j: integer;
+  n,pom: longword;
+begin
+  l:=0;
+  p:=@buffer;
+  n:=liczba;
+  repeat
+    if l+1>size then
+    begin
+      result:=-1;
+      exit;
+    end;
+    for i:=l downto 1 do p^[i]:=p^[i-1]; //przesunięcie o jeden bajt w prawo
+    pom:=n mod 256;
+    p^[0]:=chr(pom);
+    n:=n div 256;
+    inc(l);
+  until n=0;
+  for i:=1 to size-l do
+  begin
+    for j:=size downto 1 do p^[j]:=p^[j-1]; //przesunięcie o jeden bajt w prawo
+    p^[0]:=#0;
+  end;
+  result:=l;
+end;
+
+function B256ToInt(const buffer; size: integer): integer;
+var
+  p: PPBuffer256;
+  i, M: Integer;
+  b: byte;
+begin
+  p:=@buffer;
+  Result:=0;
+  M:=1;
+  for i:=size-1 downto 0 do
+  begin
+    b:=ord(p^[i]);
+    Result:=Result+b*M;
+    M:=M shl 8;
+  end;
 end;
 
 function IntToSys(liczba, baza: integer): string;
@@ -221,15 +281,6 @@ begin
   end;
 end;
 
-function StrBase(aValue: string; aBase: integer): string;
-var
-  s: string;
-begin
-  s:=aValue;
-  while length(s)<aBase do s:='0'+s;
-  result:=s;
-end;
-
 { TNetSocket }
 
 procedure TNetSocket._OnAccept(aSocket: TLSocket);
@@ -248,26 +299,15 @@ begin
 end;
 
 procedure TNetSocket.GetStringReceive(aMsg: string; aSocket: TLSocket;
-  var aBinVec, aBinSize: integer);
+  aBinSize: integer; var aReadBin: boolean);
 var
   s1,s: string;
   t1,t2,t3,t4,srednia,wektor_czasu: integer;
   id: integer;
 begin
-  aBinVec:=0;
-  aBinSize:=0;
-  id:=-1; // "#ID#{NTP}"
-  if aMsg[1]=znaczek then
-  begin
-    try
-      id:=StrToInt(GetLineToStr(aMsg,2,znaczek));
-    except
-      id:=-1;
-    end;
-    s:=GetLineToStr(aMsg,3,znaczek);
-  end else s:=aMsg;
-  if (FMode=smServer) and (s='{NTP}') then SendString('NTP$'+IntToStr(TimeToInteger(time)),aSocket) else
-  if (FMode=smClient) and (GetLineToStr(s,1,'$')='NTP') then
+  s:=aMsg;
+  if (FMode=smServer) and (s='{NTP}') then SendString('{NTP}$'+IntToStr(TimeToInteger(time)),aSocket) else
+  if (FMode=smClient) and (GetLineToStr(s,1,'$')='{NTP}') then
   begin
     t1:=ntp_t1;
     t2:=StrToInt(GetLineToStr(s,2,'$'));
@@ -285,7 +325,7 @@ begin
       if Assigned(FOnTimeVector) then FOnTimeVector(wektor_czasu);
     end;
   end else begin
-    if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,id,aBinVec,aBinSize);
+    if Assigned(FOnReceiveString) then FOnReceiveString(s,aSocket,aBinSize,aReadBin);
   end;
 end;
 
@@ -311,16 +351,17 @@ end;
 
 procedure TNetSocket._OnReceive(aSocket: TLSocket);
 var
-  p: pchar;
-  ss,s,pom: string;
+  ss,s: string;
   bin,bout: array [0..65535] of char;
-  ll,i: integer;
-  wsk,bsize,blok,a,b: longword;
-  b_vec,b_size,b_tag: integer;
-  tab: array [1..4] of char;
+  l,ll,lb,i: integer;
+  bsize,bsize2,blok: longword;
+  tab: array [0..1] of char;
+  odczyt_bin: boolean;
 begin
   if FCommunication=cmString then
   begin
+
+    (* STRING *)
     if aSocket.GetMessage(ss)>0 then
     begin
       if assigned(FOnMonRecvData) then FOnMonRecvData(0,ss,length(ss));
@@ -330,13 +371,16 @@ begin
         s:=GetLineToStr(ss,ll,#10);
         if s='' then break;
         if (FSecurity=ssCrypt) and assigned(FOnDecryptString) then FOnDecryptString(s);
-        GetStringReceive(s,aSocket,b_vec,b_size);
+        GetStringReceive(s,aSocket,0,odczyt_bin);
         inc(ll);
       end;
     end;
+
   end else
   if FCommunication=cmBinary then
   begin
+
+    (* BINARY *)
     bsize:=aSocket.Get(bin,FMaxBuffer);
     if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize);
     if bsize>0 then
@@ -349,69 +393,66 @@ begin
         if assigned(FOnReceiveBinary) then FOnReceiveBinary(bin,bsize,aSocket);
       end;
     end;
+
   end else
   if FCommunication=cmMixed then
   begin
+
+    (* MIXED *)
     bsize:=aSocket.Get(bin,FMaxBuffer);
-
-    buffer_client.Position:=buffer_client.Size;
-    buffer_client.WriteBuffer(bin,bsize);
-    if buffer_client.Size<5 then exit;
-    buffer_client.Position:=0;
-    buffer_client.ReadBuffer(tab,4); SetLength(pom,4); pom[1]:=tab[1]; pom[2]:=tab[2]; pom[3]:=tab[3]; pom[4]:=tab[4];
-    blok:=HexToDec(pom);
-    if blok=0 then
-    begin
-      buffer_client.Clear;
-      exit;
-    end;
-    if blok>buffer_client.Size+4 then exit;
-    FillChar(bin,FMaxBuffer,0);
-    FillChar(bout,FMaxBuffer,0);
-    buffer_client.Position:=0;
-    bsize:=buffer_client.Read(bin,buffer_client.Size);
-    buffer_client.Clear;
-
     if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize);
-    if bsize>0 then
-    begin
-      if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
+
+    (* dane odbierane najpierw buforuję *)
+    buffer_client.Position:=buffer_client.Size;
+    buffer_client.Write(bin,bsize);
+
+    WHILE TRUE DO
+    BEGIN
+      if buffer_client.Size<3 then break;
+      buffer_client.Position:=0;
+      buffer_client.Read(tab,2);
+      blok:=B256ToInt(tab,2);
+      if blok=0 then
       begin
-        wsk:=0;
-        blok:=0;
-        while wsk+4<bsize do
+        buffer_client.Clear;
+        break;
+      end;
+      if buffer_client.Size<blok+2 then break;
+
+      (* czytam pierwszy blok danych *)
+      buffer_client.Position:=0;
+      bsize:=buffer_client.Read(bin,blok+2);
+      (* przenoszę resztę na oczątek *)
+      bsize2:=buffer_client.Read(bout,buffer_client.Size-bsize);
+      buffer_client.Clear;
+      buffer_client.Write(bout,bsize2);
+
+      if assigned(FOnMonRecvData) then FOnMonRecvData(0,bin,bsize-2);
+      if bsize>0 then
+      begin
+        if (FSecurity=ssCrypt) and assigned(FOnDecryptBinary) then
         begin
-          pom:='    ';
-          pom[1]:=bin[wsk];
-          pom[2]:=bin[wsk+1];
-          pom[3]:=bin[wsk+2];
-          pom[4]:=bin[wsk+3];
-          blok:=HexToDec(pom);
-          FOnDecryptBinary(&bin[wsk+4],bout,blok);
-          p:=@bout+0;
-          s:=p;
-          GetStringReceive(s,aSocket,b_vec,b_size);
-          if (b_size>0) and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bout[b_vec],b_size,aSocket);
-          wsk:=wsk+4+blok;
-        end;
-      end else begin
-        p:=@bin+0;
-        ss:=p;
-        ll:=length(ss);
-        wsk:=1;
-        blok:=0;
-        while wsk+4<ll do
-        begin
-          blok:=HexToDec(copy(ss,wsk,4));
-          //if blok=0 then break;
-          s:=copy(ss,wsk+4,blok);
-          GetStringReceive(s,aSocket,b_vec,b_size);
-          if (b_size>0) and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bin[wsk+3+b_vec],b_size,aSocket);
-          wsk:=wsk+4+blok;
+          bsize-=2;
+          FOnDecryptBinary(&bin[2],bout,bsize);
+          l:=B256ToInt(bout,2)-2; //długość: string + binary
+          ll:=B256ToInt(&bout[2],2); //długość bloku stringowego
+          lb:=l-ll; //długość bloku binarnego
+          s:=''; for i:=1 to ll do s:=s+bout[i+3];
+          GetStringReceive(s,aSocket,lb,odczyt_bin);
+          if (lb>0) and odczyt_bin and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bout[ll+4],lb,aSocket);
+        end else begin
+          l:=B256ToInt(bin,2)-2; //długość bloku stringowego
+          ll:=B256ToInt(&bin[2],2); //długość bloku binarnego
+          lb:=l-ll; //długość bloku binarnego
+          s:=''; for i:=1 to ll do s:=s+bout[i+3];
+          GetStringReceive(s,aSocket,lb,odczyt_bin);
+          if (lb>0) and odczyt_bin and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bin[ll+4],lb,aSocket);
         end;
       end;
-    end;
+    END;
+
   end else begin
+    (* CUSTOM *)
     if Assigned(FOnReceive) then FOnReceive(aSocket);
   end;
 end;
@@ -503,12 +544,13 @@ begin
   FSSLMethod:=msSSLv2or3;
   FTimeout:=4;
   buffer_client:=TMemoryStream.Create;
+  CreatePipeStreams(pipein,pipeout);
 end;
 
 destructor TNetSocket.Destroy;
-var
-  i: integer;
 begin
+  pipein.Free;
+  pipeout.Free;
   buffer_client.Free;
   TabKeys.Free;
   TabSocket.Free;
@@ -614,52 +656,49 @@ type
   TByteArray = array [0..65535] of byte;
   PByteArray = ^TByteArray;
 
-function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket;
-  aID: integer; aBlock: pointer; aBlockSize: integer): integer;
+function TNetSocket.SendString(const aMessage: string; aBlock: pointer;
+  aBlockSize: integer; aSocket: TLSocket): integer;
 var
-  s,ss: string;
-  pom,l,j: integer;
+  s: string;
+  l1,l2: integer;
+  l,ll,j: integer;
   p: PByteArray;
   i,o: array [0..65535] of byte;
 begin
   if not FActive then exit;
-  if aID=-1 then s:=aMessage else s:=znaczek+IntToStr(aID)+znaczek+aMessage;
   if FCommunication=cmMixed then
   begin
-    pom:=length(s);
-    l:=pom+1;
-    if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
+    (* MIXED *)
+    l1:=length(aMessage);
+    l2:=aBlockSize;
+    ll:=l1+l2+4;
+    IntToB256(l1+l2+2,i,2);
+    IntToB256(l1,&i[2],2);
+    for j:=0 to l1-1 do i[j+4]:=ord(aMessage[j+1]);
+    if aBlockSize>0 then
     begin
       p:=aBlock;
-      FillChar(o,FMaxBuffer,0);
-      if aBlockSize>0 then
-      begin
-        FillChar(i,FMaxBuffer,0);
-        l:=l+aBlockSize;
-        for j:=0 to pom-1 do i[j]:=ord(s[j+1]);
-        for j:=0 to aBlockSize-1 do i[j+pom]:=p^[j];
-        FOnCryptBinary(&i[0],&o[4],l);
-      end else FOnCryptBinary(&s[1],&o[4],l);
-      ss:=StrBase(IntToSys(l,16),4);
-      o[0]:=ord(ss[1]);
-      o[1]:=ord(ss[2]);
-      o[2]:=ord(ss[3]);
-      o[3]:=ord(ss[4]);
-      result:=_SendBinary(o,l+4,aSocket);
-    end else begin
-      ss:=StrBase(IntToSys(l,16),4)+s;
-      result:=_SendBinary(&ss[1],l+4,aSocket);
+      for j:=0 to aBlockSize-1 do i[j+4+l1]:=p^[j];
     end;
+    if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
+    begin
+      ll:=l1+l2+4;
+      FOnCryptBinary(&i[0],&o[2],ll);
+      IntToB256(ll,o,2);
+      result:=_SendBinary(o,ll+2,aSocket);
+    end else result:=_SendBinary(i,ll,aSocket);
   end else begin
+    (* STRING *)
+    s:=aMessage;
     if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
     result:=_SendString(s+#10,aSocket);
   end;
 end;
 
-function TNetSocket.SendString(const aMessage: string; aID: integer;
-  aBlock: pointer; aBlockSize: integer): integer;
+function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket
+  ): integer;
 begin
-  result:=SendString(aMessage,nil,aID,aBlock,aBlockSize);
+  result:=SendString(aMessage,nil,0,aSocket);
 end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer; aSocket: TLSocket
