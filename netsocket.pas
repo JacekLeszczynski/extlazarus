@@ -104,7 +104,7 @@ type
     function KeyToSocket(aKey: string): TLSocket;
     function KeyExist(aKey: string): boolean;
     procedure Clear;
-    function IsOpenPort(aIPAdr: string; aPort: word; aSendString: string = ''; aID: integer = -1): boolean;
+    function IsOpenPort(aIPAdr: string; aPort: word; aSendString: string = ''): boolean;
     function GetAddressIp: string;
   published
     property Mode: TNetSocketMode read FMode write FMode;
@@ -226,7 +226,7 @@ begin
   until n=0;
   for i:=1 to size-l do
   begin
-    for j:=size downto 1 do p^[j]:=p^[j-1]; //przesunięcie o jeden bajt w prawo
+    for j:=l downto 1 do p^[j]:=p^[j-1]; //przesunięcie o jeden bajt w prawo
     p^[0]:=#0;
   end;
   result:=l;
@@ -279,6 +279,19 @@ begin
     end;
     M:=M shl 4;
   end;
+end;
+
+procedure log(block: pointer; size: integer);
+var
+  i: integer;
+  c: ^byte;
+begin
+  for i:=0 to size-1 do
+  begin
+    c:=block+i;
+    write(IntToHex(c^,2),' ');
+  end;
+  writeln;
 end;
 
 { TNetSocket }
@@ -422,7 +435,7 @@ begin
       (* czytam pierwszy blok danych *)
       buffer_client.Position:=0;
       bsize:=buffer_client.Read(bin,blok+2);
-      (* przenoszę resztę na oczątek *)
+      (* przenoszę resztę na początek *)
       bsize2:=buffer_client.Read(bout,buffer_client.Size-bsize);
       buffer_client.Clear;
       buffer_client.Write(bout,bsize2);
@@ -823,16 +836,17 @@ begin
 end;
 }
 
-function TNetSocket.IsOpenPort(aIPAdr: string; aPort: word;
-  aSendString: string; aID: integer): boolean;
+function TNetSocket.IsOpenPort(aIPAdr: string; aPort: word; aSendString: string
+  ): boolean;
 var
   socket: TBlockSocket;
   b: boolean;
 var
-  s,ss: string;
-  l: integer;
-  p: pchar;
-  o: array [0..65535] of byte;
+  s,vSendString: string;
+  l1,l2: integer;
+  l,ll,j: integer;
+  p: PByteArray;
+  i,o: array [0..65535] of byte;
 begin
   socket:=TTCPBlockSocket.Create;
   try
@@ -840,25 +854,26 @@ begin
     b:=socket.LastError=0;
     if b and (aSendString<>'') then
     begin
-      if aID=-1 then s:=aSendString else s:=znaczek+IntToStr(aID)+znaczek+aSendString;
+      vSendString:=aSendString;
       if FCommunication=cmMixed then
       begin
-        l:=length(s)+1;
+        (* MIXED *)
+        l1:=length(vSendString);
+        l2:=0;
+        ll:=l1+l2+4;
+        IntToB256(l1+l2+2,i,2);
+        IntToB256(l1,&i[2],2);
+        for j:=0 to l1-1 do i[j+4]:=ord(vSendString[j+1]);
         if (FSecurity=ssCrypt) and Assigned(FOnCryptBinary) then
         begin
-          FillChar(o,FMaxBuffer,0);
-          FOnCryptBinary(&s[1],&o[4],l);
-          ss:=StrBase(IntToSys(l,16),4);
-          o[0]:=ord(ss[1]);
-          o[1]:=ord(ss[2]);
-          o[2]:=ord(ss[3]);
-          o[3]:=ord(ss[4]);
-          socket.SendBufferTo(pointer(@o),l+4);
-        end else begin
-          ss:=StrBase(IntToSys(l,16),4)+s;
-          socket.SendBuffer(pointer(@ss[1]),l+4);
-        end;
+          ll:=l1+l2+4;
+          FOnCryptBinary(&i[0],&o[2],ll);
+          IntToB256(ll,o,2);
+          socket.SendBuffer(@o,ll+2);
+        end else socket.SendBuffer(@i,ll);
       end else begin
+        (* STRING *)
+        s:=aSendString;
         if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
         socket.SendString(s+#10);
       end;
