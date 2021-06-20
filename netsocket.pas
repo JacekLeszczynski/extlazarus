@@ -454,10 +454,12 @@ begin
           GetStringReceive(s,aSocket,lb,odczyt_bin);
           if (lb>0) and odczyt_bin and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bout[ll+4],lb,aSocket);
         end else begin
-          l:=B256ToInt(bin,2)-2; //długość bloku stringowego
-          ll:=B256ToInt(&bin[2],2); //długość bloku binarnego
+          l:=B256ToInt(bin,2)-2; //długość: string + binary
+          ll:=B256ToInt(&bin[2],2); //długość bloku stringowego
           lb:=l-ll; //długość bloku binarnego
-          s:=''; for i:=1 to ll do s:=s+bout[i+3];
+          s:=''; for i:=1 to ll do s:=s+bin[i+3];
+          //writeln('l=',l,' ll=',ll,' lb=',lb);
+          //writeln(s);
           GetStringReceive(s,aSocket,lb,odczyt_bin);
           if (lb>0) and odczyt_bin and assigned(FOnReceiveBinary) then FOnReceiveBinary(&bin[ll+4],lb,aSocket);
         end;

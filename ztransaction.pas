@@ -26,6 +26,7 @@ type
     procedure State(Sender: TObject; var aActive,aNoEmpty,aEdited: boolean);
     function SqlitePragmaForeignKeys: boolean;
     procedure SqlitePragmaForeignKeys(aOn: boolean);
+    function GetLastId: integer;
   published
     property Database: TZConnection read FDatabase write FDatabase;
     property IsolationLevel: TZTransactIsolationLevel read FTransactIsolationLevel write FTransactIsolationLevel default tiReadCommitted;
@@ -128,6 +129,29 @@ begin
   finally
     q1.Free;
   end;
+end;
+
+function TZTransaction.GetLastId: integer;
+var
+  q1: TZQuery;
+  a: integer;
+begin
+  if pos('sqlite',FDatabase.Protocol)=0 then
+  begin
+    result:=0;
+    exit;
+  end;
+  q1:=TZQuery.Create(nil);
+  q1.Connection:=FDatabase;
+  q1.SQL.Add('select last_insert_rowid()');
+  try
+    q1.Open;
+    if q1.IsEmpty then a:=0 else a:=q1.Fields[0].AsLargeInt;
+    q1.Close;
+  finally
+    q1.Free;
+  end;
+  result:=a;
 end;
 
 { TZTransaction }

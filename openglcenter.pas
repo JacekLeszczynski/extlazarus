@@ -65,7 +65,7 @@ type
     function LoadTextureFromFile(nazwa: string; filename: string; drugi_plan: boolean = false): pointer;
     function LoadTextureFromResource(nazwa: string; ResourceName: string; wielkosc: single = 0; drugi_plan: boolean = false): pointer;
     function LoadTextureFromResource(nazwa: string; wielkosc: single = 0; drugi_plan: boolean = false): pointer;
-    function LoadTextureFromResource(nazwa: string; ResourceName: string; drugi_plan: boolean = false): pointer;
+    function LoadTextureFromResource(nazwa: string; ResourceName: string; drugi_plan: boolean): pointer;
     function LoadTextureFromResource(nazwa: string; drugi_plan: boolean = false): pointer;
     function CreateFont(nazwa: string; rodzaj: string; wielkosc: integer; kolor: TColor; drugi_plan: boolean = false): pointer;
     procedure BlockTextureData(nazwa: string);
