@@ -1215,7 +1215,7 @@ var
 begin
   if FEngine=meMplayer then
   begin
-    if Running and Playing then
+    if Running and FPaused then
     begin
       FPaused:=false;
       SendMPlayerCommand('pause');
@@ -1478,7 +1478,8 @@ begin
       {$IFDEF DEBUG}
       DebugLn(Format('Set Position to  %.3f', [FPosition]));
       {$ENDIF}
-      SendMPlayerCommand(Format('pausing_keep seek %.3f 2', [FPosition]));
+      //SendMPlayerCommand(Format('pausing_keep seek %.3f 2', [FPosition]));
+      SendMPlayerCommand('pausing_keep seek '+FormatFloat('0.000000',FPosition)+' 2');
     end else begin
       s:=StringReplace(FormatFloat('0.000000',AValue),',','.',[]);
       ExecuteSockProcess('{ "command": ["set_property", "playback-time", '+s+'] }');

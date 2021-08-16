@@ -205,7 +205,6 @@ begin
   {$ELSE}
     if FileExists('c:\windows\uos\'+snd) then s:='c:\windows\uos' else
     if FileExists('c:\windows\system\uos\'+snd) then s:='c:\windows\system\uos' else
-    if FileExists('c:\windows\system32\uos\'+snd) then s:='c:\windows\system32\uos' else
     if FileExists('c:\windows\system64\uos\'+snd) then s:='c:\windows\system64\uos' else
     if FileExists(md+'\uos\'+snd) then s:=md+'\uos' else
     s:=md;
