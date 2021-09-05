@@ -127,7 +127,7 @@ begin
   wWidth:=Width;
   pominiete:=0; max:=0;
   if list.Count<>Columns.Count then AutoScaleStart;
-  if dgIndicator in self.Options then ind:=25+FAutoScaleVector else ind:=15+FAutoScaleVector;
+  if dgIndicator in self.Options then ind:=27+FAutoScaleVector else ind:=15+FAutoScaleVector;
   (* suma wszystkich pominiętych kolumn *)
   i:=0;
   while true do

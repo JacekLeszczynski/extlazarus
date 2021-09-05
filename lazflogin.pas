@@ -54,6 +54,7 @@ type
     sERR: string;
     BB: boolean;
     _INDEX,_INDEXRETURN: integer;
+    B_REZYGNUJ: boolean;
   end;
 
 {$IFDEF WINDOWS}
@@ -74,6 +75,7 @@ var
   s1,s2: string;
   b: boolean;
 begin
+  B_REZYGNUJ:=false;
   ERR:=0;
   sERR:='';
   s1:=uzytkownik.Text;
@@ -143,6 +145,7 @@ end;
 
 procedure TLazFormLogin.anulujClick(Sender: TObject);
 begin
+  B_REZYGNUJ:=true;
   ERR:=0;
   sERR:='';
   BB:=false;

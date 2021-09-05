@@ -1,7 +1,7 @@
 object LazFormLogin: TLazFormLogin
-  Left = 398
+  Left = 2296
   Height = 220
-  Top = 653
+  Top = 375
   Width = 494
   BorderIcons = []
   BorderStyle = bsDialog
@@ -16,7 +16,7 @@ object LazFormLogin: TLazFormLogin
   OnCreate = FormCreate
   OnShow = FormShow
   Position = poOwnerFormCenter
-  LCLVersion = '2.0.6.0'
+  LCLVersion = '2.0.12.0'
   object Panel1: TPanel
     Left = 0
     Height = 64
@@ -63,10 +63,10 @@ object LazFormLogin: TLazFormLogin
     ParentFont = False
     TabOrder = 2
     object Label2: TLabel
-      Left = 367
-      Height = 15
-      Top = 1
-      Width = 27
+      Left = 358
+      Height = 17
+      Top = -1
+      Width = 36
       Anchors = [akRight, akBottom]
       Caption = 'Enter'
       Font.Color = clSilver
@@ -85,10 +85,10 @@ object LazFormLogin: TLazFormLogin
       TabOrder = 0
     end
     object Label3: TLabel
-      Left = 448
-      Height = 15
-      Top = 1
-      Width = 36
+      Left = 437
+      Height = 17
+      Top = -1
+      Width = 47
       Anchors = [akRight, akBottom]
       Caption = 'Escape'
       Font.Color = clSilver
@@ -132,12 +132,13 @@ object LazFormLogin: TLazFormLogin
     end
     object haslo: TLabeledEdit
       Left = 171
-      Height = 23
+      Height = 25
       Top = 37
       Width = 152
+      AutoSize = False
       EchoMode = emPassword
-      EditLabel.Height = 13
-      EditLabel.Width = 38
+      EditLabel.Height = 12
+      EditLabel.Width = 36
       EditLabel.Caption = 'Hasło:  '
       EditLabel.ParentColor = False
       Font.CharSet = EASTEUROPE_CHARSET
@@ -152,11 +153,12 @@ object LazFormLogin: TLazFormLogin
     end
     object uzytkownik: TLabeledEdit
       Left = 171
-      Height = 21
+      Height = 25
       Top = 10
       Width = 152
-      EditLabel.Height = 13
-      EditLabel.Width = 69
+      AutoSize = False
+      EditLabel.Height = 12
+      EditLabel.Width = 62
       EditLabel.Caption = 'Użytkownik:  '
       EditLabel.ParentColor = False
       LabelPosition = lpLeft
@@ -164,10 +166,11 @@ object LazFormLogin: TLazFormLogin
     end
     object c2: TComboBox
       Left = 171
-      Height = 21
+      Height = 28
       Top = 66
       Width = 152
-      ItemHeight = 13
+      AutoSize = False
+      ItemHeight = 0
       OnChange = c2Change
       Style = csDropDownList
       TabOrder = 2
@@ -190,7 +193,8 @@ object LazFormLogin: TLazFormLogin
     HelpContext = 0
     PosTop = 0
     PosLeft = 0
-    left = 81
-    top = 163
+    StringToCR = '^'
+    Left = 81
+    Top = 163
   end
 end

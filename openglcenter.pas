@@ -83,6 +83,7 @@ type
     procedure PaintText(aX,aY: single; const aText: string);
     procedure PaintText(aObject: pointer; aX,aY: single; const aText: string);
     procedure Invalidate;
+    procedure DrawLine(aX1,aY1,aX2,aY2: integer; aColor: TColor);
   published
     property MouseMove: boolean read FMouseMove write FMouseMove default false; //Przesuwanie ekranu myszą
     property MouseScale: boolean read FMouseScale write FMouseScale default false; //Skalowanie ekranu za pomocą kółka myszy
@@ -107,7 +108,7 @@ procedure Register;
 implementation
 
 uses
-  LCLType;
+  LCLType, FPImage;
 
 type
   TRodzajElementu = (reNull,reTextura,reFont);
@@ -648,6 +649,17 @@ end;
 procedure TOpenGLCenter.Invalidate;
 begin
   OpenGLControl.Invalidate;
+end;
+
+procedure TOpenGLCenter.DrawLine(aX1, aY1, aX2, aY2: integer; aColor: TColor);
+var
+  c: TFPColor;
+begin
+  c.New(100,100,100);
+  OpenGLControl.Brush.Canvas.Pen.FPColor:=c;
+  OpenGLControl.Brush.Canvas.Line(aX1,aY1,aX2,aY2);
+  OpenGLControl.SwapBuffers;
+  OpenGLControl.Paint;
 end;
 
 end.

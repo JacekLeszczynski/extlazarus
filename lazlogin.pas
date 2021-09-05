@@ -20,7 +20,7 @@ type
 
   { Zdarzenia }
 
-  TReturnEvent = procedure(Sender: TObject; IsLogin: boolean; User: string; vIndex: integer; vItem: string) of object;
+  TReturnEvent = procedure(Sender: TObject; IsCancel,IsLogin: boolean; aUser: string; vIndex: integer; vItem: string) of object;
   TTestLoginEvent = procedure(Sender: TObject; Login, Password: string; aIndex: integer; aItem: string; var IsLogin: boolean) of object;
   TTestMaxLogins = procedure(Sender: TObject; var IsOK: boolean) of object;
   TTestUserEvent = procedure(Sender: TObject; Login: string; var IsLogin: boolean) of object;
@@ -339,7 +339,7 @@ begin
     if ERR=0 then
     begin
       if zm_logowania then zm_user:=LazFormLogin._LOGIN;
-      if Assigned(FReturn) then FReturn(self,zm_logowania,zm_user,LazFormLogin._INDEXRETURN,LazFormLogin._ITEMRETURN);
+      if Assigned(FReturn) then FReturn(self,LazFormLogin.B_REZYGNUJ,zm_logowania,zm_user,LazFormLogin._INDEXRETURN,LazFormLogin._ITEMRETURN);
     end else begin
       if Assigned(FError) then FError(self,ERR,sERR,false);
     end;
@@ -358,7 +358,7 @@ begin
   if Assigned(FTestUser) then
   begin
     FTestUser(self,Login,b);
-    if Assigned(FReturn) then FReturn(self,b,Login,-1,'');
+    if Assigned(FReturn) then FReturn(self,false,b,Login,-1,'');
   end else b:=false;
   result:=b;
 end;

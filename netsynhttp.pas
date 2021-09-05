@@ -59,7 +59,7 @@ type
     procedure MemDelete(aMem: TMemoryStream; aStart,aCount: integer);
     function memCopy(aMem: TMemoryStream; aStart,aCount: integer): string;
     function MemDeleteStart(aMem: TMemoryStream; aStr: string): boolean;
-    function StrDeleteStart(var aStr: string; aSub: string): boolean;
+    function StrDeleteStart(var aStr: string; aSub: string; aSubEnd: string = ''): boolean;
     function MemDeleteEnd(aMem: TMemoryStream; aStr: string): boolean;
     function StrDeleteEnd(var aStr: string; aSub: string): boolean;
   published
@@ -436,12 +436,14 @@ begin
   end;
 end;
 
-function TNetSynHTTP.StrDeleteStart(var aStr: string; aSub: string): boolean;
+function TNetSynHTTP.StrDeleteStart(var aStr: string; aSub: string;
+  aSubEnd: string): boolean;
 var
-  a: integer;
+  a,b: integer;
 begin
   a:=pos(aSub,aStr);
-  if a=0 then result:=false else
+  if aSubEnd='' then b:=maxint else b:=pos(aSubEnd,aStr);
+  if (a=0) or (a>b) then result:=false else
   begin
     delete(aStr,1,a+length(aSub)-1);
     result:=true;
