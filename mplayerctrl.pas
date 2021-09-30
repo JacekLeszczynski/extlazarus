@@ -342,6 +342,7 @@ type
     property OnMouseUp;
     property OnMouseDown;
     property OnMouseWheel;
+    property OnMouseMove; //: TMouseMoveEvent read FOnMouseMove write FOnMouseMove;
     property Visible;
     property Volume;     // 0 to 100 and -1 is deactivated
     property BostVolume;

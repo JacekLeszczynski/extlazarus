@@ -443,6 +443,7 @@ var
 begin
   a:=pos(aSub,aStr);
   if aSubEnd='' then b:=maxint else b:=pos(aSubEnd,aStr);
+  if b=0 then b:=maxint;
   if (a=0) or (a>b) then result:=false else
   begin
     delete(aStr,1,a+length(aSub)-1);
