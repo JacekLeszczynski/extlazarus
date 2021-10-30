@@ -18,7 +18,7 @@ uses
   ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
   DirectoryPack, Presentation, DSMaster, FullscreenMenu, ExtDiff, 
   compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, Upnp, 
-  LazarusPackageIntf;
+  YoutubeDownloader, LazarusPackageIntf;
 
 implementation
 
@@ -70,6 +70,7 @@ begin
   RegisterUnit('DBGridPlus', @DBGridPlus.Register);
   RegisterUnit('ZQueryPlus', @ZQueryPlus.Register);
   RegisterUnit('Upnp', @Upnp.Register);
+  RegisterUnit('YoutubeDownloader', @YoutubeDownloader.Register);
 end;
 
 initialization

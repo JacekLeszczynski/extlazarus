@@ -2567,11 +2567,12 @@ var
   i,wektor: integer;
   s,pom: string;
   kompozyt: boolean;
-  plik,plik2: string;
+  lplik,plik,plik2: string;
   f1_name,f2_name: string;
   f1_dt,f2_dt: TDateTime;
   a1,a2,b1,b2: integer;
 begin
+  lplik:='';
   f:=TStringList.Create;
   try
     for i:=0 to aFileDiff.Count-1 do
@@ -2583,7 +2584,7 @@ begin
         if f.Count>0 then
         begin
           if assigned(FRequestSaveFile) then FRequestSaveFile(self,2,plik2,f);
-          f.Clear;
+          //f.Clear;
         end;
         plik:=NormalizeFilePath(GetLineToStr(s,3,' '));
         plik2:=NormalizeFilePath(GetLineToStr(s,4,' '));
@@ -2595,12 +2596,16 @@ begin
       if pos('@@',s)=1 then
       begin
         dane_pliku(s,a1,a2,b1,b2);
-        f.Clear;
-        if assigned(FRequestFileBody) then FRequestFileBody(self,2,plik2,f);
+        if lplik<>plik2 then
+        begin
+          f.Clear;
+          if assigned(FRequestFileBody) then FRequestFileBody(self,2,plik2,f);
+          lplik:=plik2;
+        end;
         if (a1=0) and (a2=0) and (b1=0) and (b2=0) then
         begin
           if assigned(FRequestDeleteFile) then FRequestDeleteFile(self,2,plik2);
-          f.Clear;
+          //f.Clear;
         end else patch_go(aFileDiff,f,i+1,a1,a2,b1,b2,wektor);
       end else
       if pos('B',s)=1 then
