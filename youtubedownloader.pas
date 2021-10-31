@@ -12,36 +12,44 @@ type
 
   { ZDARZENIA }
 
+  TYoutubeDownloaderEngine = (enDefault,enDefBoost,enDefPlus);
   TYoutubeDownloaderType = (ytAudio,ytVideo,ytAll);
   TYoutubeDownloaderReadPozInfo = procedure(aType: TYoutubeDownloaderType; aFormatCode: integer; aExtension, aResolution: string; aRes,aPrzeplywnosc,aFPS,aSampleRate: integer; aSize: int64; aDASH: boolean) of object;
-  TYoutubeDownloaderDlStart = procedure(aLink,aDir: string) of object;
-  TYoutubeDownloaderDlGetFileName = procedure(aFileName,aDir: string) of object;
-  TYoutubeDownloaderDlGetPosition = procedure(aPosition: integer; aSpeed: int64) of object;
-  TYoutubeDownloaderDlFinish = procedure(aLink,aFileName,aDir: string) of object;
+  TYoutubeDownloaderDlStart = procedure(aLink,aDir: string; aTag: integer) of object;
+  TYoutubeDownloaderDlGetFileName = procedure(aFileName,aDir: string; aTag: integer) of object;
+  TYoutubeDownloaderDlGetPosition = procedure(aPosition: integer; aSpeed: int64; aTag: integer) of object;
+  TYoutubeDownloaderDlFinish = procedure(aLink,aFileName,aDir: string; aTag: integer) of object;
 
   { TYoutubeDownloader }
 
   TYoutubeDownloader = class(TComponent)
   private
-    FAria: boolean;
     FBoolReadPozInfo: boolean;
     FCookieFile: TFilename;
+    FYoutubeDl: string;
+    FDirAria: string;
+    FDirYtDlp: string;
     FDlFileName: TYoutubeDownloaderDlGetFileName;
     FDlPosition: TYoutubeDownloaderDlGetPosition;
     FDlFinish: TYoutubeDownloaderDlFinish;
+    FEngine: TYoutubeDownloaderEngine;
     FReadPozInfo: TYoutubeDownloaderReadPozInfo;
     FStart,FStop: TNotifyEvent;
     FDlStart: TYoutubeDownloaderDlStart;
     FWatki: boolean;
-    FYoutubeDl: string;
-    linki,katalogi,audio,video: TStrings;
+    linki,katalogi,audio,video,tagi: TStrings;
     proces: pointer;
     nazwa_linku,nazwa_pliku,nazwa_katalogu: string;
     nazwa_linku2,nazwa_pliku2,nazwa_katalogu2: string;
+    itag,itag2: integer;
     pozycja: integer;
     predkosc_str: string;
     kod: array [0..9] of boolean;
+    function GetDirAria: string;
+    function GetDirYtDlp: string;
     function GetYoutubeDl: string;
+    procedure SetDirAria(AValue: string);
+    procedure SetDirYtDlp(AValue: string);
     procedure SetYoutubeDl(AValue: string);
     procedure AddCode(aCode: integer);
     procedure ReceivedVerbose(ASender: TObject);
@@ -52,10 +60,15 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil);
-    procedure AddLink(aLink,aDir: string; aAudioNr: integer = 0; aVideoNr: integer = 0);
+    procedure AddLink(aLink,aDir: string; aAudioNr: integer = 0; aVideoNr: integer = 0; aTag: integer = 0);
     procedure Clear;
     procedure Terminate;
   published
+    {Engine:
+      enDefault  - youtube-dl
+      enDefBoost - youtube-dl + aria2
+      enDefPlus  - yt-dlp}
+    property Engine: TYoutubeDownloaderEngine read FEngine write FEngine default enDefault;
     {Wykonywanie kodu w wątkach:
         TRUE - ściąganie w wątkach
        FALSE - ściąganie w procesie głównym}
@@ -65,15 +78,25 @@ type
      OR flags:
      <auto> - System Path Search Program's
      <curr> - Current Program Directory}
-    property DirectoryYoutubeDl: string read GetYoutubeDl write SetYoutubeDl;
+    property DirectoryYoutubeDl: string read FYoutubeDl write SetYoutubeDl;
+    {Path to Directory executed program:
+       aria2c | aria2c.exe
+     OR flags:
+     <auto> - System Path Search Program's
+     <curr> - Current Program Directory}
+    property DirectoryAria2: string read FDirAria write SetDirAria;
+    {Path to Directory executed program:
+       yt-dlp | yt-dlp.exe
+     OR flags:
+     <auto> - System Path Search Program's
+     <curr> - Current Program Directory}
+    property DirectoryYtDlp: string read FDirYtDlp write SetDirYtDlp;
     {Path to Cookie File in format:
        Netscape HTTP File Cookie}
     property PathToCookieFile: TFilename read FCookieFile write FCookieFile;
     {Reading records on execute:
        DownloadInfo(link)}
     property ReadPozInfo: boolean read FBoolReadPozInfo write FBoolReadPozInfo default false;
-    {Use external downloader Aria2}
-    property BoostAria2: boolean read FAria write FAria default false;
     {Reading records on execute:
        DownloadInfo(link)}
     property OnReadPozInfo: TYoutubeDownloaderReadPozInfo read FReadPozInfo write FReadPozInfo;
@@ -85,7 +108,8 @@ type
     property OnDlStart: TYoutubeDownloaderDlStart read FDlStart write FDlStart;
     {Pobieram plik - dostałem nazwę pobieranego pliku}
     property OnDlFileName: TYoutubeDownloaderDlGetFileName read FDlFileName write FDlFileName;
-    {Pobieram plik - dostałem pozycję ściąganego pliku}
+    {Pobieram plik - dostałem pozycję ściąganego pliku
+     Zakres: 0 - 1000}
     property OnDlPosition: TYoutubeDownloaderDlGetPosition read FDlPosition write FDlPosition;
     {Plik został pobrany}
     property OnDlFinish: TYoutubeDownloaderDlFinish read FDlFinish write FDlFinish;
@@ -96,11 +120,11 @@ type
   TYoutubeDownloaderWatekYoutube = class(TThread)
   private
     sender: TYoutubeDownloader;
+    engine: TYoutubeDownloaderEngine;
     YTData: TAsyncProcess;
     dir_youtubedl,dir_aria2c: string;
     cookiesfile: string;
-    use_aria: boolean;
-    tag: integer;
+    tag,tag2: integer;
     kod_verbose: integer;
     link,nazwa_pliku,directory: string;
     link2,nazwa_pliku2,directory2: string;
@@ -119,7 +143,7 @@ type
     procedure YTReadData(aSender: TObject);
   protected
   public
-    Constructor Create(aSender: TYoutubeDownloader; aDirYoutubeDl,aDirAria2c,aCookieFile: string; aUseAria: boolean; aTag: integer);
+    constructor Create(aSender: TYoutubeDownloader; aEngine: TYoutubeDownloaderEngine; aBinaryDir,aBinaryAria2c,aCookieFile: string);
     destructor Destroy; override;
   published
   end;
@@ -185,22 +209,22 @@ begin
   end;
   if kod[2] then
   begin
-    if assigned(FDlStart) then FDlStart(nazwa_linku,nazwa_katalogu); //ściąganie pliku - dostałem link
+    if assigned(FDlStart) then FDlStart(nazwa_linku,nazwa_katalogu,itag); //ściąganie pliku - dostałem link
     kod[2]:=false;
   end;
   if kod[3] then
   begin
-    if assigned(FDlFileName) then FDlFileName(nazwa_pliku,nazwa_katalogu); //ściąganie pliku - dostałem nazwę ściąganego pliku
+    if assigned(FDlFileName) then FDlFileName(nazwa_pliku,nazwa_katalogu,itag); //ściąganie pliku - dostałem nazwę ściąganego pliku
     kod[3]:=false;
   end;
   if kod[4] then
   begin
-    if assigned(FDlPosition) then FDlPosition(pozycja,StrToLinuxInt64(predkosc_str)); //ściąganie pliku - dostałem pozycję ściąganego pliku
+    if assigned(FDlPosition) then FDlPosition(pozycja,StrToLinuxInt64(predkosc_str),itag); //ściąganie pliku - dostałem pozycję ściąganego pliku
     kod[4]:=false;
   end;
   if kod[9] then
   begin
-    if assigned(FDlFinish) then FDlFinish(nazwa_linku2,nazwa_pliku2,nazwa_katalogu2); //plik został pobrany
+    if assigned(FDlFinish) then FDlFinish(nazwa_linku2,nazwa_pliku2,nazwa_katalogu2,itag2); //plik został pobrany
     kod[9]:=false;
   end;
 end;
@@ -237,6 +261,48 @@ begin
   result:=FYoutubeDl;
 end;
 
+function TYoutubeDownloader.GetDirAria: string;
+var
+  s: string;
+begin
+  if FDirAria='<auto>' then result:='' else
+  if FDirAria='<curr>' then
+  begin
+    s:=ExtractFilePath(ParamStr(0));
+    delete(s,length(s),1);
+    result:=s;
+  end else
+  result:=FDirAria;
+end;
+
+function TYoutubeDownloader.GetDirYtDlp: string;
+var
+  s: string;
+begin
+  if FDirYtDlp='<auto>' then result:='' else
+  if FDirYtDlp='<curr>' then
+  begin
+    s:=ExtractFilePath(ParamStr(0));
+    delete(s,length(s),1);
+    result:=s;
+  end else
+  result:=FDirYtDlp;
+end;
+
+procedure TYoutubeDownloader.SetDirAria(AValue: string);
+begin
+  if FDirAria=AValue then Exit;
+  if (AValue='') and (FDirAria='<auto>') then exit;
+  if AValue='' then FDirAria:='<auto>' else FDirAria:=AValue;
+end;
+
+procedure TYoutubeDownloader.SetDirYtDlp(AValue: string);
+begin
+  if FDirYtDlp=AValue then Exit;
+  if (AValue='') and (FDirYtDlp='<auto>') then exit;
+  if AValue='' then FDirYtDlp:='<auto>' else FDirYtDlp:=AValue;
+end;
+
 constructor TYoutubeDownloader.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -246,14 +312,17 @@ begin
   katalogi:=TStringList.Create;
   audio:=TStringList.Create;
   video:=TStringList.Create;
+  tagi:=TStringList.Create;
   watek_timer:=TTimer.Create(self);
   watek_timer.Enabled:=false;
   watek_timer.Interval:=1;
   watek_timer.OnTimer:=@ReceivedVerbose;
   (* zmienne *)
+  FEngine:=enDefault;
   FWatki:=true;
-  FAria:=false;
   FYoutubeDL:='<auto>';
+  FDirAria:='<auto>';
+  FDirYtDlp:='<auto>';
   FBoolReadPozInfo:=false;
 end;
 
@@ -262,12 +331,13 @@ begin
   if proces<>nil then
   begin
     TYoutubeDownloaderWatekYoutube(proces).Terminate;
-    if FAria then TerminateAria;
+    if FEngine=enDefBoost then TerminateAria;
   end;
   linki.Free;
   katalogi.Free;
   audio.Free;
   video.Free;
+  tagi.Free;
   watek_timer.Free;
   inherited Destroy;
 end;
@@ -437,7 +507,7 @@ begin
 end;
 
 procedure TYoutubeDownloader.AddLink(aLink, aDir: string; aAudioNr: integer;
-  aVideoNr: integer);
+  aVideoNr: integer; aTag: integer);
 var
   a: TYoutubeDownloaderWatekYoutube;
   i: integer;
@@ -446,10 +516,15 @@ begin
   katalogi.Add(aDir);
   audio.Add(IntToStr(aAudioNr));
   video.Add(IntToStr(aVideoNr));
+  tagi.Add(IntToStr(aTag));
   if proces=nil then
   begin
     for i:=0 to 9 do kod[i]:=false;
-    a:=TYoutubeDownloaderWatekYoutube.Create(self,GetYoutubeDl,'',FCookieFile,FAria,0);
+    case FEngine of
+      enDefault:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetYoutubeDl,'',FCookieFile);
+      enDefBoost: a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetYoutubeDl,GetDirAria,FCookieFile);
+      enDefPlus:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetDirYtDlp,'',FCookieFile);
+    end;
     proces:=a;
   end;
 end;
@@ -465,13 +540,14 @@ end;
 procedure TYoutubeDownloader.Terminate;
 begin
   if proces<>nil then TYoutubeDownloaderWatekYoutube(proces).Terminate;
-  if FAria then TerminateAria;
+  if FEngine=enDefBoost then TerminateAria;
 end;
 
 { TYoutubeDownloaderWatekYoutube }
 
 procedure TYoutubeDownloaderWatekYoutube.verbose;
 begin
+  sender.itag:=tag;
   if kod_verbose=2 then
   begin
     sender.nazwa_linku:=link;
@@ -485,6 +561,7 @@ begin
   end else
   if kod_verbose=9 then
   begin
+    sender.itag2:=tag2;
     sender.nazwa_linku2:=link2;
     sender.nazwa_pliku2:=nazwa_pliku2;
     sender.nazwa_katalogu2:=directory2;
@@ -494,7 +571,7 @@ end;
 
 procedure TYoutubeDownloaderWatekYoutube.wykonaj;
 var
-  s: string;
+  s,s1: string;
 begin
   zrobione:=false;
   plik1:='';
@@ -520,10 +597,16 @@ begin
     YTData.Parameters.Add(cookiesfile);
   end;
   YTData.Parameters.Add(link);
-  if use_aria then
+  if engine=enDefBoost then
   begin
     s:=' --summary-interval=1';
-    YTData.Parameters.Add('--external-downloader=aria2c');
+    s1:=dir_aria2c;
+    {$IFDEF UNIX}
+    if s1<>'' then s1:=s1+'/';
+    {$ELSE}
+    if s1<>'' then s1:=s1+'\';
+    {$ENDIF}
+    YTData.Parameters.Add('--external-downloader='+s1+'aria2c');
     YTData.Parameters.Add('--external-downloader-args');
     if cookiesfile='' then
       YTData.Parameters.Add('--min-split-size=1M --max-connection-per-server=16 --max-concurrent-downloads=16 --split=16'+s)
@@ -545,16 +628,19 @@ begin
     directory:='';
     audio:=0;
     video:=0;
+    tag:=0;
   end else begin
     link:=sender.linki[0];
     directory:=sender.katalogi[0];
     if directory='' then directory:=dir_youtubedl;
     audio:=StrToInt(sender.audio[0]);
     video:=StrToInt(sender.video[0]);
+    tag:=StrToInt(sender.tagi[0]);
     sender.linki.Delete(0);
     sender.katalogi.Delete(0);
     sender.audio.Delete(0);
     sender.video.Delete(0);
+    sender.tagi.Delete(0);
   end;
 end;
 
@@ -601,7 +687,7 @@ begin
       begin
         s:=str[i];
         if s='' then continue;
-        if use_aria then
+        if engine=enDefBoost then
         begin
           if pos('FILE:',s)>0 then continue;
           if pos('========',s)>0 then continue;
@@ -609,7 +695,7 @@ begin
           if pos('--------',s)>0 then continue;
           if pos('NOTICE',s)>0 then continue;
         end;
-        //writeln(s);
+        writeln(s);
         if pos('already been downloaded and merged',s)>0 then
         begin
           (* plik pobrany już wcześniej *)
@@ -649,8 +735,7 @@ begin
           kod_verbose:=4;
           synchronize(@verbose);
         end else
-        //[#86893c 17MiB/22MiB(75%) CN:8 DL:1.0MiB ETA:5s]
-        if use_aria and (pos('%)',s)>0) and (pos('ETA:',s)>0) then
+        if (engine=enDefBoost) and (pos('%)',s)>0) and (pos('ETA:',s)>0) then
         begin
           s1:=s;
           a:=pos('(',s);
@@ -667,12 +752,13 @@ begin
           kod_verbose:=4;
           synchronize(@verbose);
         end else
-        if pos('[ffmpeg] Merging formats into',s)>0 then
+        if (pos('[ffmpeg] Merging formats into',s)>0) or (pos('[Merger] Merging formats into',s)>0) then
         begin
           delete(s,1,29);
           link2:=link;
-          nazwa_pliku2:=directory;
-          directory2:=trim(StringReplace(s,'"','',[rfReplaceAll]));
+          nazwa_pliku2:=trim(StringReplace(s,'"','',[rfReplaceAll]));
+          directory2:=directory;
+          tag2:=tag;
         end else
         if pos('Deleting original file',s)>0 then
         begin
@@ -695,21 +781,23 @@ begin
 end;
 
 constructor TYoutubeDownloaderWatekYoutube.Create(aSender: TYoutubeDownloader;
-  aDirYoutubeDl, aDirAria2c, aCookieFile: string; aUseAria: boolean;
-  aTag: integer);
+  aEngine: TYoutubeDownloaderEngine; aBinaryDir, aBinaryAria2c,
+  aCookieFile: string);
 begin
   (* przekazuję zmienne *)
   sender:=aSender;
-  dir_youtubedl:=aDirYoutubeDl;
-  dir_aria2c:=aDirAria2c;
+  engine:=aEngine;
+  dir_youtubedl:=aBinaryDir;
+  dir_aria2c:=aBinaryAria2c;
   cookiesfile:=aCookieFile;
-  use_aria:=aUseAria;
-  tag:=aTag;
   (* obsługa wątku *)
   FreeOnTerminate:=true;
   YTData:=TAsyncProcess.Create(nil);
   YTData.CurrentDirectory:=dir_youtubedl;
-  YTData.Executable:='youtube-dl';
+  case engine of
+    enDefault,enDefBoost: YTData.Executable:='youtube-dl';
+    enDefPlus:            YTData.Executable:='yt-dlp';
+  end;
   YTData.Options:=[poUsePipes,poNoConsole];
   YTData.Priority:=ppNormal;
   YTData.ShowWindow:=swoNone;
