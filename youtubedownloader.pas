@@ -133,6 +133,7 @@ type
     zrobione: boolean;
     pozycja: integer;
     predkosc_str: string;
+    sciagam: boolean;
 
     //film: integer;
     fs: TFormatSettings;
@@ -617,6 +618,16 @@ begin
   YTData.Execute;
   while YTData.Running and (not zrobione) and (not self.Terminated) do sleep(10);
   if YTData.Running then YTData.Terminate(0);
+  if sciagam then
+  begin
+    sciagam:=false;
+    link2:=link;
+    nazwa_pliku2:=nazwa_pliku;
+    directory2:=directory;
+    tag2:=tag;
+    kod_verbose:=9;
+    synchronize(@verbose);
+  end;
 end;
 
 procedure TYoutubeDownloaderWatekYoutube.pobierz;
@@ -662,6 +673,7 @@ begin
   {pobieram dane}
   while true do
   begin
+    sciagam:=false;
     synchronize(@pobierz);
     if link='' then break;
     if self.Terminated then break;
@@ -712,6 +724,7 @@ begin
         if pos('[download] Destination:',s)>0 then
         begin
           (* dostajemy nazwę pliku *)
+          sciagam:=true;
           delete(s,1,23);
           s:=trim(StringReplace(s,'"','',[rfReplaceAll]));
           nazwa_pliku:=s;
@@ -762,6 +775,7 @@ begin
         end else
         if pos('Deleting original file',s)>0 then
         begin
+          sciagam:=false;
           delete(s,1,22);
           s:=StringReplace(s,'"','',[rfReplaceAll]);
           a:=pos('(pass -k to keep)',s);
