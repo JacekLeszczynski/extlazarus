@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs, ExtCtrls,
-  AsyncProcess, Process;
+  AsyncProcess, Process, NetSynHTTP;
 
 type
 
@@ -24,9 +24,13 @@ type
 
   TYoutubeDownloader = class(TComponent)
   private
+    mem_yt_cookie: string;
+    http: TNetSynHTTP;
+    FAutoSelect: boolean;
+    FMaxAudioBitRate,FMaxAudioSampleRate,FMaxVideoBitRate,FMaxVideoQuality,FMinAudioSampleRate: integer;
     FBoolReadPozInfo: boolean;
     FCookieFile: TFilename;
-    FYoutubeDl: string;
+    FDirYtDl: string;
     FDirAria: string;
     FDirYtDlp: string;
     FDlFileName: TYoutubeDownloaderDlGetFileName;
@@ -37,7 +41,7 @@ type
     FStart,FStop: TNotifyEvent;
     FDlStart: TYoutubeDownloaderDlStart;
     FWatki: boolean;
-    linki,katalogi,audio,video,tagi: TStrings;
+    linki,katalogi,audio,video,tagi,automatyka: TStrings;
     proces: pointer;
     nazwa_linku,nazwa_pliku,nazwa_katalogu: string;
     nazwa_linku2,nazwa_pliku2,nazwa_katalogu2: string;
@@ -47,10 +51,10 @@ type
     kod: array [0..9] of boolean;
     function GetDirAria: string;
     function GetDirYtDlp: string;
-    function GetYoutubeDl: string;
+    function GetDirYtDl: string;
     procedure SetDirAria(AValue: string);
     procedure SetDirYtDlp(AValue: string);
-    procedure SetYoutubeDl(AValue: string);
+    procedure SetDirYtDl(AValue: string);
     procedure AddCode(aCode: integer);
     procedure ReceivedVerbose(ASender: TObject);
     procedure TerminateAria;
@@ -60,6 +64,9 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil);
+    procedure GetInformationsForAll(aLink: string; var aTitle,aDescription,aKeywords: string);
+    procedure GetInformationsForYoutube(aLink: string; var aTitle,aDescription,aKeywords: string);
+    procedure GetInformationsForRumble(aLink: string; var aTitle,aDescription: string);
     procedure AddLink(aLink,aDir: string; aAudioNr: integer = 0; aVideoNr: integer = 0; aTag: integer = 0);
     procedure Clear;
     procedure Terminate;
@@ -78,7 +85,7 @@ type
      OR flags:
      <auto> - System Path Search Program's
      <curr> - Current Program Directory}
-    property DirectoryYoutubeDl: string read FYoutubeDl write SetYoutubeDl;
+    property DirectoryYoutubeDl: string read FDirYtDl write SetDirYtDl;
     {Path to Directory executed program:
        aria2c | aria2c.exe
      OR flags:
@@ -97,6 +104,27 @@ type
     {Reading records on execute:
        DownloadInfo(link)}
     property ReadPozInfo: boolean read FBoolReadPozInfo write FBoolReadPozInfo default false;
+    {Auto select file in values:
+       Min... and Max... Positions.
+     Aby to działało kody audio i video muszą być ustawione na 0,
+     w przeciwnym wypadku zadziała manualnie!}
+    property AutoSelect: boolean read FAutoSelect write FAutoSelect default false;
+    {Max audio bitrate in kbit.
+     Examples: 51,66,138}
+    property MaxAudioBitRate: integer read FMaxAudioBitRate write FMaxAudioBitRate default 0;
+    {Min audio samplerate in HZ.
+     Examples: 11025,22050,44100,48000}
+    property MinAudioSampleRate: integer read FMinAudioSampleRate write FMinAudioSampleRate default 0;
+    {Max audio samplerate in HZ.
+     Examples: 11025,22050,44100,48000}
+    property MaxAudioSampleRate: integer read FMaxAudioSampleRate write FMaxAudioSampleRate default 0;
+    {Max video quality in p.
+     Examples: 144,240,360,480,720,1080,
+               or 0..maxint}
+    property MaxVideoQuality: integer read FMaxVideoQuality write FMaxVideoQuality default 0;
+    {Max video bitrate in kbit.
+     Examples: 18,60,70,156,307}
+    property MaxVideoBitRate: integer read FMaxVideoBitRate write FMaxVideoBitRate default 0;
     {Reading records on execute:
        DownloadInfo(link)}
     property OnReadPozInfo: TYoutubeDownloaderReadPozInfo read FReadPozInfo write FReadPozInfo;
@@ -121,10 +149,12 @@ type
   private
     sender: TYoutubeDownloader;
     engine: TYoutubeDownloaderEngine;
+    auto_select: boolean;
     YTData: TAsyncProcess;
     dir_youtubedl,dir_aria2c: string;
     cookiesfile: string;
     tag,tag2: integer;
+    automatyka: string;
     kod_verbose: integer;
     link,nazwa_pliku,directory: string;
     link2,nazwa_pliku2,directory2: string;
@@ -134,6 +164,7 @@ type
     pozycja: integer;
     predkosc_str: string;
     sciagam: boolean;
+    czas_reakcji: integer;
 
     //film: integer;
     fs: TFormatSettings;
@@ -151,6 +182,10 @@ type
 
 procedure Register;
 
+//procedure local_DownloadInfo(aLink: string; aDirBin, aCookieFile: string;
+//  maxAPrzeplywnosc, minASampleRate, maxASampleRate, maxVRes, maxVPrzeplywnosc: integer;
+//  var outAudioCode,outVideoCode: integer);
+
 implementation
 
 uses
@@ -162,13 +197,231 @@ begin
   RegisterComponents('lNet',[TYoutubeDownloader]);
 end;
 
+procedure local_del(ss: TStringList; col: integer);
+var
+  i,a,max: integer;
+  s: string;
+begin
+  max:=0;
+  (* szukam największego *)
+  for i:=0 to ss.Count-1 do
+  begin
+    s:=ss[i];
+    a:=StrToInt(GetLineToStr(s,col,','));
+    if a>max then max:=a;
+  end;
+  (* usuwam mniejsze *)
+  for i:=ss.Count-1 downto 0 do
+  begin
+    s:=ss[i];
+    a:=StrToInt(GetLineToStr(s,col,','));
+    if a<max then ss.Delete(i);
+  end;
+end;
+
+procedure local_DownloadInfo(aLink: string; aDirBin, aCookieFile: string;
+  maxAPrzeplywnosc, minASampleRate, maxASampleRate, maxVRes, maxVPrzeplywnosc: integer;
+  var outAudioCode,outVideoCode: integer);
+var
+  YTData: TProcess;
+  str: TStringList;
+  l,i,j: integer;
+  ss: array [1..6] of string;
+  p,s,reszta,s1: string;
+  ba,bv,bav: boolean;
+  vFormatCode: integer;
+  vExtension,vResolution: string;
+  vRes,vPrzeplywnosc,vFPS,vSampleRate: integer;
+  vSize: int64;
+  d: double;
+  vType: TYoutubeDownloaderType;
+  vDASH: boolean;
+  audio,video,video2: TStringList;
+begin
+  (* sprawdzam jaki serwis i przekazuję wywołanie dalej *)
+  if (pos('//www.youtube.com/',aLink)=0) and (pos('//youtu.be/',aLink)=0) and (pos('//youtube.com/',aLink)=0) then
+  begin
+    outAudioCode:=0;
+    outVideoCode:=0;
+    exit;
+  end;
+  (* reszta *)
+  YTData:=TProcess.Create(nil);
+  YTData.Executable:='youtube-dl';
+  YTData.CurrentDirectory:=aDirBin;
+  YTData.Options:=[poUsePipes,poNoConsole,poWaitOnExit];
+  YTData.Priority:=ppNormal;
+  YTData.ShowWindow:=swoNone;
+  YTData.PipeBufferSize:=2*1024;
+  try
+    if aCookieFile<>'' then
+    begin
+      YTData.Parameters.Add('--cookies');
+      YTData.Parameters.Add(aCookieFile);
+    end;
+    YTData.Parameters.Add('-F');
+    YTData.Parameters.Add(aLink);
+    YTData.CurrentDirectory:='';
+    YTData.Execute;
+    str:=TStringList.Create;
+    audio:=TStringList.Create;
+    video:=TStringList.Create;
+    video2:=TStringList.Create;
+    try
+      if YTData.Output.NumBytesAvailable>0 then
+      begin
+        str.LoadFromStream(YTData.Output);
+        for i:=0 to str.Count-1 do
+        begin
+          ba:=true;
+          bv:=true;
+          s:=str[i];
+          if s='' then continue;
+          s:=StringReplace(s,'audio only','audio_only',[rfReplaceAll]);
+          s:=StringReplace(s,'video only','video_only',[rfReplaceAll]);
+          vDASH:=pos('DASH',s)>0;
+          s:=StringReplace(s,'DASH audio','tiny',[rfReplaceAll]);
+          s:=StringReplace(s,'DASH video','0p',[rfReplaceAll]);
+          s:=StringReplace(s,' , ',', ',[rfReplaceAll]);
+          if pos('audio_only',s)>0 then bv:=false else if pos('video_only',s)>0 then ba:=false;
+          bav:=ba and bv;
+          if bav then vType:=ytAll else if ba then vType:=ytAudio else vType:=ytVideo;
+          while pos('  ',s)>0 do s:=StringReplace(s,'  ',' ',[rfReplaceAll]);
+          s1:=GetLineToStr(s,1,' ');
+          if (s1='[youtube]') or (s1='[info]') or (s1='format') then continue;
+
+          (* czytam części między przecinkami *)
+          ss[1]:=trim(GetLineToStr(s,1,','));
+          ss[2]:=trim(GetLineToStr(s,2,','));
+          ss[3]:=trim(GetLineToStr(s,3,','));
+          ss[4]:=trim(GetLineToStr(s,4,','));
+          ss[5]:=trim(GetLineToStr(s,5,','));
+          ss[6]:=trim(GetLineToStr(s,6,','));
+          (* czytam wartości *)
+          vFormatCode:=StrToInt(trim(GetLineToStr(ss[1],1,' ')));
+          vExtension:=trim(GetLineToStr(ss[1],2,' '));
+          for j:=6 downto 5 do
+          begin
+            p:=trim(GetLineToStr(ss[1],j,' '));
+            l:=length(p);
+            if l=0 then continue;
+            if p[l]='k' then delete(p,l,1);
+            break;
+          end;
+          vPrzeplywnosc:=StrToInt(p);
+          if bv then
+          begin
+            vResolution:=trim(GetLineToStr(ss[1],3,' '));
+            p:=trim(GetLineToStr(ss[1],4,' '));
+            //l:=length(p);
+            //if p[l]='p' then delete(p,l,1);
+            //vRes:=StrToInt(p);
+            vRes:=StrToL(p,reszta,0);
+            if bav then p:=trim(ss[3]) else p:=trim(ss[4]);
+            p:=StringReplace(p,'fps','',[]);
+            vFPS:=StrToInt(p);
+            if bav then
+            begin
+              p:=trim(ss[4]);
+              p:=StringReplace(p,') (',',',[]);
+              p:=StringReplace(p,'(',',',[]);
+              p:=StringReplace(p,')',',',[]);
+              p:=GetLineToStr(p,2,',');
+              p:=StringReplace(p,'Hz','',[]);
+              p:=trim(p);
+              vSampleRate:=StrToInt(p);
+              p:=trim(ss[5]);
+              if p='' then vSize:=0 else
+              begin
+                p:=upcase(p);
+                d:=StrToD(p,reszta);
+                vSize:=trunc(d*1024);
+                if reszta='MIB' then vSize:=vSize*1024 else
+                if reszta ='KIB' then vSize:=vSize;
+              end;
+            end else begin
+              vSampleRate:=0;
+              p:=trim(ss[6]);
+              if p='' then vSize:=0 else
+              begin
+                p:=upcase(p);
+                d:=StrToD(p,reszta);
+                vSize:=trunc(d*1024);
+                if reszta='MIB' then vSize:=vSize*1024 else
+                if reszta ='KIB' then vSize:=vSize;
+              end;
+            end;
+            if vDash and (vRes=0) then vRes:=StrToInt(GetLineToStr(vResolution,2,'x'));
+          end else begin
+            vResolution:='';
+            vRes:=0;
+            vFPS:=0;
+            p:=trim(ss[3]);
+            p:=StringReplace(p,'(',',',[]);
+            p:=StringReplace(p,')',',',[]);
+            p:=GetLineToStr(p,2,',');
+            p:=StringReplace(p,'Hz','',[]);
+            p:=trim(p);
+            vSampleRate:=StrToInt(p);
+            p:=trim(ss[4]);
+            if p='' then vSize:=0 else
+            begin
+              p:=upcase(p);
+              d:=StrToD(p,reszta);
+              vSize:=trunc(d*1024);
+              if reszta='MIB' then vSize:=vSize*1024 else
+              if reszta ='KIB' then vSize:=vSize;
+            end;
+          end;
+          if (maxAPrzeplywnosc>0) and (vType=ytAudio) and (vPrzeplywnosc>maxAPrzeplywnosc) then continue;
+          if (minASampleRate>0) and (vType=ytAudio) and (vSampleRate<minASampleRate) then continue;
+          if (maxASampleRate>0) and (vType=ytAudio) and (vSampleRate>maxASampleRate) then continue;
+          if (maxVRes>0) and ((vType=ytVideo) or (vType=ytAll)) and (vRes>maxVRes) then continue;
+          if (maxVPrzeplywnosc>0) and ((vType=ytVideo) or (vType=ytAll)) and (vPrzeplywnosc>maxVPrzeplywnosc) then continue;
+          if vType=ytAudio then audio.Add(IntToStr(vFormatCode)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vSampleRate)) else
+          if vType=ytVideo then video.Add(IntToStr(vFormatCode)+','+IntToStr(vRes)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vFPS)) else
+                                video2.Add(IntToStr(vFormatCode)+','+IntToStr(vRes)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vFPS));
+          //writeln('Type=',vType,', Code=',vFormatCode,', Ext=',vExtension,', Resolution=',vResolution,', Res=',vRes,', Przepływ=',vPrzeplywnosc,', FPS=',vFPS,', SR=',vSampleRate,', Size=',vSize,', DASH=',vDASH);
+
+        end;
+        local_del(audio,3);
+        local_del(video,4);
+        local_del(video2,4);
+
+        (* wybieram pozycje do ściągnięcia *)
+        if (audio.Count>0) or (video.Count>0) then
+        begin
+          outAudioCode:=StrToInt(GetLineToStr(audio[audio.Count-1],1,','));
+          outVideoCode:=StrToInt(GetLineToStr(video[video.Count-1],1,','));
+        end else
+        if video2.Count>0 then
+        begin
+          outAudioCode:=0;
+          outVideoCode:=StrToInt(GetLineToStr(video2[video2.Count-1],1,','));
+        end else begin
+          outAudioCode:=0;
+          outVideoCode:=0;
+        end;
+
+      end;
+    finally
+      str.Free;
+      audio.Free;
+      video.Free;
+      video2.Free;
+    end;
+  finally
+    YTData.Free;
+  end;
+end;
+
 { TYoutubeDownloader }
 
-procedure TYoutubeDownloader.SetYoutubeDl(AValue: string);
+procedure TYoutubeDownloader.SetDirYtDl(AValue: string);
 begin
-  if FYoutubeDl=AValue then Exit;
-  if (AValue='') and (FYoutubeDl='<auto>') then exit;
-  if AValue='' then FYoutubeDl:='<auto>' else FYoutubeDl:=AValue;
+  if FDirYtDl=AValue then Exit;
+  if (AValue='') and (FDirYtDl='<auto>') then exit;
+  if AValue='' then FDirYtDl:='<auto>' else FDirYtDl:=AValue;
 end;
 
 procedure TYoutubeDownloader.AddCode(aCode: integer);
@@ -248,18 +501,18 @@ begin
   end;
 end;
 
-function TYoutubeDownloader.GetYoutubeDl: string;
+function TYoutubeDownloader.GetDirYtDl: string;
 var
   s: string;
 begin
-  if FYoutubeDl='<auto>' then result:='' else
-  if FYoutubeDl='<curr>' then
+  if FDirYtDl='<auto>' then result:='' else
+  if FDirYtDl='<curr>' then
   begin
     s:=ExtractFilePath(ParamStr(0));
     delete(s,length(s),1);
     result:=s;
   end else
-  result:=FYoutubeDl;
+  result:=FDirYtDl;
 end;
 
 function TYoutubeDownloader.GetDirAria: string;
@@ -314,17 +567,26 @@ begin
   audio:=TStringList.Create;
   video:=TStringList.Create;
   tagi:=TStringList.Create;
+  automatyka:=TStringList.Create;
   watek_timer:=TTimer.Create(self);
   watek_timer.Enabled:=false;
   watek_timer.Interval:=1;
   watek_timer.OnTimer:=@ReceivedVerbose;
+  http:=TNetSynHTTP.Create(self);
   (* zmienne *)
+  mem_yt_cookie:='';
   FEngine:=enDefault;
   FWatki:=true;
-  FYoutubeDL:='<auto>';
+  FDirYtDl:='<auto>';
   FDirAria:='<auto>';
   FDirYtDlp:='<auto>';
   FBoolReadPozInfo:=false;
+  FAutoSelect:=false;
+  FMaxAudioBitRate:=0;
+  FMaxAudioSampleRate:=0;
+  FMaxVideoBitRate:=0;
+  FMaxVideoQuality:=0;
+  FMinAudioSampleRate:=0;
 end;
 
 destructor TYoutubeDownloader.Destroy;
@@ -339,7 +601,9 @@ begin
   audio.Free;
   video.Free;
   tagi.Free;
+  automatyka.Free;
   watek_timer.Free;
+  http.Free;
   inherited Destroy;
 end;
 
@@ -364,7 +628,7 @@ begin
   if aVideo<>nil then aVideo.Clear;
   YTData:=TProcess.Create(nil);
   YTData.Executable:='youtube-dl';
-  YTData.CurrentDirectory:=GetYoutubeDl;
+  YTData.CurrentDirectory:=GetDirYtDl;
   YTData.Options:=[poUsePipes,poNoConsole,poWaitOnExit];
   YTData.Priority:=ppNormal;
   YTData.ShowWindow:=swoNone;
@@ -435,9 +699,10 @@ begin
             begin
               vResolution:=trim(GetLineToStr(ss[1],3,' '));
               p:=trim(GetLineToStr(ss[1],4,' '));
-              l:=length(p);
-              if p[l]='p' then delete(p,l,1);
-              vRes:=StrToInt(p);
+              //l:=length(p);
+              //if p[l]='p' then delete(p,l,1);
+              //vRes:=StrToInt(p);
+              vRes:=StrToL(p,reszta,0);
               if bav then p:=trim(ss[3]) else p:=trim(ss[4]);
               p:=StringReplace(p,'fps','',[]);
               vFPS:=StrToInt(p);
@@ -507,6 +772,105 @@ begin
   end;
 end;
 
+procedure TYoutubeDownloader.GetInformationsForAll(aLink: string; var aTitle,
+  aDescription, aKeywords: string);
+begin
+  aTitle:='';
+  aDescription:='';
+  aKeywords:='';
+  (* sprawdzam jaki serwis i przekazuję wywołanie dalej *)
+  if pos('//rumble.com/',aLink)>0 then GetInformationsForRumble(aLink,aTitle,aDescription) else
+  if pos('//www.youtube.com/',aLink)>0 then GetInformationsForYoutube(aLink,aTitle,aDescription,aKeywords) else
+  if pos('//youtu.be/',aLink)>0 then GetInformationsForYoutube(aLink,aTitle,aDescription,aKeywords) else
+  if pos('//youtube.com/',aLink)>0 then GetInformationsForYoutube(aLink,aTitle,aDescription,aKeywords);
+end;
+
+procedure TYoutubeDownloader.GetInformationsForYoutube(aLink: string;
+  var aTitle, aDescription, aKeywords: string);
+var
+  ss: TStrings;
+  s,s1,s2,cookie: string;
+  a,i: integer;
+begin
+  http.Headers.Clear;
+  if FCookieFile<>'' then
+  begin
+    if mem_yt_cookie='' then
+    begin
+      ss:=TStringList.Create;
+      try
+        (* dołączam dane cookies do połączenia jeśli istnieją*)
+        if FileExists(FCookieFile) then
+        begin
+          cookie:='';
+          ss.LoadFromFile(FCookieFile);
+          for i:=0 to ss.Count-1 do
+          begin
+            s:=ss[i];
+            s1:=GetLineToStr(s,6,#9);
+            s2:=GetLineToStr(s,7,#9);
+            if cookie='' then cookie:='cookie: '+s1+'='+s2 else cookie:=cookie+'; '+s1+'='+s2;
+          end;
+          mem_yt_cookie:=cookie
+        end;
+      finally
+        ss.Free;
+      end;
+    end;
+    http.Headers.Add(cookie);
+  end;
+
+  http.execute(aLink,s);
+
+  http.StrDeleteStart(s,'meta name="title"');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aTitle:=copy(s,1,a-1);
+  aTitle:=DecodeHTMLAmp(aTitle);
+
+  http.StrDeleteStart(s,'meta name="description"');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aDescription:=copy(s,1,a-1);
+  aDescription:=DecodeHTMLAmp(aDescription);
+
+  http.StrDeleteStart(s,'meta name="keywords"');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aKeywords:=copy(s,1,a-1);
+  aKeywords:=DecodeHTMLAmp(aKeywords);
+end;
+
+procedure TYoutubeDownloader.GetInformationsForRumble(aLink: string;
+  var aTitle, aDescription: string);
+var
+  s,s1: string;
+  a: integer;
+begin
+  http.Headers.Clear;
+  http.execute(aLink,s);
+  s1:=s;
+
+  http.StrDeleteStart(s,'property=og:title');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aTitle:=copy(s,1,a-1);
+  aTitle:=DecodeHTMLAmp(aTitle);
+
+  http.StrDeleteStart(s,'meta name=description');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aDescription:=copy(s,1,a-1);
+  aDescription:=DecodeHTMLAmp(aDescription);
+
+  {http.StrDeleteStart(s,'meta name="keywords"');
+  http.StrDeleteStart(s,'content="');
+  a:=pos('"',s);
+  aKeywords:=copy(s,1,a-1);
+  aKeywords:=DecodeHTMLAmp(aKeywords);}
+
+end;
+
 procedure TYoutubeDownloader.AddLink(aLink, aDir: string; aAudioNr: integer;
   aVideoNr: integer; aTag: integer);
 var
@@ -518,12 +882,13 @@ begin
   audio.Add(IntToStr(aAudioNr));
   video.Add(IntToStr(aVideoNr));
   tagi.Add(IntToStr(aTag));
+  automatyka.Add('');
   if proces=nil then
   begin
     for i:=0 to 9 do kod[i]:=false;
     case FEngine of
-      enDefault:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetYoutubeDl,'',FCookieFile);
-      enDefBoost: a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetYoutubeDl,GetDirAria,FCookieFile);
+      enDefault:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetDirYtDl,'',FCookieFile);
+      enDefBoost: a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetDirYtDl,GetDirAria,FCookieFile);
       enDefPlus:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetDirYtDlp,'',FCookieFile);
     end;
     proces:=a;
@@ -616,8 +981,16 @@ begin
   end;
   YTData.CurrentDirectory:=directory;
   YTData.Execute;
-  while YTData.Running and (not zrobione) and (not self.Terminated) do sleep(10);
-  if YTData.Running then YTData.Terminate(0);
+
+  czas_reakcji:=TimeToInteger;
+  //while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
+  while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not self.Terminated) do sleep(500);
+  if YTData.Running then
+  begin
+    sleep(1000);
+    YTData.Terminate(0);
+  end;
+
   if sciagam then
   begin
     sciagam:=false;
@@ -635,23 +1008,28 @@ begin
   {pobieram parametry pliku do pobrania}
   if sender.linki.Count=0 then
   begin
+    auto_select:=false;
     link:='';
     directory:='';
     audio:=0;
     video:=0;
     tag:=0;
+    automatyka:='';
   end else begin
+    auto_select:=sender.FAutoSelect;
     link:=sender.linki[0];
     directory:=sender.katalogi[0];
     if directory='' then directory:=dir_youtubedl;
     audio:=StrToInt(sender.audio[0]);
     video:=StrToInt(sender.video[0]);
     tag:=StrToInt(sender.tagi[0]);
+    automatyka:=sender.automatyka[0];
     sender.linki.Delete(0);
     sender.katalogi.Delete(0);
     sender.audio.Delete(0);
     sender.video.Delete(0);
     sender.tagi.Delete(0);
+    sender.automatyka.Delete(0);
   end;
 end;
 
@@ -677,6 +1055,7 @@ begin
     synchronize(@pobierz);
     if link='' then break;
     if self.Terminated then break;
+    if (audio=0) and (video=0) and auto_select then local_DownloadInfo(link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,audio,video);
     wykonaj;
     sleep(10);
   end;
@@ -690,6 +1069,7 @@ var
   str: TStringList;
   i,a: integer;
 begin
+  czas_reakcji:=TimeToInteger;
   str:=TStringList.Create;
   try
     if YTData.Output.NumBytesAvailable>0 then
@@ -707,7 +1087,7 @@ begin
           if pos('--------',s)>0 then continue;
           if pos('NOTICE',s)>0 then continue;
         end;
-        writeln(s);
+        //writeln(s);
         if pos('already been downloaded and merged',s)>0 then
         begin
           (* plik pobrany już wcześniej *)
