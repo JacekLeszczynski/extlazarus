@@ -423,12 +423,12 @@ begin
   //szukam miejsca błędu
   for i:=1 to length(p) do
   begin
-    if (p[i]='+') and (not plus) then
+    if (i=1) and (p[i]='+') and (not plus) then
     begin
       plus:=true;
       continue;
     end;
-    if (p[i]='-') and (not minus) then
+    if (i=1) and (p[i]='-') and (not minus) then
     begin
       minus:=true;
       continue;
@@ -584,12 +584,12 @@ begin
   //szukam miejsca błędu
   for i:=1 to length(p) do
   begin
-    if (p[i]='+') and (not plus) then
+    if (i=1) and (p[i]='+') and (not plus) then
     begin
       plus:=true;
       continue;
     end;
-    if (p[i]='-') and (not minus) then
+    if (i=1) and (p[i]='-') and (not minus) then
     begin
       minus:=true;
       continue;

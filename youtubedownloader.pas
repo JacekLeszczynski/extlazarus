@@ -63,7 +63,7 @@ type
     watek_timer: TTimer;
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil);
+    function DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil): boolean;
     procedure GetInformationsForAll(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForYoutube(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForRumble(aLink: string; var aTitle,aDescription: string);
@@ -182,10 +182,6 @@ type
 
 procedure Register;
 
-//procedure local_DownloadInfo(aLink: string; aDirBin, aCookieFile: string;
-//  maxAPrzeplywnosc, minASampleRate, maxASampleRate, maxVRes, maxVPrzeplywnosc: integer;
-//  var outAudioCode,outVideoCode: integer);
-
 implementation
 
 uses
@@ -195,6 +191,44 @@ procedure Register;
 begin
   {$I youtubedownloader_icon.lrs}
   RegisterComponents('lNet',[TYoutubeDownloader]);
+end;
+
+function IntToCString(a: integer; len: integer): string;
+var
+  s: string;
+  l,i: integer;
+begin
+  s:=IntToStr(a);
+  l:=length(s);
+  for i:=l to len-1 do s:='0'+s;
+  result:=s;
+end;
+
+function Int64ToCString(a: int64; len: integer): string;
+var
+  s: string;
+  l,i: integer;
+begin
+  s:=IntToStr(a);
+  l:=length(s);
+  for i:=l to len-1 do s:='0'+s;
+  result:=s;
+end;
+
+function StrToCString(str: string; len: integer; liczba: boolean = false): string;
+var
+  s: string;
+  l,i: integer;
+begin
+  s:=trim(str);
+  l:=length(s);
+  if liczba then
+  begin
+    for i:=l to len-1 do s:=' '+s;
+  end else begin
+    for i:=l to len-1 do s:=s+' ';
+  end;
+  result:=s;
 end;
 
 procedure local_del(ss: TStringList; col: integer);
@@ -219,175 +253,315 @@ begin
   end;
 end;
 
-procedure local_DownloadInfo(aLink: string; aDirBin, aCookieFile: string;
-  maxAPrzeplywnosc, minASampleRate, maxASampleRate, maxVRes, maxVPrzeplywnosc: integer;
-  var outAudioCode,outVideoCode: integer);
+function local_VideoIntoFilter(aStr: string; var vType: TYoutubeDownloaderType; var vDash: boolean): string;
 var
-  YTData: TProcess;
-  str: TStringList;
-  l,i,j: integer;
-  ss: array [1..6] of string;
-  p,s,reszta,s1: string;
   ba,bv,bav: boolean;
-  vFormatCode: integer;
-  vExtension,vResolution: string;
-  vRes,vPrzeplywnosc,vFPS,vSampleRate: integer;
-  vSize: int64;
+  s: string;
+begin
+  ba:=true;
+  bv:=true;
+  s:=StringReplace(aStr,'audio only','audio_only',[rfReplaceAll,rfIgnoreCase]);
+  s:=StringReplace(s,'video only','video_only',[rfReplaceAll,rfIgnoreCase]);
+  vDASH:=pos('DASH',s)>0;
+  s:=StringReplace(s,'DASH audio','tiny',[rfReplaceAll]);
+  s:=StringReplace(s,'DASH video','0p',[rfReplaceAll]);
+  s:=StringReplace(s,' , ',', ',[rfReplaceAll]);
+  s:=StringReplace(s,'|',',',[rfReplaceAll]);
+  if pos('audio_only',s)>0 then bv:=false else if pos('video_only',s)>0 then ba:=false;
+  bav:=ba and bv;
+  if bav then vType:=ytAll else if ba then vType:=ytAudio else vType:=ytVideo;
+  while pos('  ',s)>0 do s:=StringReplace(s,'  ',' ',[rfReplaceAll]);
+  result:=s;
+end;
+
+function local_FormatDefault(aType: TYoutubeDownloaderType; aDash: boolean; aStr: string): string;
+var
+  s,p,reszta: string;
+  ss: array [1..6] of string;
+  i,l: integer;
   d: double;
+  {vExt,}vResolution: string;
+  vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
+  vSize: int64;
+begin
+  s:=aStr;
+  (* czytam części między przecinkami *)
+  ss[1]:=trim(GetLineToStr(s,1,','));
+  ss[2]:=trim(GetLineToStr(s,2,','));
+  ss[3]:=trim(GetLineToStr(s,3,','));
+  ss[4]:=trim(GetLineToStr(s,4,','));
+  ss[5]:=trim(GetLineToStr(s,5,','));
+  ss[6]:=trim(GetLineToStr(s,6,','));
+  (* czytam wartości *)
+  vCode:=StrToInt(trim(GetLineToStr(ss[1],1,' ')));
+  //vExt:=trim(GetLineToStr(ss[1],2,' '));
+  for i:=6 downto 5 do
+  begin
+    p:=trim(GetLineToStr(ss[1],i,' '));
+    l:=length(p);
+    if l=0 then continue;
+    if p[l]='k' then delete(p,l,1);
+    break;
+  end;
+  vBitRate:=StrToInt(p);
+  if (aType=ytVideo) or (aType=ytAll) then
+  begin
+    vResolution:=trim(GetLineToStr(ss[1],3,' '));
+    p:=trim(GetLineToStr(ss[1],4,' '));
+    vQuality:=StrToL(p,reszta,0);
+    if aType=ytAll then p:=trim(ss[3]) else p:=trim(ss[4]);
+    p:=StringReplace(p,'fps','',[]);
+    vFps:=StrToInt(p);
+    if aType=ytAll then
+    begin
+      p:=trim(ss[4]);
+      p:=StringReplace(p,') (',',',[]);
+      p:=StringReplace(p,'(',',',[]);
+      p:=StringReplace(p,')',',',[]);
+      p:=GetLineToStr(p,2,',');
+      p:=StringReplace(p,'Hz','',[]);
+      p:=trim(p);
+      vSampleRate:=StrToInt(p);
+      p:=trim(ss[5]);
+      if p='' then vSize:=0 else
+      begin
+        p:=upcase(p);
+        d:=StrToD(p,reszta);
+        vSize:=trunc(d*1024);
+        if reszta='GIB' then vSize:=vSize*1024*1024 else
+        if reszta='MIB' then vSize:=vSize*1024 else
+        if reszta ='KIB' then vSize:=vSize;
+      end;
+    end else begin
+      vSampleRate:=0;
+      p:=trim(ss[6]);
+      if p='' then vSize:=0 else
+      begin
+        p:=upcase(p);
+        d:=StrToD(p,reszta);
+        vSize:=trunc(d*1024);
+        if reszta='GIB' then vSize:=vSize*1024*1024 else
+        if reszta='MIB' then vSize:=vSize*1024 else
+        if reszta ='KIB' then vSize:=vSize;
+      end;
+    end;
+    if aDash and (vQuality=0) then vQuality:=StrToInt(GetLineToStr(vResolution,2,'x'));
+  end else begin
+    vResolution:='';
+    vQuality:=0;
+    vFPS:=0;
+    p:=trim(ss[3]);
+    p:=StringReplace(p,'(',',',[]);
+    p:=StringReplace(p,')',',',[]);
+    p:=GetLineToStr(p,2,',');
+    p:=StringReplace(p,'Hz','',[]);
+    p:=trim(p);
+    vSampleRate:=StrToInt(p);
+    p:=trim(ss[4]);
+    if p='' then vSize:=0 else
+    begin
+      p:=upcase(p);
+      d:=StrToD(p,reszta);
+      vSize:=trunc(d*1024);
+      if reszta='GIB' then vSize:=vSize*1024*1024 else
+      if reszta='MIB' then vSize:=vSize*1024 else
+      if reszta ='KIB' then vSize:=vSize;
+    end;
+  end;
+  (* wyjście *)
+  if aType=ytAudio then
+    result:='A,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode)
+  else if aType=ytVideo then
+    result:='V,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode)
+  else
+    result:='X,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode);
+end;
+
+function local_FormatDefPlus(var aType: TYoutubeDownloaderType; aDash: boolean; aStr: string): string;
+var
+  s,p,reszta: string;
+  ss: array [1..4] of string;
+  i,l: integer;
+  d: double;
+  {vExt,}vResolution: string;
+  vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
+  vSize: int64;
+begin
+  s:=aStr;
+  (* czytam części między przecinkami *)
+  ss[1]:=trim(GetLineToStr(s,1,','));
+  ss[2]:=trim(GetLineToStr(s,2,','));
+  ss[3]:=trim(GetLineToStr(s,3,','));
+  ss[4]:=trim(GetLineToStr(s,4,','));
+  if aType=ytAll then aType:=ytVideo;
+  if trim(ss[4])='' then aType:=ytAll;
+  (* czyszczę komórki *)
+  vSampleRate:=0;
+  vQuality:=0;
+  (* czytam wartości *)
+  vCode:=StrToL(trim(GetLineToStr(ss[1],1,' ')),reszta,0);
+  //vExt:=trim(GetLineToStr(ss[1],2,' '));
+  vResolution:=trim(GetLineToStr(ss[1],3,' '));
+  if aType=ytAudio then vFps:=0 else vFps:=StrToInt(trim(GetLineToStr(ss[1],4,' ')));
+  p:=trim(GetLineToStr(ss[2],1,' '));
+  if p='' then vSize:=0 else
+  begin
+    p:=upcase(p);
+    d:=StrToD(p,reszta);
+    vSize:=trunc(d*1024);
+    if reszta='GIB' then vSize:=vSize*1024*1024 else
+    if reszta='MIB' then vSize:=vSize*1024 else
+    if reszta ='KIB' then vSize:=vSize;
+  end;
+  p:=trim(GetLineToStr(ss[2],2,' '));
+  if p='' then vBitRate:=0 else vBitRate:=StrToL(p,reszta,0);
+  if aType=ytAudio then
+  begin
+    p:=trim(GetLineToStr(ss[3],3,' '));
+    if p='' then vSampleRate:=0 else vSampleRate:=StrToL(p,reszta,0);
+  end else
+  if aType=ytVideo then
+  begin
+    p:=trim(GetLineToStr(ss[3],3,' '));
+    if p='' then vQuality:=0 else vQuality:=StrToL(p,reszta,0);
+  end else
+  if aType=ytAudio then
+  begin
+    //p:=trim(GetLineToStr(ss[3],2,' '));
+    //if p='' then vBitRate:=0 else vBitRate:=StrToL(p,reszta);
+    p:=trim(GetLineToStr(ss[3],5,' '));
+    if p='' then vSampleRate:=0 else vSampleRate:=StrToL(p,reszta,0);
+    //p:=trim(GetLineToStr(ss[3],6,' '));
+    //if p='' then vQuality:=0 else vQuality:=StrToL(p,reszta,0);
+    vQuality:=0;
+  end else begin
+    //p:=trim(GetLineToStr(ss[3],2,' '));
+    //if p='' then vBitRate:=0 else vBitRate:=StrToL(p,reszta);
+    p:=trim(GetLineToStr(ss[3],5,' '));
+    if p='' then vSampleRate:=0 else vSampleRate:=StrToL(p,reszta,0);
+    p:=trim(GetLineToStr(ss[3],6,' '));
+    if p='' then vQuality:=0 else vQuality:=StrToL(p,reszta,0);
+  end;
+  (* wyjście *)
+  if aType=ytAudio then
+    result:='A,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode)
+  else if aType=ytVideo then
+    result:='V,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode)
+  else
+    result:='X,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode);
+end;
+
+function local_DownloadInfo(aEngine: TYoutubeDownloaderEngine; aLink, aDirBin, aCookieFile: string; output: TStrings): boolean;
+var
+  res: boolean;
+  p: TProcess;
+  ss: TStringList;
+  i: integer;
+  s: string;
   vType: TYoutubeDownloaderType;
-  vDASH: boolean;
-  audio,video,video2: TStringList;
+  vDash: boolean;
 begin
   (* sprawdzam jaki serwis i przekazuję wywołanie dalej *)
   if (pos('//www.youtube.com/',aLink)=0) and (pos('//youtu.be/',aLink)=0) and (pos('//youtube.com/',aLink)=0) then
   begin
-    outAudioCode:=0;
-    outVideoCode:=0;
+    result:=false;
     exit;
   end;
-  (* reszta *)
-  YTData:=TProcess.Create(nil);
-  YTData.Executable:='youtube-dl';
-  YTData.CurrentDirectory:=aDirBin;
-  YTData.Options:=[poUsePipes,poNoConsole,poWaitOnExit];
-  YTData.Priority:=ppNormal;
-  YTData.ShowWindow:=swoNone;
-  YTData.PipeBufferSize:=2*1024;
+  (* ściągam dane *)
+  res:=false;
+  ss:=TStringList.Create;
   try
+    (* proces *)
+    p:=TProcess.Create(nil);
+    case aEngine of
+      enDefault,enDefBoost: p.Executable:='youtube-dl';
+      enDefPlus:            p.Executable:='yt-dlp';
+    end;
+    p.CurrentDirectory:=aDirBin;
+    p.Options:=[poUsePipes,poNoConsole,poWaitOnExit];
+    p.Priority:=ppNormal;
+    p.ShowWindow:=swoNone;
+    p.PipeBufferSize:=2*1024;
     if aCookieFile<>'' then
     begin
-      YTData.Parameters.Add('--cookies');
-      YTData.Parameters.Add(aCookieFile);
+      p.Parameters.Add('--cookies');
+      p.Parameters.Add(aCookieFile);
     end;
-    YTData.Parameters.Add('-F');
-    YTData.Parameters.Add(aLink);
-    YTData.CurrentDirectory:='';
-    YTData.Execute;
-    str:=TStringList.Create;
-    audio:=TStringList.Create;
-    video:=TStringList.Create;
-    video2:=TStringList.Create;
+    p.Parameters.Add('-F');
+    p.Parameters.Add(aLink);
     try
-      if YTData.Output.NumBytesAvailable>0 then
+      p.Execute;
+      if p.Output.NumBytesAvailable>0 then
       begin
-        str.LoadFromStream(YTData.Output);
+        ss.LoadFromStream(p.Output);
+        res:=true;
+      end else res:=false;
+    finally
+      if p.Running then p.Terminate(0);
+      p.Free;
+    end;
+    (* dane *)
+    output.Clear;
+    for i:=0 to ss.Count-1 do
+    begin
+      s:=local_VideoIntoFilter(ss[i],vType,vDash);
+      if (pos('[youtube]',s)=1) or (pos('[info]',s)=1) or (pos('format',s)=1) or (pos('ID',s)=1) or (pos('--------',s)=1) then continue;
+      case aEngine of
+        enDefault,enDefBoost: s:=local_FormatDefault(vType,vDash,s);
+        enDefPlus:            s:=local_FormatDefPlus(vType,vDash,s);
+      end;
+      output.Add(s);
+    end;
+    TStringList(output).Sort;
+  finally
+    ss.Free;
+  end;
+  result:=res;
+end;
+
+procedure local_GetAutoCodeFormat(aEngine: TYoutubeDownloaderEngine; aLink, aDirBin, aCookieFile: string;
+  maxABitRate, minASampleRate, maxASampleRate, maxVQuality, maxVBitRate: integer;
+  var outAudioCode,outVideoCode: integer);
+var
+  str,audio,video,video2: TStringList;
+  i: integer;
+  s: string;
+  rodzaj: char;
+  vExt{,vResolution}: string;
+  vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
+  //vSize: int64;
+begin
+  str:=TStringList.Create;
+  try
+    if local_DownloadInfo(aEngine,aLink,aDirBin,aCookieFile,str) then
+    begin
+      audio:=TStringList.Create;
+      video:=TStringList.Create;
+      video2:=TStringList.Create;
+      try
         for i:=0 to str.Count-1 do
         begin
-          ba:=true;
-          bv:=true;
           s:=str[i];
-          if s='' then continue;
-          s:=StringReplace(s,'audio only','audio_only',[rfReplaceAll]);
-          s:=StringReplace(s,'video only','video_only',[rfReplaceAll]);
-          vDASH:=pos('DASH',s)>0;
-          s:=StringReplace(s,'DASH audio','tiny',[rfReplaceAll]);
-          s:=StringReplace(s,'DASH video','0p',[rfReplaceAll]);
-          s:=StringReplace(s,' , ',', ',[rfReplaceAll]);
-          if pos('audio_only',s)>0 then bv:=false else if pos('video_only',s)>0 then ba:=false;
-          bav:=ba and bv;
-          if bav then vType:=ytAll else if ba then vType:=ytAudio else vType:=ytVideo;
-          while pos('  ',s)>0 do s:=StringReplace(s,'  ',' ',[rfReplaceAll]);
-          s1:=GetLineToStr(s,1,' ');
-          if (s1='[youtube]') or (s1='[info]') or (s1='format') then continue;
-
-          (* czytam części między przecinkami *)
-          ss[1]:=trim(GetLineToStr(s,1,','));
-          ss[2]:=trim(GetLineToStr(s,2,','));
-          ss[3]:=trim(GetLineToStr(s,3,','));
-          ss[4]:=trim(GetLineToStr(s,4,','));
-          ss[5]:=trim(GetLineToStr(s,5,','));
-          ss[6]:=trim(GetLineToStr(s,6,','));
-          (* czytam wartości *)
-          vFormatCode:=StrToInt(trim(GetLineToStr(ss[1],1,' ')));
-          vExtension:=trim(GetLineToStr(ss[1],2,' '));
-          for j:=6 downto 5 do
-          begin
-            p:=trim(GetLineToStr(ss[1],j,' '));
-            l:=length(p);
-            if l=0 then continue;
-            if p[l]='k' then delete(p,l,1);
-            break;
-          end;
-          vPrzeplywnosc:=StrToInt(p);
-          if bv then
-          begin
-            vResolution:=trim(GetLineToStr(ss[1],3,' '));
-            p:=trim(GetLineToStr(ss[1],4,' '));
-            //l:=length(p);
-            //if p[l]='p' then delete(p,l,1);
-            //vRes:=StrToInt(p);
-            vRes:=StrToL(p,reszta,0);
-            if bav then p:=trim(ss[3]) else p:=trim(ss[4]);
-            p:=StringReplace(p,'fps','',[]);
-            vFPS:=StrToInt(p);
-            if bav then
-            begin
-              p:=trim(ss[4]);
-              p:=StringReplace(p,') (',',',[]);
-              p:=StringReplace(p,'(',',',[]);
-              p:=StringReplace(p,')',',',[]);
-              p:=GetLineToStr(p,2,',');
-              p:=StringReplace(p,'Hz','',[]);
-              p:=trim(p);
-              vSampleRate:=StrToInt(p);
-              p:=trim(ss[5]);
-              if p='' then vSize:=0 else
-              begin
-                p:=upcase(p);
-                d:=StrToD(p,reszta);
-                vSize:=trunc(d*1024);
-                if reszta='MIB' then vSize:=vSize*1024 else
-                if reszta ='KIB' then vSize:=vSize;
-              end;
-            end else begin
-              vSampleRate:=0;
-              p:=trim(ss[6]);
-              if p='' then vSize:=0 else
-              begin
-                p:=upcase(p);
-                d:=StrToD(p,reszta);
-                vSize:=trunc(d*1024);
-                if reszta='MIB' then vSize:=vSize*1024 else
-                if reszta ='KIB' then vSize:=vSize;
-              end;
-            end;
-            if vDash and (vRes=0) then vRes:=StrToInt(GetLineToStr(vResolution,2,'x'));
-          end else begin
-            vResolution:='';
-            vRes:=0;
-            vFPS:=0;
-            p:=trim(ss[3]);
-            p:=StringReplace(p,'(',',',[]);
-            p:=StringReplace(p,')',',',[]);
-            p:=GetLineToStr(p,2,',');
-            p:=StringReplace(p,'Hz','',[]);
-            p:=trim(p);
-            vSampleRate:=StrToInt(p);
-            p:=trim(ss[4]);
-            if p='' then vSize:=0 else
-            begin
-              p:=upcase(p);
-              d:=StrToD(p,reszta);
-              vSize:=trunc(d*1024);
-              if reszta='MIB' then vSize:=vSize*1024 else
-              if reszta ='KIB' then vSize:=vSize;
-            end;
-          end;
-          if (maxAPrzeplywnosc>0) and (vType=ytAudio) and (vPrzeplywnosc>maxAPrzeplywnosc) then continue;
-          if (minASampleRate>0) and (vType=ytAudio) and (vSampleRate<minASampleRate) then continue;
-          if (maxASampleRate>0) and (vType=ytAudio) and (vSampleRate>maxASampleRate) then continue;
-          if (maxVRes>0) and ((vType=ytVideo) or (vType=ytAll)) and (vRes>maxVRes) then continue;
-          if (maxVPrzeplywnosc>0) and ((vType=ytVideo) or (vType=ytAll)) and (vPrzeplywnosc>maxVPrzeplywnosc) then continue;
-          if vType=ytAudio then audio.Add(IntToStr(vFormatCode)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vSampleRate)) else
-          if vType=ytVideo then video.Add(IntToStr(vFormatCode)+','+IntToStr(vRes)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vFPS)) else
-                                video2.Add(IntToStr(vFormatCode)+','+IntToStr(vRes)+','+IntToStr(vPrzeplywnosc)+','+IntToStr(vFPS));
-          //writeln('Type=',vType,', Code=',vFormatCode,', Ext=',vExtension,', Resolution=',vResolution,', Res=',vRes,', Przepływ=',vPrzeplywnosc,', FPS=',vFPS,', SR=',vSampleRate,', Size=',vSize,', DASH=',vDASH);
-
+          rodzaj:=s[1];
+          vQuality:=StrToInt(GetLineToStr(s,2,','));
+          vSampleRate:=StrToInt(GetLineToStr(s,3,','));
+          vBitRate:=StrToInt(GetLineToStr(s,4,','));
+          //vResolution:=GetLineToStr(s,5,',');
+          vFps:=StrToInt(GetLineToStr(s,6,','));
+          //vSize:=StrToInt64(GetLineToStr(s,7,','));
+          vCode:=StrToInt(GetLineToStr(s,8,','));
+          if (maxABitRate>0) and (rodzaj='A') and (vBitRate>maxABitRate) then continue;
+          if (minASampleRate>0) and (rodzaj='A') and (vSampleRate<minASampleRate) then continue;
+          if (maxASampleRate>0) and (rodzaj='A') and (vSampleRate>maxASampleRate) then continue;
+          if (maxVQuality>0) and ((rodzaj='V') or (rodzaj='X')) and (vQuality>maxVQuality) then continue;
+          if (maxVBitRate>0) and ((rodzaj='V') or (rodzaj='X')) and (vBitRate>maxVBitRate) then continue;
+          if rodzaj='A' then audio.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vSampleRate)) else
+          if rodzaj='V' then video.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps)) else
+                             video2.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps));
         end;
         local_del(audio,3);
         local_del(video,4);
         local_del(video2,4);
-
         (* wybieram pozycje do ściągnięcia *)
         if (audio.Count>0) or (video.Count>0) then
         begin
@@ -402,16 +576,17 @@ begin
           outAudioCode:=0;
           outVideoCode:=0;
         end;
-
+      finally
+        audio.Free;
+        video.Free;
+        video2.Free;
       end;
-    finally
-      str.Free;
-      audio.Free;
-      video.Free;
-      video2.Free;
+    end else begin
+      outAudioCode:=0;
+      outVideoCode:=0;
     end;
   finally
-    YTData.Free;
+    str.Free;
   end;
 end;
 
@@ -607,168 +782,62 @@ begin
   inherited Destroy;
 end;
 
-procedure TYoutubeDownloader.DownloadInfo(aLink: string; aAudio: TStrings;
-  aVideo: TStrings);
+function TYoutubeDownloader.DownloadInfo(aLink: string; aAudio: TStrings;
+  aVideo: TStrings): boolean;
 var
-  YTData: TProcess;
+  b: boolean;
   str: TStringList;
-  l,i,j: integer;
-  ss: array [1..6] of string;
-  p,pom,s,reszta,s1: string;
-  ba,bv,bav: boolean;
-  vFormatCode: integer;
-  vExtension,vResolution: string;
-  vRes,vPrzeplywnosc,vFPS,vSampleRate: integer;
-  vSize: int64;
-  d: double;
+  i: integer;
+  s,bin: string;
+  rodzaj: char;
   vType: TYoutubeDownloaderType;
-  vDASH: boolean;
+  vExt,vResolution: string;
+  vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
+  vSize: int64;
 begin
+  result:=false;
   if aAudio<>nil then aAudio.Clear;
   if aVideo<>nil then aVideo.Clear;
-  YTData:=TProcess.Create(nil);
-  YTData.Executable:='youtube-dl';
-  YTData.CurrentDirectory:=GetDirYtDl;
-  YTData.Options:=[poUsePipes,poNoConsole,poWaitOnExit];
-  YTData.Priority:=ppNormal;
-  YTData.ShowWindow:=swoNone;
-  YTData.PipeBufferSize:=2*1024;
+  if FEngine=enDefPlus then bin:=GetDirYtDlp else bin:=GetDirYtDl;
+  str:=TStringList.Create;
   try
-    if FCookieFile<>'' then
+    b:=local_DownloadInfo(FEngine,aLink,bin,FCookieFile,str);
+    result:=b;
+    if b then
     begin
-      YTData.Parameters.Add('--cookies');
-      YTData.Parameters.Add(FCookieFile);
-    end;
-    YTData.Parameters.Add('-F');
-    YTData.Parameters.Add(aLink);
-    YTData.CurrentDirectory:='';
-    YTData.Execute;
-    str:=TStringList.Create;
-    try
-      if YTData.Output.NumBytesAvailable>0 then
+      for i:=0 to str.Count-1 do
       begin
-        str.LoadFromStream(YTData.Output);
-        for i:=0 to str.Count-1 do
+        s:=str[i];
+        rodzaj:=s[1];
+        case rodzaj of
+          'A': vType:=ytAudio;
+          'V': vType:=ytVideo;
+          'X': vType:=ytAll;
+        end;
+        vQuality:=StrToInt(GetLineToStr(s,2,','));
+        vSampleRate:=StrToInt(GetLineToStr(s,3,','));
+        vBitRate:=StrToInt(GetLineToStr(s,4,','));
+        vResolution:=GetLineToStr(s,5,',');
+        vFps:=StrToInt(GetLineToStr(s,6,','));
+        vSize:=StrToInt64(GetLineToStr(s,7,','));
+        vCode:=StrToInt(GetLineToStr(s,8,','));
+        if assigned(FReadPozInfo) and FBoolReadPozInfo then FReadPozInfo(vType,vCode,'',vResolution,vQuality,vBitRate,vFps,vSampleRate,vSize,false);
+        if rodzaj='A' then
         begin
-          ba:=true;
-          bv:=true;
-          s:=str[i];
-          if s='' then continue;
-          pom:=s;
-          s:=StringReplace(s,'audio only','audio_only',[rfReplaceAll]);
-          s:=StringReplace(s,'video only','video_only',[rfReplaceAll]);
-          vDASH:=pos('DASH',s)>0;
-          s:=StringReplace(s,'DASH audio','tiny',[rfReplaceAll]);
-          s:=StringReplace(s,'DASH video','0p',[rfReplaceAll]);
-          s:=StringReplace(s,' , ',', ',[rfReplaceAll]);
-          if pos('audio_only',s)>0 then bv:=false else if pos('video_only',s)>0 then ba:=false;
-          bav:=ba and bv;
-          if bav then vType:=ytAll else if ba then vType:=ytAudio else vType:=ytVideo;
-          while pos('  ',s)>0 do s:=StringReplace(s,'  ',' ',[rfReplaceAll]);
-          s1:=GetLineToStr(s,1,' ');
-          if (s1='[youtube]') or (s1='[info]') or (s1='format') then continue;
-          if bv then
-          begin
-            if aVideo<>nil then aVideo.Add(pom);
-          end else begin
-            if aAudio<>nil then aAudio.Add(pom);
-          end;
-
-          if FBoolReadPozInfo then
-          begin
-            (* czytam części między przecinkami *)
-            ss[1]:=trim(GetLineToStr(s,1,','));
-            ss[2]:=trim(GetLineToStr(s,2,','));
-            ss[3]:=trim(GetLineToStr(s,3,','));
-            ss[4]:=trim(GetLineToStr(s,4,','));
-            ss[5]:=trim(GetLineToStr(s,5,','));
-            ss[6]:=trim(GetLineToStr(s,6,','));
-            (* czytam wartości *)
-            vFormatCode:=StrToInt(trim(GetLineToStr(ss[1],1,' ')));
-            vExtension:=trim(GetLineToStr(ss[1],2,' '));
-            for j:=6 downto 5 do
-            begin
-              p:=trim(GetLineToStr(ss[1],j,' '));
-              l:=length(p);
-              if l=0 then continue;
-              if p[l]='k' then delete(p,l,1);
-              break;
-            end;
-            vPrzeplywnosc:=StrToInt(p);
-            if bv then
-            begin
-              vResolution:=trim(GetLineToStr(ss[1],3,' '));
-              p:=trim(GetLineToStr(ss[1],4,' '));
-              //l:=length(p);
-              //if p[l]='p' then delete(p,l,1);
-              //vRes:=StrToInt(p);
-              vRes:=StrToL(p,reszta,0);
-              if bav then p:=trim(ss[3]) else p:=trim(ss[4]);
-              p:=StringReplace(p,'fps','',[]);
-              vFPS:=StrToInt(p);
-              if bav then
-              begin
-                p:=trim(ss[4]);
-                p:=StringReplace(p,') (',',',[]);
-                p:=StringReplace(p,'(',',',[]);
-                p:=StringReplace(p,')',',',[]);
-                p:=GetLineToStr(p,2,',');
-                p:=StringReplace(p,'Hz','',[]);
-                p:=trim(p);
-                vSampleRate:=StrToInt(p);
-                p:=trim(ss[5]);
-                if p='' then vSize:=0 else
-                begin
-                  p:=upcase(p);
-                  d:=StrToD(p,reszta);
-                  vSize:=trunc(d*1024);
-                  if reszta='MIB' then vSize:=vSize*1024 else
-                  if reszta ='KIB' then vSize:=vSize;
-                end;
-              end else begin
-                vSampleRate:=0;
-                p:=trim(ss[6]);
-                if p='' then vSize:=0 else
-                begin
-                  p:=upcase(p);
-                  d:=StrToD(p,reszta);
-                  vSize:=trunc(d*1024);
-                  if reszta='MIB' then vSize:=vSize*1024 else
-                  if reszta ='KIB' then vSize:=vSize;
-                end;
-              end;
-              if vDash and (vRes=0) then vRes:=StrToInt(GetLineToStr(vResolution,2,'x'));
-            end else begin
-              vResolution:='';
-              vRes:=0;
-              vFPS:=0;
-              p:=trim(ss[3]);
-              p:=StringReplace(p,'(',',',[]);
-              p:=StringReplace(p,')',',',[]);
-              p:=GetLineToStr(p,2,',');
-              p:=StringReplace(p,'Hz','',[]);
-              p:=trim(p);
-              vSampleRate:=StrToInt(p);
-              p:=trim(ss[4]);
-              if p='' then vSize:=0 else
-              begin
-                p:=upcase(p);
-                d:=StrToD(p,reszta);
-                vSize:=trunc(d*1024);
-                if reszta='MIB' then vSize:=vSize*1024 else
-                if reszta ='KIB' then vSize:=vSize;
-              end;
-            end;
-            if assigned(FReadPozInfo) then FReadPozInfo(vType,vFormatCode,vExtension,vResolution,vRes,vPrzeplywnosc,vFPS,vSampleRate,vSize,vDASH);
-          end;
-
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          if aAudio<>nil then aAudio.Add(s);
+        end else if rodzaj='V' then
+        begin
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Video        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          if aVideo<>nil then aVideo.Add(s);
+        end else begin
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio-Video  '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          if aVideo<>nil then aVideo.Add(s);
         end;
       end;
-    finally
-      str.Free;
     end;
   finally
-    YTData.Free;
+    str.Free;
   end;
 end;
 
@@ -1055,7 +1124,7 @@ begin
     synchronize(@pobierz);
     if link='' then break;
     if self.Terminated then break;
-    if (audio=0) and (video=0) and auto_select then local_DownloadInfo(link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,audio,video);
+    if (audio=0) and (video=0) and auto_select then local_GetAutoCodeFormat(engine,link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,audio,video);
     wykonaj;
     sleep(10);
   end;
@@ -1087,7 +1156,6 @@ begin
           if pos('--------',s)>0 then continue;
           if pos('NOTICE',s)>0 then continue;
         end;
-        //writeln(s);
         if pos('already been downloaded and merged',s)>0 then
         begin
           (* plik pobrany już wcześniej *)
