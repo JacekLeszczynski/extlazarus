@@ -16,6 +16,7 @@ function MyDir(Filename:string):string;
 function IsCharWord(ch: char): boolean;
 function IsCharHex(ch: char): boolean;
 function DecodeHTMLAmp(str: string): string;
+function NormalizeB(aFormat: string; aWielkoscBajtowa: int64): string;
 { ----------------------- KOD CZASU ----------------------------- }
 function SecToTime(aSec: longword): double;
 function SecToInteger(aSec: longword): integer;
@@ -309,6 +310,14 @@ begin
   s:=StringReplace(s,'&OElig;','Œ',[rfReplaceAll]);
   s:=StringReplace(s,'&oelig;','œ',[rfReplaceAll]);
   result:=s;
+end;
+
+function NormalizeB(aFormat: string; aWielkoscBajtowa: int64): string;
+begin
+  if aWielkoscBajtowa<1000 then result:=FormatFloat(aFormat,aWielkoscBajtowa)+' B' else
+  if aWielkoscBajtowa<1024000 then result:=FormatFloat(aFormat,aWielkoscBajtowa/1024)+' KB' else
+  if aWielkoscBajtowa<1048576000 then result:=FormatFloat(aFormat,aWielkoscBajtowa/1024/1024)+' MB' else
+  result:=FormatFloat(aFormat,aWielkoscBajtowa/1024/1024/1024)+' GB';
 end;
 
 function SecToTime(aSec: longword): double;

@@ -824,14 +824,14 @@ begin
         if assigned(FReadPozInfo) and FBoolReadPozInfo then FReadPozInfo(vType,vCode,'',vResolution,vQuality,vBitRate,vFps,vSampleRate,vSize,false);
         if rodzaj='A' then
         begin
-          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+NormalizeB('            0.00',vSize);
           if aAudio<>nil then aAudio.Add(s);
         end else if rodzaj='V' then
         begin
-          s:=StrToCString(IntToStr(vCode),4,true)+'  Video        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Video        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+NormalizeB('            0.00',vSize);
           if aVideo<>nil then aVideo.Add(s);
         end else begin
-          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio-Video  '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+StrToCString(IntToStr(vSize),15,true);
+          s:=StrToCString(IntToStr(vCode),4,true)+'  Audio-Video  '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+NormalizeB('            0.00',vSize);
           if aVideo<>nil then aVideo.Add(s);
         end;
       end;
@@ -1052,8 +1052,8 @@ begin
   YTData.Execute;
 
   czas_reakcji:=TimeToInteger;
-  //while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
-  while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not self.Terminated) do sleep(500);
+  while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
+  //while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not self.Terminated) do sleep(500);
   if YTData.Running then
   begin
     sleep(1000);
@@ -1113,6 +1113,8 @@ end;
 *)
 
 procedure TYoutubeDownloaderWatekYoutube.Execute;
+var
+  a,v: integer;
 begin
   kod_verbose:=1; //wątek odpalony - zaczynam pracę!
   synchronize(@verbose);
@@ -1124,7 +1126,12 @@ begin
     synchronize(@pobierz);
     if link='' then break;
     if self.Terminated then break;
-    if (audio=0) and (video=0) and auto_select then local_GetAutoCodeFormat(engine,link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,audio,video);
+    if (audio=0) or (video=0) and auto_select then
+    begin
+      local_GetAutoCodeFormat(engine,link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,a,v);
+      if audio=0 then audio:=a;
+      if video=0 then video:=v;
+    end;
     wykonaj;
     sleep(10);
   end;
