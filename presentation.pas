@@ -44,8 +44,11 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Execute(aKey: Word); //Adding to OnkKeyDown method for End-Code!
+    procedure ExecuteEx(aPilotKey: Word);
     procedure SendKey(vkey: word);
     procedure SendKeyEx(vkey: word);
+    procedure SendKeyEx(vkey1,vkey2: word);
+    procedure SendKeyEx(aShift: TShiftState; vkey: word);
   published
     property Device: TPresentationDevice read FDevice write FDevice;
     property OnCustom: TPresentationCustom read FCustom write FCustom;
@@ -201,6 +204,15 @@ begin
   if aKey>0 then key_buf:=aKey;
 end;
 
+procedure TPresentation.ExecuteEx(aPilotKey: Word);
+begin
+  if aPilotKey=1 then przycisk_szybki(1) else
+  if aPilotKey=2 then przycisk_szybki(2) else
+  if aPilotKey=3 then przycisk_szybki(3) else
+  if aPilotKey=4 then przycisk_szybki(4) else
+  if aPilotKey=5 then przycisk_szybki(5);
+end;
+
 procedure TPresentation.SendKey(vkey: word);
 var
   i: integer;
@@ -216,6 +228,20 @@ end;
 procedure TPresentation.SendKeyEx(vkey: word);
 begin
   KeyInput.Press(vkey);
+end;
+
+procedure TPresentation.SendKeyEx(vkey1, vkey2: word);
+begin
+  KeyInput.Down(vkey1);
+  KeyInput.Press(vkey2);
+  KeyInput.Up(vkey1);
+end;
+
+procedure TPresentation.SendKeyEx(aShift: TShiftState; vkey: word);
+begin
+  KeyInput.Apply(aShift);
+  KeyInput.Press(vkey);
+  KeyInput.Unapply(aShift);
 end;
 
 { TPresentation }

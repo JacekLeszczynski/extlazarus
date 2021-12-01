@@ -35,6 +35,7 @@ type
     destructor Destroy; override;
     function Execute: boolean; //Wykonaj całą procedurę! Zaleca się wykonać jeden raz zaraz po uruchomieniu aplikacji.
     procedure Uninstall;
+    procedure SendMessage(aMessage: string);
   published
     { Published declarations }
     property ApplicationKey: string read FAppKey write FAppKey; //Unique Key Application
@@ -125,6 +126,12 @@ procedure TExtSharedMemory.Uninstall;
 begin
   if cc.Active then cc.Disconnect;
   if ss.Active then ss.StopServer;
+  FActive:=false;
+end;
+
+procedure TExtSharedMemory.SendMessage(aMessage: string);
+begin
+  if self.Active then cc.SendStringMessage(aMessage);
 end;
 
 end.

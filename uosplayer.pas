@@ -380,11 +380,11 @@ begin
 
     if FSoundFormat=sfOgg then
     begin
-      writeln('OGG');
+      //writeln('OGG');
       if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName),-1,-1,-1,1024*4,3) //yes - ogg!
       else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1); //only wave!
     end else begin
-      writeln('WAV');
+      //writeln('WAV');
       if aMemoryStream=nil then uos_AddIntoFile(xindex,Pchar(FFileName))
       else uos_AddIntoMemoryStream(xindex,aMemoryStream,-1,-1,-1,-1);
     end;
@@ -573,6 +573,11 @@ begin
     QPOS:=0;
     QFORCE:=false;
     if not FPause then uos_Stop(xindex);
+  end else
+  if FMode=moRecord then
+  begin
+    uos_Stop(xindex);
+    uos_FreePlayer(xindex);
   end else begin
     uos_Stop(xindex);
   end;
