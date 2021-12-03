@@ -15,7 +15,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="53">
+    <Files Count="54">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -135,147 +135,152 @@
         <UnitName Value="ExtSharedMemory"/>
       </Item24>
       <Item25>
+        <Filename Value="extsharedcommunication.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ExtSharedCommunication"/>
+      </Item25>
+      <Item26>
         <Filename Value="openglcenter.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="OpenGLCenter"/>
-      </Item25>
-      <Item26>
+      </Item26>
+      <Item27>
         <Filename Value="ztransaction.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ZTransaction"/>
-      </Item26>
-      <Item27>
+      </Item27>
+      <Item28>
         <Filename Value="dbconftable.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="DBConfTable"/>
-      </Item27>
-      <Item28>
+      </Item28>
+      <Item29>
         <Filename Value="uosengine.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="UOSEngine"/>
-      </Item28>
-      <Item29>
+      </Item29>
+      <Item30>
         <Filename Value="uosplayer.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="UOSPlayer"/>
-      </Item29>
-      <Item30>
+      </Item30>
+      <Item31>
         <Filename Value="soundplayer.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="SoundPlayer"/>
-      </Item30>
-      <Item31>
+      </Item31>
+      <Item32>
         <Filename Value="consmixer.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ConsMixer"/>
-      </Item31>
-      <Item32>
+      </Item32>
+      <Item33>
         <Filename Value="extshutdown.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ExtShutdown"/>
-      </Item32>
-      <Item33>
+      </Item33>
+      <Item34>
         <Filename Value="netsynhttp.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="NetSynHTTP"/>
-      </Item33>
-      <Item34>
+      </Item34>
+      <Item35>
         <Filename Value="livetimer.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="LiveTimer"/>
-      </Item34>
-      <Item35>
+      </Item35>
+      <Item36>
         <Filename Value="mplayerctrl.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="MPlayerCtrl"/>
-      </Item35>
-      <Item36>
+      </Item36>
+      <Item37>
         <Filename Value="architectureosinfo.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ArchitectureOSInfo"/>
-      </Item36>
-      <Item37>
+      </Item37>
+      <Item38>
         <Filename Value="netsocket.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="NetSocket"/>
-      </Item37>
-      <Item38>
+      </Item38>
+      <Item39>
         <Filename Value="netsynwebsocket.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="NetSynWebSocket"/>
-      </Item38>
-      <Item39>
+      </Item39>
+      <Item40>
         <Filename Value="polfan.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="Polfan"/>
-      </Item39>
-      <Item40>
+      </Item40>
+      <Item41>
         <Filename Value="googletranslator.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="GoogleTranslator"/>
-      </Item40>
-      <Item41>
+      </Item41>
+      <Item42>
         <Filename Value="directorypack.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="DirectoryPack"/>
-      </Item41>
-      <Item42>
+      </Item42>
+      <Item43>
         <Filename Value="presentation.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="Presentation"/>
-      </Item42>
-      <Item43>
+      </Item43>
+      <Item44>
         <Filename Value="dsmaster.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="DSMaster"/>
-      </Item43>
-      <Item44>
+      </Item44>
+      <Item45>
         <Filename Value="fullscreenmenu.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="FullscreenMenu"/>
-      </Item44>
-      <Item45>
+      </Item45>
+      <Item46>
         <Filename Value="extdiff.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ExtDiff"/>
-      </Item45>
-      <Item46>
+      </Item46>
+      <Item47>
         <Filename Value="compressionfly.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="compressionfly"/>
-      </Item46>
-      <Item47>
-        <Filename Value="rnl.pas"/>
-        <UnitName Value="RNL"/>
       </Item47>
       <Item48>
+        <Filename Value="rnl.pas"/>
+        <UnitName Value="RNL"/>
+      </Item48>
+      <Item49>
         <Filename Value="dbgridplus.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="DBGridPlus"/>
-      </Item48>
-      <Item49>
+      </Item49>
+      <Item50>
         <Filename Value="zqueryplus.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ZQueryPlus"/>
-      </Item49>
-      <Item50>
-        <Filename Value="ecode_unit.pas"/>
-        <UnitName Value="ecode_unit"/>
       </Item50>
       <Item51>
-        <Filename Value="list_unit.pas"/>
-        <UnitName Value="list_unit"/>
+        <Filename Value="ecode_unit.pas"/>
+        <UnitName Value="ecode_unit"/>
       </Item51>
       <Item52>
+        <Filename Value="list_unit.pas"/>
+        <UnitName Value="list_unit"/>
+      </Item52>
+      <Item53>
         <Filename Value="upnp.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="Upnp"/>
-      </Item52>
-      <Item53>
+      </Item53>
+      <Item54>
         <Filename Value="youtubedownloader.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="YoutubeDownloader"/>
-      </Item53>
+      </Item54>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>

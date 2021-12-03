@@ -13,12 +13,12 @@ uses
   frReportPlus, ZEncodedDBConf, ZMasterVersionDB, ZQueryRelative, lazgradient, 
   lazflogin, LazLogin, ColorProgress, DBSchemaSync_postgres, DBSchemaSync, 
   DBSchemaSyncSqlite, DBSourceCopyToExcel, Gradpan, ExtSharedMemory, 
-  OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, UOSPlayer, SoundPlayer, 
-  ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, MPlayerCtrl, 
-  ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, GoogleTranslator, 
-  DirectoryPack, Presentation, DSMaster, FullscreenMenu, ExtDiff, 
-  compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, Upnp, 
-  YoutubeDownloader, LazarusPackageIntf;
+  ExtSharedCommunication, OpenGLCenter, ZTransaction, DBConfTable, UOSEngine, 
+  UOSPlayer, SoundPlayer, ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, 
+  MPlayerCtrl, ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, 
+  GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
+  ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, 
+  Upnp, YoutubeDownloader, LazarusPackageIntf;
 
 implementation
 
@@ -45,6 +45,7 @@ begin
   RegisterUnit('DBSourceCopyToExcel', @DBSourceCopyToExcel.Register);
   RegisterUnit('Gradpan', @Gradpan.Register);
   RegisterUnit('ExtSharedMemory', @ExtSharedMemory.Register);
+  RegisterUnit('ExtSharedCommunication', @ExtSharedCommunication.Register);
   RegisterUnit('OpenGLCenter', @OpenGLCenter.Register);
   RegisterUnit('ZTransaction', @ZTransaction.Register);
   RegisterUnit('DBConfTable', @DBConfTable.Register);
