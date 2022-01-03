@@ -504,8 +504,11 @@ begin
     output.Clear;
     for i:=0 to ss.Count-1 do
     begin
+//writeln(ss[i]);
       s:=local_VideoIntoFilter(ss[i],vType,vDash);
+//writeln('s=',s);
       if (pos('[youtube]',s)=1) or (pos('[info]',s)=1) or (pos('format',s)=1) or (pos('ID',s)=1) or (pos('--------',s)=1) then continue;
+      if pos('mhtml',s)>0 then continue;
       case aEngine of
         enDefault,enDefBoost: s:=local_FormatDefault(vType,vDash,s);
         enDefPlus:            s:=local_FormatDefPlus(vType,vDash,s);
@@ -1141,9 +1144,10 @@ end;
 
 procedure TYoutubeDownloaderWatekYoutube.YTReadData(aSender: TObject);
 var
-  s,s1: string;
+  s,s1,pom: string;
   str: TStringList;
   i,a: integer;
+  err: integer;
 begin
   czas_reakcji:=TimeToInteger;
   str:=TStringList.Create;
@@ -1163,84 +1167,107 @@ begin
           if pos('--------',s)>0 then continue;
           if pos('NOTICE',s)>0 then continue;
         end;
-        if pos('already been downloaded and merged',s)>0 then
-        begin
-          (* plik pobrany już wcześniej *)
-          zrobione:=true;
-        end else
-        if pos('Resuming download at',s)>0 then
-        begin
-          (* kontynuowanie pobierania - tu nie robię nic *)
-        end else
-        if pos('has already been downloaded',s)>0 then
-        begin
-          (* kontynuowanie pobierania - tu nie robię nic *)
-        end else
-        if pos('[download] Destination:',s)>0 then
-        begin
-          (* dostajemy nazwę pliku *)
-          sciagam:=true;
-          delete(s,1,23);
-          s:=trim(StringReplace(s,'"','',[rfReplaceAll]));
-          nazwa_pliku:=s;
-          kod_verbose:=3;
-          synchronize(@verbose);
-          if plik1='' then plik1:=s else if plik2='' then plik2:=s;
-        end else
-        if pos('[download]',s)>0 then
-        begin
-          delete(s,1,10);
-          s:=trim(StringReplace(s,'"','',[rfReplaceAll]));
-          s1:=s;
-          a:=pos('%',s);
-          delete(s,a,maxint);
-          pozycja:=round(StrToFloat(s,fs)*10);
-          a:=pos('at',s1);
-          delete(s1,1,a+1);
-          a:=pos('ETA',s1);
-          delete(s1,a,maxint);
-          predkosc_str:=trim(s1);
-          kod_verbose:=4;
-          synchronize(@verbose);
-        end else
-        if (engine=enDefBoost) and (pos('%)',s)>0) and (pos('ETA:',s)>0) then
-        begin
-          s1:=s;
-          a:=pos('(',s);
-          delete(s,1,a);
-          a:=pos('%',s);
-          delete(s,a,maxint);
-          //pozycja:=round(StrToFloat(s,fs)*10);
-          pozycja:=StrToInt(s)*10;
-          a:=pos('DL:',s1);
-          delete(s1,1,a+2);
-          a:=pos('ETA:',s1);
-          delete(s1,a,maxint);
-          predkosc_str:=trim(s1);
-          kod_verbose:=4;
-          synchronize(@verbose);
-        end else
-        if (pos('[ffmpeg] Merging formats into',s)>0) or (pos('[Merger] Merging formats into',s)>0) then
-        begin
-          delete(s,1,29);
-          link2:=link;
-          nazwa_pliku2:=trim(StringReplace(s,'"','',[rfReplaceAll]));
-          directory2:=directory;
-          tag2:=tag;
-        end else
-        if pos('Deleting original file',s)>0 then
-        begin
-          sciagam:=false;
-          delete(s,1,22);
-          s:=StringReplace(s,'"','',[rfReplaceAll]);
-          a:=pos('(pass -k to keep)',s);
-          delete(s,a,maxint);
-          s:=trim(s);
-          if plik1=s then plik1:='';
-          if plik2=s then plik2:='';
-          if (plik1='') and (plik2='') then zrobione:=true;
-          kod_verbose:=9;
-          synchronize(@verbose);
+        pom:=s;
+        try
+          if pos('already been downloaded and merged',s)>0 then
+          begin
+            (* plik pobrany już wcześniej *)
+            zrobione:=true;
+          end else
+          if pos('Resuming download at',s)>0 then
+          begin
+            (* kontynuowanie pobierania - tu nie robię nic *)
+          end else
+          if pos('has already been downloaded',s)>0 then
+          begin
+            (* kontynuowanie pobierania - tu nie robię nic *)
+          end else
+          if pos('[download] Destination:',s)>0 then
+          begin
+            (* dostajemy nazwę pliku *)
+            err:=1;
+            sciagam:=true;
+            delete(s,1,23);
+            s:=trim(StringReplace(s,'"','',[rfReplaceAll]));
+            nazwa_pliku:=s;
+            kod_verbose:=3;
+            synchronize(@verbose);
+            if plik1='' then plik1:=s else if plik2='' then plik2:=s;
+          end else
+          if pos('[download]',s)>0 then
+          begin
+            err:=2;
+            delete(s,1,10);
+            s:=trim(StringReplace(s,'"','',[rfReplaceAll]));
+            s1:=s;
+            a:=pos('%',s);
+            delete(s,a,maxint);
+            if trim(s)='Unknown' then continue;
+            pozycja:=round(StrToFloat(s,fs)*10);
+            a:=pos('at',s1);
+            delete(s1,1,a+1);
+            a:=pos('ETA',s1);
+            delete(s1,a,maxint);
+            predkosc_str:=trim(s1);
+            kod_verbose:=4;
+            synchronize(@verbose);
+          end else
+          if (engine=enDefBoost) and (pos('%)',s)>0) and (pos('ETA:',s)>0) then
+          begin
+            err:=3;
+            s1:=s;
+            a:=pos('(',s);
+            delete(s,1,a);
+            a:=pos('%',s);
+            delete(s,a,maxint);
+            //pozycja:=round(StrToFloat(s,fs)*10);
+            pozycja:=StrToInt(s)*10;
+            a:=pos('DL:',s1);
+            delete(s1,1,a+2);
+            a:=pos('ETA:',s1);
+            delete(s1,a,maxint);
+            predkosc_str:=trim(s1);
+            kod_verbose:=4;
+            synchronize(@verbose);
+          end else
+          if (pos('[ffmpeg] Merging formats into',s)>0) or (pos('[Merger] Merging formats into',s)>0) then
+          begin
+            err:=4;
+            delete(s,1,29);
+            link2:=link;
+            nazwa_pliku2:=trim(StringReplace(s,'"','',[rfReplaceAll]));
+            directory2:=directory;
+            tag2:=tag;
+          end else
+          if pos('Deleting original file',s)>0 then
+          begin
+            err:=5;
+            sciagam:=false;
+            delete(s,1,22);
+            s:=StringReplace(s,'"','',[rfReplaceAll]);
+            a:=pos('(pass -k to keep)',s);
+            delete(s,a,maxint);
+            s:=trim(s);
+            if plik1=s then plik1:='';
+            if plik2=s then plik2:='';
+            if (plik1='') and (plik2='') then zrobione:=true;
+            kod_verbose:=9;
+            synchronize(@verbose);
+          end;
+        except
+          on E: Exception do
+          begin
+            writeln('Wątek pobierania pliku z youtube wywalił się błędem!');
+            writeln('Błąd wynikł w sekcji nr ',err);
+            writeln('Oto komunikat błędu:');
+            writeln(E.Message);
+            writeln('A to zawartość przetwarzanego wiersza:');
+            writeln('"',pom,'"');
+            writeln('I to co zostało z niego wyciagnięte:');
+            writeln('"',s,'"');
+            writeln('Wątek został przerwany.');
+            self.Terminate;
+          end;
         end;
       end;
     end;
