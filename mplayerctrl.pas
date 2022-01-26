@@ -1498,6 +1498,25 @@ end;
 
 { TWSMPlayerControl }
 
+function _GetWidgetInfo(const AWidget: Pointer;
+  const ACreate: Boolean): PWidgetInfo;
+var
+  MainWidget: PGtkObject;
+begin
+  if AWidget <> nil then
+  begin
+    MainWidget := GetMainWidget(AWidget);
+    Result := g_object_get_data(PGObject(MainWidget), 'widgetinfo');
+    if (Result = nil) and ACreate then
+    begin
+      Result := CreateWidgetInfo(MainWidget);
+      // use the main widget as default
+      Result^.CoreWidget := PGtkWidget(MainWidget);
+    end;
+  end
+  else Result := nil;
+end;
+
 class function TWSMPlayerControl.CreateHandle(const AWinControl: TWinControl;
   const AParams: TCreateParams): HWND;
 var

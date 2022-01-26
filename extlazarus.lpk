@@ -15,7 +15,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="54">
+    <Files Count="55">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -281,6 +281,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="YoutubeDownloader"/>
       </Item54>
+      <Item55>
+        <Filename Value="stringslist.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="StringsList"/>
+      </Item55>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
