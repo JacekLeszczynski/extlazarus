@@ -56,7 +56,7 @@ begin
   {$IFDEF LAZARUS}
   {$I stringslist_icon.lrs}
   {$ENDIF}
-  RegisterComponents('Misc',[TStringsList]);
+  RegisterComponents('Additional',[TStringsList]);
 end;
 
 { TStringsList }
