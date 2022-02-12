@@ -24,6 +24,7 @@ type
 
   TYoutubeDownloader = class(TComponent)
   private
+    FDebug: boolean;
     mem_yt_cookie: string;
     http: TNetSynHTTP;
     FAutoSelect: boolean;
@@ -71,6 +72,10 @@ type
     procedure Clear;
     procedure Terminate;
   published
+    {Debug:
+      true  - wypisuj na terminalu wartości zmiennych
+      false - opcja domyślna produkcyjna}
+    property Debug: boolean read FDebug write FDebug default false;
     {Engine:
       enDefault  - youtube-dl
       enDefBoost - youtube-dl + aria2
@@ -752,6 +757,7 @@ begin
   watek_timer.OnTimer:=@ReceivedVerbose;
   http:=TNetSynHTTP.Create(self);
   (* zmienne *)
+  FDebug:=false;
   mem_yt_cookie:='';
   FEngine:=enDefault;
   FWatki:=true;
@@ -847,6 +853,11 @@ end;
 procedure TYoutubeDownloader.GetInformationsForAll(aLink: string; var aTitle,
   aDescription, aKeywords: string);
 begin
+  if FDebug then
+  begin
+    writeln('*** Procedure GetInformationsForAll ***');
+    writeln('aLink = "',aLink,'"');
+  end;
   aTitle:='';
   aDescription:='';
   aKeywords:='';
@@ -863,7 +874,68 @@ var
   ss: TStrings;
   s,s1,s2,cookie: string;
   a,i: integer;
+  e1: integer;
+  e2: string;
+var
+  proc: TAsyncProcess;
 begin
+  (* TITLE *)
+  proc:=TAsyncProcess.Create(self);
+  case FEngine of
+    enDefault,enDefBoost: proc.Executable:='youtube-dl';
+    enDefPlus:            proc.Executable:='yt-dlp';
+  end;
+  proc.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+  proc.Priority:=ppNormal;
+  proc.ShowWindow:=swoNone;
+  try
+    proc.Parameters.Add('-e');
+    proc.Parameters.Add(aLink);
+    proc.Execute;
+    if proc.Output.NumBytesAvailable>0 then
+    begin
+      ss:=TStringList.Create;
+      try
+        ss.LoadFromStream(proc.Output);
+        aTitle:=trim(ss.Text);
+      finally
+        ss.Free;
+      end;
+    end;
+  finally
+    proc.Terminate(0);
+    proc.Free;
+  end;
+  (* DESCRIPTION *)
+  proc:=TAsyncProcess.Create(self);
+  case FEngine of
+    enDefault,enDefBoost: proc.Executable:='youtube-dl';
+    enDefPlus:            proc.Executable:='yt-dlp';
+  end;
+  proc.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+  proc.Priority:=ppNormal;
+  proc.ShowWindow:=swoNone;
+  try
+    proc.Parameters.Add('--get-description');
+    proc.Parameters.Add(aLink);
+    proc.Execute;
+    if proc.Output.NumBytesAvailable>0 then
+    begin
+      ss:=TStringList.Create;
+      try
+        ss.LoadFromStream(proc.Output);
+        aDescription:=trim(ss.Text);
+      finally
+        ss.Free;
+      end;
+    end;
+  finally
+    proc.Terminate(0);
+    proc.Free;
+  end;
+
+  exit;
+
   http.Headers.Clear;
   if FCookieFile<>'' then
   begin
@@ -889,10 +961,30 @@ begin
         ss.Free;
       end;
     end;
+    http.OpenSession;
     http.Headers.Add(cookie);
+    e1:=http.http.ResultCode;
+    e2:=http.http.ResultString;
+    http.CloseSession;
   end;
 
   http.execute(aLink,s);
+  if FDebug then
+  begin
+    writeln('*** Procedure TYoutubeDownloader.GetInformationsForYoutube ***');
+    writeln('aLink = "',aLink,'"');
+    if s='' then
+    begin
+      writeln('Nie ściągnęło żadnych danych podczas wczytywania strony z powyższego URL.');
+      writeln('ResultCode = ',e1);
+      writeln('ResultString = "',e2,'"');
+    end else begin
+      writeln('HTTP Downloaded Text:');
+      writeln('[START]');
+      writeln(s);
+      writeln('[STOP]');
+    end;
+  end;
 
   http.StrDeleteStart(s,'meta name="title"');
   http.StrDeleteStart(s,'content="');
