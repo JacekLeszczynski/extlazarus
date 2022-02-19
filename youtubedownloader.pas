@@ -65,6 +65,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil): boolean;
+    function GetInfoToLink(aLink: string; aMaxAudio,aMaxVideo: integer): string;
     procedure GetInformationsForAll(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForYoutube(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForRumble(aLink: string; var aTitle,aDescription: string);
@@ -848,6 +849,29 @@ begin
   finally
     str.Free;
   end;
+end;
+
+function TYoutubeDownloader.GetInfoToLink(aLink: string; aMaxAudio,
+  aMaxVideo: integer): string;
+var
+  res: string;
+  a,v: integer;
+  s1: string;
+begin
+  res:='';
+  case FEngine of
+    enDefault : s1:=GetDirYtDl;
+    enDefBoost: s1:=GetDirYtDl;
+    enDefPlus : s1:=GetDirYtDlp;
+  end;
+  local_GetAutoCodeFormat(FEngine,aLink,s1,FCookieFile,aMaxAudio,0,0,aMaxVideo,0,a,v);
+  if (a>0) and (v>0) then
+  begin
+    if v<a then res:=IntToStr(v)+'+'+IntToStr(a) else res:=IntToStr(a)+'+'+IntToStr(v);
+  end else
+  if (a=0) and (v>0) then res:=IntToStr(v) else
+  if (a>0) and (v=0) then res:=IntToStr(a);
+  result:=res;
 end;
 
 procedure TYoutubeDownloader.GetInformationsForAll(aLink: string; var aTitle,
