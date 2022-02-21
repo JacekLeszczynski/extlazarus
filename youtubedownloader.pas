@@ -67,6 +67,8 @@ type
     function DownloadInfo(aLink: string; aAudio: TStrings = nil; aVideo: TStrings = nil): boolean;
     function GetInfoToLink(aLink: string; aMaxAudio,aMaxVideo: integer): string;
     procedure GetInformationsForAll(aLink: string; var aTitle,aDescription,aKeywords: string);
+    function GetTitleForYoutube(aLink: string): string;
+    function GetDescriptionForYoutube(aLink: string): string;
     procedure GetInformationsForYoutube(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForRumble(aLink: string; var aTitle,aDescription: string);
     procedure AddLink(aLink,aDir: string; aAudioNr: integer = 0; aVideoNr: integer = 0; aTag: integer = 0);
@@ -301,7 +303,7 @@ begin
   (* czytam wartości *)
   vCode:=StrToInt(trim(GetLineToStr(ss[1],1,' ')));
   //vExt:=trim(GetLineToStr(ss[1],2,' '));
-  for i:=6 downto 5 do
+  for i:=6 downto 4 do
   begin
     p:=trim(GetLineToStr(ss[1],i,' '));
     l:=length(p);
@@ -317,7 +319,7 @@ begin
     vQuality:=StrToL(p,reszta,0);
     if aType=ytAll then p:=trim(ss[3]) else p:=trim(ss[4]);
     p:=StringReplace(p,'fps','',[]);
-    vFps:=StrToInt(p);
+    vFps:=StrToL(p,reszta,0);
     if aType=ytAll then
     begin
       p:=trim(ss[4]);
@@ -327,7 +329,12 @@ begin
       p:=GetLineToStr(p,2,',');
       p:=StringReplace(p,'Hz','',[]);
       p:=trim(p);
-      vSampleRate:=StrToInt(p);
+      if p='' then p:='0';
+      try
+        vSampleRate:=StrToInt(p);
+      except
+        vSampleRate:=0;
+      end;
       p:=trim(ss[5]);
       if p='' then vSize:=0 else
       begin
@@ -510,9 +517,7 @@ begin
     output.Clear;
     for i:=0 to ss.Count-1 do
     begin
-//writeln(ss[i]);
       s:=local_VideoIntoFilter(ss[i],vType,vDash);
-//writeln('s=',s);
       if (pos('[youtube]',s)=1) or (pos('[info]',s)=1) or (pos('format',s)=1) or (pos('ID',s)=1) or (pos('--------',s)=1) then continue;
       if pos('mhtml',s)>0 then continue;
       case aEngine of
@@ -536,7 +541,7 @@ var
   i: integer;
   s: string;
   rodzaj: char;
-  vExt{,vResolution}: string;
+  vExt,vResolution: string;
   vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
   //vSize: int64;
 begin
@@ -555,10 +560,12 @@ begin
           vQuality:=StrToInt(GetLineToStr(s,2,','));
           vSampleRate:=StrToInt(GetLineToStr(s,3,','));
           vBitRate:=StrToInt(GetLineToStr(s,4,','));
-          //vResolution:=GetLineToStr(s,5,',');
+          vResolution:=GetLineToStr(s,5,',');
           vFps:=StrToInt(GetLineToStr(s,6,','));
           //vSize:=StrToInt64(GetLineToStr(s,7,','));
           vCode:=StrToInt(GetLineToStr(s,8,','));
+          if (rodzaj='V') and (vQuality=0) then vQuality:=StrToInt(GetLineToStr(vResolution,2,'x'));
+          writeln('  ',vCode,'/',vQuality,'/',vResolution);
           if (maxABitRate>0) and (rodzaj='A') and (vBitRate>maxABitRate) then continue;
           if (minASampleRate>0) and (rodzaj='A') and (vSampleRate<minASampleRate) then continue;
           if (maxASampleRate>0) and (rodzaj='A') and (vSampleRate>maxASampleRate) then continue;
@@ -892,15 +899,9 @@ begin
   if pos('//youtube.com/',aLink)>0 then GetInformationsForYoutube(aLink,aTitle,aDescription,aKeywords);
 end;
 
-procedure TYoutubeDownloader.GetInformationsForYoutube(aLink: string;
-  var aTitle, aDescription, aKeywords: string);
+function TYoutubeDownloader.GetTitleForYoutube(aLink: string): string;
 var
   ss: TStrings;
-  s,s1,s2,cookie: string;
-  a,i: integer;
-  e1: integer;
-  e2: string;
-var
   proc: TAsyncProcess;
 begin
   (* TITLE *)
@@ -921,7 +922,7 @@ begin
       ss:=TStringList.Create;
       try
         ss.LoadFromStream(proc.Output);
-        aTitle:=trim(ss.Text);
+        result:=trim(ss.Text);
       finally
         ss.Free;
       end;
@@ -930,7 +931,13 @@ begin
     proc.Terminate(0);
     proc.Free;
   end;
-  (* DESCRIPTION *)
+end;
+
+function TYoutubeDownloader.GetDescriptionForYoutube(aLink: string): string;
+var
+  ss: TStrings;
+  proc: TAsyncProcess;
+begin
   proc:=TAsyncProcess.Create(self);
   case FEngine of
     enDefault,enDefBoost: proc.Executable:='youtube-dl';
@@ -948,7 +955,7 @@ begin
       ss:=TStringList.Create;
       try
         ss.LoadFromStream(proc.Output);
-        aDescription:=trim(ss.Text);
+        result:=trim(ss.Text);
       finally
         ss.Free;
       end;
@@ -957,76 +964,14 @@ begin
     proc.Terminate(0);
     proc.Free;
   end;
+end;
 
-  exit;
-
-  http.Headers.Clear;
-  if FCookieFile<>'' then
-  begin
-    if mem_yt_cookie='' then
-    begin
-      ss:=TStringList.Create;
-      try
-        (* dołączam dane cookies do połączenia jeśli istnieją*)
-        if FileExists(FCookieFile) then
-        begin
-          cookie:='';
-          ss.LoadFromFile(FCookieFile);
-          for i:=0 to ss.Count-1 do
-          begin
-            s:=ss[i];
-            s1:=GetLineToStr(s,6,#9);
-            s2:=GetLineToStr(s,7,#9);
-            if cookie='' then cookie:='cookie: '+s1+'='+s2 else cookie:=cookie+'; '+s1+'='+s2;
-          end;
-          mem_yt_cookie:=cookie
-        end;
-      finally
-        ss.Free;
-      end;
-    end;
-    http.OpenSession;
-    http.Headers.Add(cookie);
-    e1:=http.http.ResultCode;
-    e2:=http.http.ResultString;
-    http.CloseSession;
-  end;
-
-  http.execute(aLink,s);
-  if FDebug then
-  begin
-    writeln('*** Procedure TYoutubeDownloader.GetInformationsForYoutube ***');
-    writeln('aLink = "',aLink,'"');
-    if s='' then
-    begin
-      writeln('Nie ściągnęło żadnych danych podczas wczytywania strony z powyższego URL.');
-      writeln('ResultCode = ',e1);
-      writeln('ResultString = "',e2,'"');
-    end else begin
-      writeln('HTTP Downloaded Text:');
-      writeln('[START]');
-      writeln(s);
-      writeln('[STOP]');
-    end;
-  end;
-
-  http.StrDeleteStart(s,'meta name="title"');
-  http.StrDeleteStart(s,'content="');
-  a:=pos('"',s);
-  aTitle:=copy(s,1,a-1);
-  aTitle:=DecodeHTMLAmp(aTitle);
-
-  http.StrDeleteStart(s,'meta name="description"');
-  http.StrDeleteStart(s,'content="');
-  a:=pos('"',s);
-  aDescription:=copy(s,1,a-1);
-  aDescription:=DecodeHTMLAmp(aDescription);
-
-  http.StrDeleteStart(s,'meta name="keywords"');
-  http.StrDeleteStart(s,'content="');
-  a:=pos('"',s);
-  aKeywords:=copy(s,1,a-1);
-  aKeywords:=DecodeHTMLAmp(aKeywords);
+procedure TYoutubeDownloader.GetInformationsForYoutube(aLink: string;
+  var aTitle, aDescription, aKeywords: string);
+begin
+  aTitle:=GetTitleForYoutube(aLink);
+  aDescription:=GetDescriptionForYoutube(aLink);
+  aKeywords:='';
 end;
 
 procedure TYoutubeDownloader.GetInformationsForRumble(aLink: string;
