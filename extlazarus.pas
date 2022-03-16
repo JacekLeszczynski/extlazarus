@@ -18,7 +18,7 @@ uses
   MPlayerCtrl, ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, 
   GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
   ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, 
-  Upnp, YoutubeDownloader, StringsList, LazarusPackageIntf;
+  Upnp, YoutubeDownloader, StringsList, VideoConvert, LazarusPackageIntf;
 
 implementation
 
@@ -73,6 +73,7 @@ begin
   RegisterUnit('Upnp', @Upnp.Register);
   RegisterUnit('YoutubeDownloader', @YoutubeDownloader.Register);
   RegisterUnit('StringsList', @StringsList.Register);
+  RegisterUnit('VideoConvert', @VideoConvert.Register);
 end;
 
 initialization

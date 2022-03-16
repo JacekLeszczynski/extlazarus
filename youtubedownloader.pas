@@ -455,6 +455,8 @@ begin
     p:=trim(GetLineToStr(ss[3],6,' '));
     if p='' then vQuality:=0 else vQuality:=StrToL(p,reszta,0);
   end;
+  (* poprawka quality *)
+  if (aType=ytVideo) and (vQuality=0) then vQuality:=StrToInt(GetLineToStr(vResolution,2,'x'));
   (* wyjście *)
   if aType=ytAudio then
     result:='A,'+IntToCString(vQuality,4)+','+IntToCString(vSampleRate,6)+','+IntToCString(vBitRate,5)+','+vResolution+','+IntToStr(vFps)+','+IntToStr(vSize)+','+IntToStr(vCode)
@@ -565,7 +567,6 @@ begin
           //vSize:=StrToInt64(GetLineToStr(s,7,','));
           vCode:=StrToInt(GetLineToStr(s,8,','));
           if (rodzaj='V') and (vQuality=0) then vQuality:=StrToInt(GetLineToStr(vResolution,2,'x'));
-          writeln('  ',vCode,'/',vQuality,'/',vResolution);
           if (maxABitRate>0) and (rodzaj='A') and (vBitRate>maxABitRate) then continue;
           if (minASampleRate>0) and (rodzaj='A') and (vSampleRate<minASampleRate) then continue;
           if (maxASampleRate>0) and (rodzaj='A') and (vSampleRate>maxASampleRate) then continue;
@@ -902,7 +903,9 @@ end;
 function TYoutubeDownloader.GetTitleForYoutube(aLink: string): string;
 var
   ss: TStrings;
+  s: string;
   proc: TAsyncProcess;
+  i: integer;
 begin
   (* TITLE *)
   proc:=TAsyncProcess.Create(self);
@@ -922,7 +925,13 @@ begin
       ss:=TStringList.Create;
       try
         ss.LoadFromStream(proc.Output);
-        result:=trim(ss.Text);
+        for i:=0 to ss.Count-1 do
+        begin
+          s:=ss[i];
+          if pos('WARNING:',s)>0 then continue;
+          result:=trim(ss.Text);
+          break;
+        end;
       finally
         ss.Free;
       end;

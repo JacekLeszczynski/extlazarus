@@ -15,7 +15,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="55">
+    <Files Count="56">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -286,6 +286,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="StringsList"/>
       </Item55>
+      <Item56>
+        <Filename Value="videoconvert.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="VideoConvert"/>
+      </Item56>
     </Files>
     <RequiredPkgs Count="9">
       <Item1>
