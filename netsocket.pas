@@ -94,6 +94,7 @@ type
     {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
     function SendString(const aMessage: string; aBlock: pointer = nil; aBlockSize: integer = 0; aSocket: TLSocket = nil): integer;
     function SendString(const aMessage: string; aSocket: TLSocket): integer;
+    function SendStringEx(const aMessage: string; aSocket: TLSocket = nil): integer;
     {Wysyłanie danych binarnych}
     function SendBinary(const aBinary; aSize: integer; aSocket: TLSocket = nil): integer;
     procedure GetTimeVector;
@@ -714,6 +715,12 @@ function TNetSocket.SendString(const aMessage: string; aSocket: TLSocket
   ): integer;
 begin
   result:=SendString(aMessage,nil,0,aSocket);
+end;
+
+function TNetSocket.SendStringEx(const aMessage: string; aSocket: TLSocket
+  ): integer;
+begin
+  result:=_SendString(aMessage,aSocket);
 end;
 
 function TNetSocket.SendBinary(const aBinary; aSize: integer; aSocket: TLSocket
