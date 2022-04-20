@@ -29,6 +29,7 @@ type
 
   TNetSocket = class(TComponent)
   private
+    FCharLastFrame: byte;
     FCommunication: TNetSocketCommunication;
     FGoPM: TNetSocketOnASocketNull;
     FMaxBuffer: word;
@@ -73,8 +74,10 @@ type
     buffer_client: TMemoryStream;
     pipein : TInputPipeStream;
     pipeout : TOutputPipeStream;
+    znak_konca_linii: char;
     function GetCount: integer;
     procedure GetStringReceive(aMsg: string; aSocket: TLSocket; aBinSize: integer; var aReadBin: boolean);
+    procedure SetCharLastFrame(AValue: byte);
     procedure _OnAccept(aSocket: TLSocket);
     procedure _OnCanSend(aSocket: TLSocket);
     procedure _OnConnect(aSocket: TLSocket);
@@ -127,6 +130,9 @@ type
     {Jeśli nie używasz całej pamięci,
      warto tu istawić max używanej}
     property MaxBuffer: word read FMaxBuffer write FMaxBuffer default 65535;
+    {Wartości zamieniane na #0,#10 itd.
+     domyślną wartością jest wartość 0.}
+    property CharLastFrame: byte read FCharLastFrame write SetCharLastFrame default 0;
     property SSLMethod: TNetSocketSSLMethod read FSSLMethod write FSSLMethod;
     property SSLCAFile: string read FSSLCAFile write FSSLCAFile;
     property SSLKeyFile: string read FSSLKeyFile write FSSLKeyFile;
@@ -343,6 +349,13 @@ begin
   end;
 end;
 
+procedure TNetSocket.SetCharLastFrame(AValue: byte);
+begin
+  if FCharLastFrame=AValue then Exit;
+  FCharLastFrame:=AValue;
+  znak_konca_linii:=chr(FCharLastFrame);
+end;
+
 procedure TNetSocket._OnCanSend(aSocket: TLSocket);
 begin
   FOnCanSend(aSocket,'');
@@ -382,7 +395,7 @@ begin
       ll:=1;
       while true do
       begin
-        s:=GetLineToStr(ss,ll,#10);
+        s:=GetLineToStr(ss,ll,znak_konca_linii);
         if s='' then break;
         if (FSecurity=ssCrypt) and assigned(FOnDecryptString) then FOnDecryptString(s);
         GetStringReceive(s,aSocket,0,odczyt_bin);
@@ -554,6 +567,8 @@ begin
   FProto:=spTCP;
   FHost:='';
   FPort:=0;
+  FCharLastFrame:=0;
+  znak_konca_linii:=chr(FCharLastFrame);
   FReuseAddress:=false;
   FUDPBroadcast:=false;
   FMaxBuffer:=65535;
@@ -707,7 +722,7 @@ begin
     (* STRING *)
     s:=aMessage;
     if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
-    result:=_SendString(s+#10,aSocket);
+    result:=_SendString(s+znak_konca_linii,aSocket);
   end;
 end;
 
@@ -840,7 +855,7 @@ begin
     end;
   end else begin
     if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
-    result:=_SendString(s+#10,aSocket);
+    result:=_SendString(s+znak_konca_linii,aSocket);
   end;
 end;
 }
@@ -884,7 +899,7 @@ begin
         (* STRING *)
         s:=aSendString;
         if (FSecurity=ssCrypt) and Assigned(FOnCryptString) then FOnCryptString(s);
-        socket.SendString(s+#10);
+        socket.SendString(s+znak_konca_linii);
       end;
     end;
     socket.CloseSocket;

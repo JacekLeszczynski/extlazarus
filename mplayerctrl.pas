@@ -203,8 +203,11 @@ type
     procedure SetStartParam(const AValue: string);
     procedure TimerEvent(Sender: TObject);
     procedure PlayerProcessReadData(Sender: TObject);
+    procedure SetDeinterlace(AValue: boolean);
+    function GetDeinterlace: boolean;
   private
     FAccel: string;
+    FDeinterlace: boolean;
     FPLAYF: boolean;
     FBostVolume: boolean;
     FModeMPV: TMplayerCtrlModeMPV;
@@ -245,6 +248,7 @@ type
     procedure SetAudioSamplerate(aSamplerate: integer);
     procedure SetAudioEQ(s: string = '');
     procedure SetAF(aValue: string = '');
+    procedure AddAF(aFilter: string; aValue: string = '');
     function SingleMpToTime(AValue: single): TTime;
     function SingleMpToInteger(AValue: single): integer;
     function TimeToSingleMp(AValue: TTime): single;
@@ -286,6 +290,7 @@ type
     property ImagePath: string read FImagePath write SetImagePath;
 
     property Rate: single read GetRate write SetRate; // mplayer only supports 0.1 to 100
+    property Deinterlace: boolean read GetDeinterlace write SetDeinterlace;
     property Duration: single read GetDuration; // seconds
     property Position: single read GetPosition write SetPosition; // seconds
 
@@ -345,6 +350,7 @@ type
     property OnMouseMove; //: TMouseMoveEvent read FOnMouseMove write FOnMouseMove;
     property Visible;
     property Volume;     // 0 to 100 and -1 is deactivated
+    property Deinterlace;
     property BostVolume;
     property OnFeedback; // Provides standard console output from mplayer
     property OnError;    // Provides stderr console output from mplayer
@@ -662,9 +668,27 @@ begin
   end;
 end;
 
+function TCustomMPlayerControl.GetDeinterlace: boolean;
+begin
+  result:=FDeinterlace;
+end;
+
 procedure TCustomMPlayerControl.SetAccel(AValue: string);
 begin
   if AValue='' then FAccel:='<auto>' else FAccel:=AValue;
+end;
+
+procedure TCustomMPlayerControl.SetDeinterlace(AValue: boolean);
+var
+  s: string;
+begin
+  if FDeinterlace=AValue then Exit;
+  FDeinterlace:=AValue;
+  {if Running then
+  begin
+    if FDeinterlace then s:='true' else s:='false';
+    SendMPlayerCommand(Format('set_property deinterlace %s', [s]));
+  end;}
 end;
 
 procedure TCustomMPlayerControl.SetscDir(AValue: string);
@@ -1032,6 +1056,7 @@ begin
         FPlayerProcess.Parameters.Add(IntToStr(FVolume));
       end;
     end;
+    if FDeinterlace then FPlayerProcess.Parameters.Add('-deinterlace=yes');
     if FModeMPV=mmCPlayer then FPlayerProcess.Parameters.Add('-player-operation-mode=cplayer') else
     if FModeMPV=mmPseudoGui then FPlayerProcess.Parameters.Add('-player-operation-mode=pseudo-gui');
     if FMPVNoOsc then FPlayerProcess.Parameters.Add('-no-osc');
@@ -1310,6 +1335,15 @@ begin
     ExecuteSockProcess('{ "command": ["set_property", "af", ""] }')
   else
     ExecuteSockProcess('{ "command": ["set_property", "af", "'+aValue+'"] }');
+end;
+
+procedure TCustomMPlayerControl.AddAF(aFilter: string; aValue: string);
+begin
+  if FNosound then exit;
+  if aValue='' then
+    ExecuteSockProcess('{ "command": ["set_property", "af-add", "'+aFilter+'"] }')
+  else
+    ExecuteSockProcess('{ "command": ["set_property", "af-add", "'+aValue+'"] }');
 end;
 
 function TCustomMPlayerControl.SingleMpToTime(AValue: single): TTime;

@@ -30,6 +30,7 @@ type
     function CountVar: integer;
     function GetParam(Index: integer): string;
     function GetValue(Index: integer): string;
+    function GetVar: string;
     function GetVar(Index: integer): string;
     function IsParam(par1: string; par2: string = ''; par3: string = ''; par4: string = ''; par5: string = ''; par6: string = ''): boolean;
     function GetValue(par1: string; par2: string = ''; par3: string = ''; par4: string = ''; par5: string = ''; par6: string = ''): string;
@@ -166,6 +167,24 @@ begin
   result:=list2[Index];
 end;
 
+function TExtParams.GetVar: string;
+var
+  i: integer;
+  s,pom: string;
+begin
+  i:=-1;
+  s:='';
+  pom:='';
+  while true do
+  begin
+    inc(i);
+    s:=pom;
+    pom:=trim(GetVar(i));
+    if pom='' then break;
+  end;
+  result:=s;
+end;
+
 function TExtParams.GetVar(Index: integer): string;
 var
   i,a: integer;
@@ -177,7 +196,7 @@ begin
   begin
     inc(a);
     s:=list2[i];
-    if a=Index then break;
+    if a=Index then break else s:='';
   end;
   result:=s;
 end;
