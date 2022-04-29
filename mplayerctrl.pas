@@ -271,8 +271,12 @@ type
     property MpvIpcDevFile: string read FMpvIpcDevFile write SetMpvIpcDevFile; //'{$UniqueKey}' zamieniany jest na UniqueKey
     property Engine: TMPlayerCtrlEngine read FEngine write FEngine;
     property NoSound: boolean read FNoSound write FNoSound default false;
-    property Cache: integer read FCache write FCache default 0; //0=default
-    property CacheMin: integer read FCacheMin write FCacheMin default 0; //0=default
+    {Max use cache (0=default)}
+    property Cache: integer read FCache write FCache default 0;
+    {Min cache prefetch (0=default)
+     MPlayer: in bytes
+     MPV: in seconds}
+    property CacheMin: integer read FCacheMin write FCacheMin default 0;
     property Filename: string read FFilename write SetFilename;
     property StartParam: string read FStartParam write SetStartParam;
     property MPlayerPath: string read FMPlayerPath write SetMPlayerPath;
@@ -1045,6 +1049,15 @@ begin
       case FSSFormat of
         ssJPG: FPlayerProcess.Parameters.Add('--screenshot-format=jpg');
         ssPNG: FPlayerProcess.Parameters.Add('--screenshot-format=png');
+      end;
+    end;
+    if FCache>0 then
+    begin
+      FPlayerProcess.Parameters.Add('-cache=yes');
+      FPlayerProcess.Parameters.Add('--demuxer-max-bytes='+IntToStr(FCache));
+      if FCacheMin>0 then
+      begin
+        FPlayerProcess.Parameters.Add('--cache-secs='+IntToStr(FCacheMin));
       end;
     end;
     if not FNoSound then
