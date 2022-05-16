@@ -15,7 +15,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="56">
+    <Files Count="58">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -291,7 +291,22 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="VideoConvert"/>
       </Item56>
+      <Item57>
+        <Filename Value="scrollingtext.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ScrollingText"/>
+      </Item57>
+      <Item58>
+        <Filename Value="aboutscrolltextunit.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="AboutScrolltextunit"/>
+      </Item58>
     </Files>
+    <i18n>
+      <EnableI18N Value="True"/>
+      <OutDir Value="locale"/>
+      <EnableI18NForLFM Value="True"/>
+    </i18n>
     <RequiredPkgs Count="9">
       <Item1>
         <PackageName Value="lnetvisual"/>
