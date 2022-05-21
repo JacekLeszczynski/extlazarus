@@ -640,6 +640,7 @@ end;
 procedure TYoutubeDownloader.ReceivedVerbose(ASender: TObject);
 var
   i: integer;
+  i64: int64;
 begin
   watek_timer.Enabled:=false;
   if kod[0] then
@@ -665,8 +666,12 @@ begin
   end;
   if kod[4] then
   begin
-    if assigned(FDlPosition) then FDlPosition(pozycja,StrToLinuxInt64(predkosc_str),itag); //ściąganie pliku - dostałem pozycję ściąganego pliku
-    kod[4]:=false;
+    try
+      i64:=StrToLinuxInt64(predkosc_str);
+      if assigned(FDlPosition) then FDlPosition(pozycja,i64,itag); //ściąganie pliku - dostałem pozycję ściąganego pliku
+      kod[4]:=false;
+    except
+    end;
   end;
   if kod[9] then
   begin
@@ -1187,6 +1192,7 @@ end;
 
 procedure TYoutubeDownloaderWatekYoutube.Execute;
 var
+  error: boolean;
   a,v: integer;
 begin
   kod_verbose:=1; //wątek odpalony - zaczynam pracę!
@@ -1201,7 +1207,14 @@ begin
     if self.Terminated then break;
     if (audio=0) or (video=0) and auto_select then
     begin
-      local_GetAutoCodeFormat(engine,link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,a,v);
+      repeat
+        try
+          local_GetAutoCodeFormat(engine,link,dir_youtubedl,cookiesfile,sender.MaxAudioBitRate,sender.MinAudioSampleRate,sender.MaxAudioSampleRate,sender.MaxVideoQuality,sender.MaxVideoBitRate,a,v);
+          error:=false;
+        except
+          error:=true;
+        end;
+      until error=false;
       if audio=0 then audio:=a;
       if video=0 then video:=v;
     end;
