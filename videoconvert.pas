@@ -19,7 +19,7 @@ type
   private
     FOnFileRendered: TVideoConvertThreadsFileOutEvent;
     FOnThreadsCount: TVideoConvertThreadsCount;
-    FThreadCount: integer;
+    FThreadCount,licznik: integer;
     FThreads: boolean;
     proc: TAsyncProcess;
     procedure OdswiezIloscWatkow;
@@ -28,8 +28,10 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure RenderOgg(aSourceFileName: string; aQuality: integer = -2; aChannels: integer = 0);
-    procedure RenderOgg(aId: integer; aSourceFileName: string; aQuality: integer = -2; aChannels: integer = 0);
+    procedure RenderWav(aId: integer; aSourceFileName: string; aChannels: integer = 0);
+    procedure RenderWav(aSourceFileName: string; aChannels: integer = 0);
+    procedure RenderOgg(aId: integer; aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
+    procedure RenderOgg(aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
   published
     property ThreadsCount: integer read FThreadCount default 0;
     property ThreadsOn: boolean read FThreads write FThreads default false;
@@ -37,11 +39,12 @@ type
     property OnFileRendered: TVideoConvertThreadsFileOutEvent read FOnFileRendered write FOnFileRendered;
   end;
 
-  { TVideoConvertRenderOgg }
+  { TVideoConvertRenderFile }
 
-  TVideoConvertRenderOgg = class(TThread)
+  TVideoConvertRenderFile = class(TThread)
   private
-    id: integer;
+    stop: boolean;
+    typ,id: integer;
     FOnExit: TVideoConvertThreadsFileOutEvent;
     FOnRefresh1: TVideoConvertThreadsRefreshCountEvent;
     sender: TVideoConvert;
@@ -49,14 +52,25 @@ type
     squality,schannels: integer;
     procedure go_inc;
     procedure go_dec;
+    procedure go_test;
     procedure Execute; override;
   protected
   public
-    constructor Create(aSender: TVideoConvert; aId: integer; aSourceFileName: string; aQuality: integer = -2; aChannels: integer = 0);
+    constructor Create(aSender: TVideoConvert; aType: integer; aId: integer; aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
     destructor Destroy; override;
   published
     property OnRefreshThreadCount: TVideoConvertThreadsRefreshCountEvent read FOnRefresh1 write FOnRefresh1;
     property OnExit: TVideoConvertThreadsFileOutEvent read FOnExit write FOnExit;
+  end;
+
+  { TVideoConvertRenderList }
+
+  TVideoConvertRenderList = class(TThread)
+  protected
+  public
+    constructor Create(aSender: TVideoConvert; aType: integer; aId: integer; aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
+    destructor Destroy; override;
+  published
   end;
 
 procedure Register;
@@ -69,8 +83,42 @@ begin
   RegisterComponents('Multimedia',[TVideoConvert]);
 end;
 
-procedure _RenderOgg(aSourceFileName: string;
-  aQuality: integer; aChannels: integer);
+procedure _RenderWav(aSourceFileName: string; aChannels: integer = 0);
+var
+  dir,f1,f2: string;
+  proc: TAsyncProcess;
+begin
+  dir:=ExtractFilePath(aSourceFileName);
+  f1:=ExtractFileName(aSourceFileName);
+  f2:=ChangeFileExt(f1,'.wav');
+  proc:=TAsyncProcess.Create(nil);
+  proc.CurrentDirectory:=dir;
+  proc.Executable:='ffmpeg';
+  //proc.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+  proc.Options:=[poWaitOnExit,poNoConsole];
+  proc.Priority:=ppNormal;
+  proc.ShowWindow:=swoNone;
+  //proc.OnReadData:=@YTReadData;
+  //-i madonna.mp4 -vn -y madonna.wav
+  proc.Parameters.Add('-i');
+  proc.Parameters.Add(f1);
+  if aChannels>0 then
+  begin
+    proc.Parameters.Add('-ac');
+    proc.Parameters.Add(IntToStr(aChannels));
+  end;
+  proc.Parameters.Add('-vn');
+  proc.Parameters.Add('-y');
+  proc.Parameters.Add(f2);
+  try
+    proc.Execute;
+  finally
+    proc.Terminate(0);
+    proc.Free;
+  end;
+end;
+
+procedure _RenderOgg(aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
 var
   dir,f1,f2: string;
   proc: TAsyncProcess;
@@ -112,46 +160,96 @@ begin
   end;
 end;
 
-{ TVideoConvertRenderOgg }
+{ TVideoConvertRenderList }
 
-procedure TVideoConvertRenderOgg.go_inc;
+constructor TVideoConvertRenderList.Create(aSender: TVideoConvert;
+  aType: integer; aId: integer; aSourceFileName: string; aChannels: integer;
+  aQuality: integer);
+begin
+
+end;
+
+destructor TVideoConvertRenderList.Destroy;
+begin
+  inherited Destroy;
+end;
+
+{ TVideoConvertRenderFile }
+
+procedure TVideoConvertRenderFile.go_inc;
 var
-  a: integer;
+  a,b: integer;
 begin
   a:=sender.FThreadCount;
+  b:=sender.licznik;
   inc(a);
   sender.FThreadCount:=a;
   if assigned(FOnRefresh1) then FOnRefresh1;
+  stop:=b>2;
+  if not stop then
+  begin
+    inc(b);
+    sender.licznik:=b;
+  end;
 end;
 
-procedure TVideoConvertRenderOgg.go_dec;
+procedure TVideoConvertRenderFile.go_dec;
 var
-  a: integer;
+  a,b: integer;
   s: string;
 begin
   a:=sender.FThreadCount;
+  b:=sender.licznik;
   dec(a);
+  dec(b);
   sender.FThreadCount:=a;
+  sender.licznik:=b;
   if assigned(FOnRefresh1) then FOnRefresh1;
   if assigned(FOnExit) then
   begin
-    s:=ChangeFileExt(sfilename,'.ogg');
+    case typ of
+      0: s:=ChangeFileExt(sfilename,'.wav');
+      1: s:=ChangeFileExt(sfilename,'.ogg');
+    end;
     FOnExit(id,sfilename,s);
   end;
 end;
 
-procedure TVideoConvertRenderOgg.Execute;
+procedure TVideoConvertRenderFile.go_test;
+var
+  b: integer;
+begin
+  b:=sender.licznik;
+  stop:=b>2;
+  if not stop then
+  begin
+    inc(b);
+    sender.licznik:=b;
+  end;
+end;
+
+procedure TVideoConvertRenderFile.Execute;
 begin
   synchronize(@go_inc);
-  _RenderOgg(sfilename,squality,schannels);
+  while stop do
+  begin
+    sleep(1000);
+    synchronize(@go_test);
+  end;
+  case typ of
+    0: _RenderWav(sfilename,schannels);
+    1: _RenderOgg(sfilename,schannels,squality);
+  end;
   synchronize(@go_dec);
 end;
 
-constructor TVideoConvertRenderOgg.Create(aSender: TVideoConvert; aId: integer;
-  aSourceFileName: string; aQuality: integer; aChannels: integer);
+constructor TVideoConvertRenderFile.Create(aSender: TVideoConvert;
+  aType: integer; aId: integer; aSourceFileName: string; aChannels: integer;
+  aQuality: integer);
 begin
   FreeOnTerminate:=true;
   sender:=aSender;
+  typ:=aType; //0-Wav, 1-Ogg
   id:=aId;
   sfilename:=aSourceFileName;
   squality:=aQuality;
@@ -159,7 +257,7 @@ begin
   inherited Create(true);
 end;
 
-destructor TVideoConvertRenderOgg.Destroy;
+destructor TVideoConvertRenderFile.Destroy;
 begin
   inherited Destroy;
 end;
@@ -180,6 +278,7 @@ end;
 constructor TVideoConvert.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  licznik:=0;
   FThreadCount:=0;
   FThreads:=false;
 end;
@@ -189,24 +288,43 @@ begin
   inherited Destroy;
 end;
 
-procedure TVideoConvert.RenderOgg(aSourceFileName: string;
-  aQuality: integer; aChannels: integer);
-begin
-  RenderOgg(0,aSourceFileName,aQuality,aChannels);
-end;
-
-procedure TVideoConvert.RenderOgg(aId: integer; aSourceFileName: string;
-  aQuality: integer; aChannels: integer);
+procedure TVideoConvert.RenderWav(aId: integer; aSourceFileName: string;
+  aChannels: integer);
 var
-  a: TVideoConvertRenderOgg;
+  a: TVideoConvertRenderFile;
 begin
   if FThreads then
   begin
-    a:=TVideoConvertRenderOgg.Create(self,aId,aSourceFileName,aQuality,aChannels);
+    a:=TVideoConvertRenderFile.Create(self,0,aId,aSourceFileName,aChannels);
     a.OnRefreshThreadCount:=@OdswiezIloscWatkow;
     a.OnExit:=@PlikZostalWygenerowany;
     a.Start;
-  end else _RenderOgg(aSourceFileName,aQuality,aChannels);
+  end else _RenderWav(aSourceFileName,aChannels);
+end;
+
+procedure TVideoConvert.RenderWav(aSourceFileName: string; aChannels: integer);
+begin
+  RenderWav(0,aSourceFileName,aChannels);
+end;
+
+procedure TVideoConvert.RenderOgg(aId: integer; aSourceFileName: string;
+  aChannels: integer; aQuality: integer);
+var
+  a: TVideoConvertRenderFile;
+begin
+  if FThreads then
+  begin
+    a:=TVideoConvertRenderFile.Create(self,1,aId,aSourceFileName,aChannels,aQuality);
+    a.OnRefreshThreadCount:=@OdswiezIloscWatkow;
+    a.OnExit:=@PlikZostalWygenerowany;
+    a.Start;
+  end else _RenderOgg(aSourceFileName,aChannels,aQuality);
+end;
+
+procedure TVideoConvert.RenderOgg(aSourceFileName: string; aChannels: integer;
+  aQuality: integer);
+begin
+  RenderOgg(0,aSourceFileName,aChannels,aQuality);
 end;
 
 end.

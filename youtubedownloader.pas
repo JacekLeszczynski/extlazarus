@@ -46,7 +46,7 @@ type
     proces: pointer;
     nazwa_linku,nazwa_pliku,nazwa_katalogu: string;
     nazwa_linku2,nazwa_pliku2,nazwa_katalogu2: string;
-    itag,itag2: integer;
+    itag,itag2,itag22: integer;
     pozycja: integer;
     predkosc_str: string;
     kod: array [0..9] of boolean;
@@ -675,7 +675,11 @@ begin
   end;
   if kod[9] then
   begin
-    if assigned(FDlFinish) then FDlFinish(nazwa_linku2,nazwa_pliku2,nazwa_katalogu2,itag2); //plik został pobrany
+    if itag22<>itag2 then
+    begin
+      if assigned(FDlFinish) then FDlFinish(nazwa_linku2,nazwa_pliku2,nazwa_katalogu2,itag2); //plik został pobrany
+      itag22:=itag2;
+    end;
     kod[9]:=false;
   end;
 end;
@@ -1032,6 +1036,7 @@ begin
   automatyka.Add('');
   if proces=nil then
   begin
+    itag22:=-1;
     for i:=0 to 9 do kod[i]:=false;
     case FEngine of
       enDefault:  a:=TYoutubeDownloaderWatekYoutube.Create(self,FEngine,GetDirYtDl,'',FCookieFile);
