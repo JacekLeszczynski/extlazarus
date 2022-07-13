@@ -11,7 +11,7 @@ type
 
   { TExtShutdown }
 
-  TExtShutdownOnShutdownMode = (smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom);
+  TExtShutdownOnShutdownMode = (smNone,smQDbusKDE,smGnome,smShutdownP1,smShutdownP2,smWindows,smCustom);
   TExtShutdownOnMonitorMode = (mmGetMode, mmOn, mmOff, mmStandby, mmSuspend);
   TExtShutdown = class(TComponent)
   private
@@ -29,6 +29,7 @@ type
   published
     {Mode:}
     { KDE    - shutdown KDE mode}
+    { Gnome  - gnome-session-quit --power-off --force}
     { P1     - execute: "shutdown -p now"}
     { P2     - execute: "shutdown -P now"}
     { Custom - execute custom command}
@@ -96,7 +97,7 @@ constructor TExtShutdown.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   {$IFDEF UNIX}
-  FMode:=smShutdownP1;
+  FMode:=smNone;
   {$ENDIF}
   {$IFDEF WINDOWS}
   FMode:=smWindows;
@@ -113,32 +114,46 @@ var
   proc: TProcess;
 begin
   if Assigned(FOnBeforeShutdown) then FOnBeforeShutdown(self);
-  {$IFDEF UNIX}
-  proc:=TProcess.Create(self);
-  try //(smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom)
-    case FMode of
-      smQDbusKDE: proc.CommandLine:='qdbus org.kde.ksmserver /KSMServer logout 0 2 2';
-      smShutdownP1: proc.CommandLine:='shutdown -p now';
-      smShutdownP2: proc.CommandLine:='shutdown -P now';
-      smCustom: proc.CommandLine:=FCustomCommand;
-    end;
-    proc.Execute;
-  finally
-    proc.Free;
-  end;
-  {$ENDIF}
-  {$IFDEF MSWINDOWS}
-  if FMode=smWindows then LazarusExitWindows(EWX_FORCE or EWX_POWEROFF) else
+  if FMode<>smNone then
   begin
+    {$IFDEF UNIX}
     proc:=TProcess.Create(self);
-    try
-      proc.CommandLine:=FCustomCommand;
+    try //(smQDbusKDE,smShutdownP1,smShutdownP2,smWindows,smCustom)
+      case FMode of
+        smQDbusKDE: proc.CommandLine:='qdbus org.kde.ksmserver /KSMServer logout 0 2 2';
+        smGnome: proc.CommandLine:='gnome-session-quit --power-off --force --no-prompt';
+        smShutdownP1: proc.CommandLine:='shutdown -p now';
+        smShutdownP2: proc.CommandLine:='shutdown -P now';
+        smCustom: proc.CommandLine:=FCustomCommand;
+      end;
       proc.Execute;
     finally
       proc.Free;
     end;
+    if FMode=smGnome then
+    begin
+      try
+        proc:=TProcess.Create(self);
+        proc.CommandLine:='gnome-session-quit --power-off --force --no-prompt';
+        proc.Execute;
+      finally
+        proc.Free;
+      end;
+    end;
+    {$ENDIF}
+    {$IFDEF MSWINDOWS}
+    if FMode=smWindows then LazarusExitWindows(EWX_FORCE or EWX_POWEROFF) else
+    begin
+      proc:=TProcess.Create(self);
+      try
+        proc.CommandLine:=FCustomCommand;
+        proc.Execute;
+      finally
+        proc.Free;
+      end;
+    end;
+    {$ENDIF}
   end;
-  {$ENDIF}
   if Assigned(FOnAfterShutdown) then FOnAfterShutdown(self);
 end;
 

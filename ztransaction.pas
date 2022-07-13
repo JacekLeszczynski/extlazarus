@@ -13,6 +13,7 @@ type
 
   TZTransaction = class(TComponent)
   private
+    ac: boolean;
     FDatabase: TZConnection;
     FTransactIsolationLevel: TZTransactIsolationLevel;
   protected
@@ -68,6 +69,7 @@ end;
 
 procedure TZTransaction.StartTransaction;
 begin
+  ac:=FDatabase.AutoCommit;
   przed_transakcja:=FDatabase.TransactIsolationLevel;
   FDatabase.TransactIsolationLevel:=FTransactIsolationLevel;
   FDatabase.StartTransaction;
@@ -77,12 +79,14 @@ procedure TZTransaction.Commit;
 begin
   FDatabase.Commit;
   FDatabase.TransactIsolationLevel:=przed_transakcja;
+  FDatabase.AutoCommit:=ac;
 end;
 
 procedure TZTransaction.Rollback;
 begin
   FDatabase.Rollback;
   FDatabase.TransactIsolationLevel:=przed_transakcja;
+  FDatabase.AutoCommit:=ac;
 end;
 
 procedure TZTransaction.State(Sender: TObject; var aActive, aNoEmpty,
