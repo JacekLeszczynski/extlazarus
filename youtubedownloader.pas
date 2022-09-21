@@ -545,7 +545,7 @@ var
   rodzaj: char;
   vExt,vResolution: string;
   vCode,vQuality,vBitRate,vFps,vSampleRate: integer;
-  //vSize: int64;
+  vSize: int64;
 begin
   str:=TStringList.Create;
   try
@@ -564,7 +564,7 @@ begin
           vBitRate:=StrToInt(GetLineToStr(s,4,','));
           vResolution:=GetLineToStr(s,5,',');
           vFps:=StrToInt(GetLineToStr(s,6,','));
-          //vSize:=StrToInt64(GetLineToStr(s,7,','));
+          vSize:=StrToInt64(GetLineToStr(s,7,','));
           vCode:=StrToInt(GetLineToStr(s,8,','));
           if (rodzaj='V') and (vQuality=0) then vQuality:=StrToInt(GetLineToStr(vResolution,2,'x'));
           if (maxABitRate>0) and (rodzaj='A') and (vBitRate>maxABitRate) then continue;
@@ -573,8 +573,12 @@ begin
           if (maxVQuality>0) and ((rodzaj='V') or (rodzaj='X')) and (vQuality>maxVQuality) then continue;
           if (maxVBitRate>0) and ((rodzaj='V') or (rodzaj='X')) and (vBitRate>maxVBitRate) then continue;
           if rodzaj='A' then audio.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vSampleRate)) else
-          if rodzaj='V' then video.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps)) else
-                             video2.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps));
+          if rodzaj='V' then
+          begin
+            if vSize>0 then video.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps));
+          end else begin
+            if vSize>0 then video2.Add(IntToStr(vCode)+','+IntToStr(vQuality)+','+IntToStr(vBitRate)+','+IntToStr(vFps));
+          end
         end;
         local_del(audio,3);
         local_del(video,4);
@@ -856,10 +860,10 @@ begin
         end else if rodzaj='V' then
         begin
           s:=StrToCString(IntToStr(vCode),4,true)+'  Video        '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+NormalizeB('            0.00',vSize);
-          if aVideo<>nil then aVideo.Add(s);
+          if (aVideo<>nil) and (vSize>0) then aVideo.Add(s);
         end else begin
           s:=StrToCString(IntToStr(vCode),4,true)+'  Audio-Video  '+StrToCString(vResolution,10,true)+StrToCString(IntToStr(vBitrate),20,true)+StrToCString(IntToStr(vQuality),15,true)+StrToCString(IntToStr(vFps),6,true)+StrToCString(IntToStr(vSampleRate),10,true)+NormalizeB('            0.00',vSize);
-          if aVideo<>nil then aVideo.Add(s);
+          if (aVideo<>nil) and (vSize>0) then aVideo.Add(s);
         end;
       end;
     end;
