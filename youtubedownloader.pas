@@ -68,6 +68,7 @@ type
     function GetInfoToLink(aLink: string; aMaxAudio,aMaxVideo: integer): string;
     procedure GetInformationsForAll(aLink: string; var aTitle,aDescription,aKeywords: string);
     function GetTitleForYoutube(aLink: string): string;
+    function GetDateForYoutube(aLink: string; var aData: TDate): boolean;
     function GetDescriptionForYoutube(aLink: string): string;
     procedure GetInformationsForYoutube(aLink: string; var aTitle,aDescription,aKeywords: string);
     procedure GetInformationsForRumble(aLink: string; var aTitle,aDescription: string);
@@ -952,6 +953,62 @@ begin
   finally
     proc.Terminate(0);
     proc.Free;
+  end;
+end;
+
+function TYoutubeDownloader.GetDateForYoutube(aLink: string; var aData: TDate
+  ): boolean;
+var
+  ss: TStrings;
+  s,data: string;
+  proc: TAsyncProcess;
+  i: integer;
+  r,m,d: word;
+begin
+  (* TITLE *)
+  proc:=TAsyncProcess.Create(self);
+  case FEngine of
+    enDefault,enDefBoost: proc.Executable:='youtube-dl';
+    enDefPlus:            proc.Executable:='yt-dlp';
+  end;
+  proc.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+  proc.Priority:=ppNormal;
+  proc.ShowWindow:=swoNone;
+  try
+    proc.Parameters.Add('--get-filename');
+    proc.Parameters.Add('--output');
+    proc.Parameters.Add('"%(upload_date)s"');
+    proc.Parameters.Add(aLink);
+    proc.Execute;
+    if proc.Output.NumBytesAvailable>0 then
+    begin
+      ss:=TStringList.Create;
+      try
+        ss.LoadFromStream(proc.Output);
+        for i:=0 to ss.Count-1 do
+        begin
+          s:=ss[i];
+          if pos('WARNING:',s)>0 then continue;
+          data:=trim(ss.Text);
+          break;
+        end;
+      finally
+        ss.Free;
+      end;
+    end;
+  finally
+    proc.Terminate(0);
+    proc.Free;
+  end;
+  try
+    if data<>'' then if data[1]='"' then delete(data,1,1);
+    r:=strtoint(copy(data,1,4));
+    m:=strtoint(copy(data,5,2));
+    d:=strtoint(copy(data,7,2));
+    aData:=EncodeDate(r,m,d);
+    result:=true;
+  except
+    result:=false;
   end;
 end;
 
