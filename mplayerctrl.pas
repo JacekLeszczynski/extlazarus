@@ -129,6 +129,7 @@ type
   TMplayerCtrlOnError = procedure(ASender: TObject; AStrings: TStringList) of object;
   TMplayerCtrlOnBeforePlay = procedure(ASender: TObject; AFilename: string) of object;
   TMplayerCtrlOnPlaying = procedure(ASender: TObject; APosition,ADuration: single) of object;
+  TMplayerCtrlOnCacheing = procedure(ASender: TObject; APosition,ADuration,ACache: single) of object;
   TMplayerCtrlOnGrabImage = procedure(ASender: TObject; AFilename: String) of object;
   TMplayerCtrlOnICYRadio = procedure(ASender: TObject; AName,AGenre,AWebsite: string; APublic: boolean; ABitrate, AStreamTitle, AStreamURL: string) of object;
   TMplayerCtrlOnCaptureDump = procedure(ASender: TObject; ACapture: boolean) of object;
@@ -172,6 +173,7 @@ type
     FVolume: integer;
     FCanvas: TCanvas;
     FPosition: Single;
+    FNetCache: Single;
     FLastPosition: string;
     FRequestingPosition: boolean;
     FLastTimer: TDateTime;
@@ -189,6 +191,7 @@ type
     FormatSettings: TFormatSettings;
     function GetFileMpvSocket: string;
     function GetPosition: single;
+    function GetCache: single;
     function GetDuration: single;
     function GetRate: single;
     procedure SetImagePath(AValue: string);
@@ -208,6 +211,7 @@ type
   private
     FAccel: string;
     FDeinterlace: boolean;
+    FOnCacheing: TMplayerCtrlOnCacheing;
     FPLAYF: boolean;
     FBostVolume: boolean;
     FModeMPV: TMplayerCtrlModeMPV;
@@ -218,6 +222,7 @@ type
     FPP: TMplayerCtrlProcessPriority;
     FscDir: string;
     FSSFormat: TMplayerCtrlScreenShotFormat;
+    FVisibleCacheing: boolean;
     function ExecuteSockProcess(command: string; device_file: string = ''): string;
     procedure SetAccel(AValue: string);
     procedure SetscDir(AValue: string);
@@ -288,6 +293,7 @@ type
     property ICYRadio: boolean read FRadio write FRadio;
     property CaptureDump: boolean read FCapture write FCapture;
     property ActiveTimer: boolean read FActiveTimer write FActiveTimer;
+    property VisibleCacheing: boolean read FVisibleCacheing write FVisibleCacheing default false;
     property TimerDump: boolean read FTimerDump write FTimerDump default false;
     property MpvNoOSC: boolean read FMPVNoOsc write FMPVNoOsc default false;
 
@@ -304,6 +310,7 @@ type
     property OnFeedback: TMplayerCtrlOnFeedback read FOnFeedback write FOnFeedback;
     property OnError: TMplayerCtrlOnError read FOnError write FOnError;
     property OnPlaying: TMplayerCtrlOnPlaying read FOnPlaying write FOnPlaying;
+    property OnCacheing: TMplayerCtrlOnCacheing read FOnCacheing write FOnCacheing;
     property OnBeforePlay: TMplayerCtrlOnBeforePlay read FOnBeforePlay write FOnBeforePlay;
     property OnBeforeStop: TNotifyEvent read FOnBeforeStop write FOnBeforeStop;
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
@@ -342,6 +349,7 @@ type
     property ICYRadio;
     property CaptureDump;
     property ActiveTimer;
+    property VisibleCacheing;
     property TimerDump;
     property MpvNoOSC;
     property OnChangeBounds;
@@ -359,6 +367,7 @@ type
     property OnFeedback; // Provides standard console output from mplayer
     property OnError;    // Provides stderr console output from mplayer
     property OnPlaying;  // When not paused, an event every 250ms to 500ms with Position
+    property OnCacheing; // When running file of net...
     property OnBeforePlay;
     property OnBeforeStop;
     property OnPlay;     // Sent after mplayer initialises the current video file
@@ -411,7 +420,7 @@ end;
 
 procedure TCustomMPlayerControl.TimerEvent(Sender: TObject);
 var
-  a,b: single;
+  a,b,c: single;
 begin
   if FPlayerProcess<>nil then
   begin
@@ -427,7 +436,14 @@ begin
         if FRequestVolume then SendMPlayerCommand('get_property volume');
       end;
     end else begin
-      //if Running and ((Now-FLastTimer)>ON_PLAYING_INTERVAL) then
+      if Running then
+      begin
+        if FVisibleCacheing and Assigned(FOnCacheing) then
+        begin
+          c:=GetCache;
+          if c>-1 then FOnCacheing(self,FPosition,FDuration,c);
+        end;
+      end;
       if Playing then
       begin
         if Assigned(FOnPlaying) then
@@ -641,6 +657,7 @@ begin
   // don't post the OnPlay until all the data above is processed
   if Assigned(FOnPlay) and bPostOnPlay then FOnPlay(Self);
   If Assigned(FOnPlaying) and bPostOnPlaying then FOnPlaying(Self,FPosition,FDuration);
+  If Assigned(FOnCacheing) and Running and FVisibleCacheing then FOnCacheing(Self,FPosition,FDuration,FNetCache);
   if Assigned(FOnICYRadio) then FOnICYRadio(Self,icyName,icyGenre,icyWebsite,icyPublic,icyBitrate,icyStreamTitle,icyStreamURL);
   If (not Running) Or bPostOnStop Then Stop;
 end;
@@ -834,6 +851,7 @@ begin
   FCapture:=false;
   FVolume:=-1;
   FActiveTimer:=false;
+  FVisibleCacheing:=false;
   FTimerDump:=false;
   FMPVNoOsc:=false;
   ControlStyle:=ControlStyle-[csSetCaption];
@@ -1388,6 +1406,7 @@ procedure TCustomMPlayerControl.InitialiseInfo;
 begin
   FLastPosition := '';
   FPosition := 0;
+  FNetCache := 0;
   FRequestVolume := False;
   FStartTime := 0;
   FRate := 1;
@@ -1450,6 +1469,38 @@ begin
       end;
     end;
     result:=FPosition;
+  end;
+end;
+
+function TCustomMPlayerControl.GetCache: single;
+var
+  s,s2: string;
+  jData: TJSONData;
+  jObject: TJSONObject;
+begin
+  if FEngine=meMplayer then
+  begin
+    {$IFDEF DEBUG}
+    DebugLn(Format('Get Cache %.3f', [FNetCache]));
+    {$ENDIF}
+    Result := FNetCache;
+  end else begin
+    if Running then
+    begin
+      s:=ExecuteSockProcess('{ "command": ["get_property", "demuxer-cache-duration"] }');
+      jData:=GetJSON(s);
+      jObject:=TJSONObject(jData);
+      try s2:=jObject.Strings['error']; except s2:=''; end;
+      if s2='success' then
+      begin
+        jObject.Floats['data'];
+        FNetCache:=jObject.Floats['data'];
+      end else begin
+        result:=0;
+        exit;
+      end;
+    end;
+    result:=FNetCache;
   end;
 end;
 
