@@ -941,9 +941,19 @@ begin
         ss.LoadFromStream(proc.Output);
         for i:=0 to ss.Count-1 do
         begin
-          s:=ss[i];
+          s:=trim(ss[i]);
+          if s='' then continue;
+          //if debug then writeln('DEBUG: var = "',s,'"');
           if pos('WARNING:',s)>0 then continue;
-          result:=trim(ss.Text);
+          if pos('FutureWarning:',s)>0 then continue;
+          if pos('inner =',s)>0 then continue;
+          //if pos('ERROR:',s)>0 then
+          //begin
+            //vError:=true;
+            //break;
+          //end;
+          result:=s;
+          //if debug then writeln('DEBUG: Result = "',s,'"');
           break;
         end;
       finally
@@ -987,9 +997,14 @@ begin
         ss.LoadFromStream(proc.Output);
         for i:=0 to ss.Count-1 do
         begin
-          s:=ss[i];
+          s:=trim(ss[i]);
+          if s='' then continue;
+          //if debug then writeln('DEBUG: var = "',s,'"');
           if pos('WARNING:',s)>0 then continue;
-          data:=trim(ss.Text);
+          if pos('FutureWarning:',s)>0 then continue;
+          if pos('inner =',s)>0 then continue;
+          data:=s;
+          //if debug then writeln('DEBUG: Result = "',data,'"');
           break;
         end;
       finally

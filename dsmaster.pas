@@ -11,12 +11,18 @@ type
 
   { TDSMaster }
 
+  TDSMasterDSEvent = procedure(Sender: TObject; aDataSource: TDataSource) of object;
+
   TDSMaster = class(TComponent)
   private
     FAfterClose: TNotifyEvent;
+    FAfterCloseDS: TDSMasterDSEvent;
     FAfterOpen: TNotifyEvent;
+    FAfterOpenDS: TDSMasterDSEvent;
     FBeforeClose: TNotifyEvent;
+    FBeforeCloseDS: TDSMasterDSEvent;
     FBeforeOpen: TNotifyEvent;
+    FBeforeOpenDS: TDSMasterDSEvent;
     FDataSource: TDataSource;
     FItems: TStrings;
     procedure SetItems(AValue: TStrings);
@@ -39,6 +45,10 @@ type
     property AfterOpen: TNotifyEvent read FAfterOpen write FAfterOpen;
     property BeforeClose: TNotifyEvent read FBeforeClose write FBeforeClose;
     property AfterClose: TNotifyEvent read FAfterClose write FAfterClose;
+    property BeforeOpenDS: TDSMasterDSEvent read FBeforeOpenDS write FBeforeOpenDS;
+    property AfterOpenDS: TDSMasterDSEvent read FAfterOpenDS write FAfterOpenDS;
+    property BeforeCloseDS: TDSMasterDSEvent read FBeforeCloseDS write FBeforeCloseDS;
+    property AfterCloseDS: TDSMasterDSEvent read FAfterCloseDS write FAfterCloseDS;
   end;
 
 procedure Register;
@@ -85,7 +95,9 @@ begin
       if Owner.Components[j].Name=FItems[i] then
       begin
         ds:=TDataSource(Owner.Components[j]);
+        if assigned(FBeforeOpenDS) then FBeforeOpenDS(self,ds);
         ds.DataSet.Open;
+        if assigned(FAfterOpenDS) then FAfterOpenDS(self,ds);
         break;
       end;
     end;
@@ -107,7 +119,9 @@ begin
       if Owner.Components[j].Name=FItems[i] then
       begin
         ds:=TDataSource(Owner.Components[j]);
+        if assigned(FBeforeCloseDS) then FBeforeCloseDS(self,ds);
         ds.DataSet.Close;
+        if assigned(FAfterCloseDS) then FAfterCloseDS(self,ds);
         break;
       end;
     end;
