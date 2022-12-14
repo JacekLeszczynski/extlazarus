@@ -46,6 +46,7 @@ type
     FOnAfterRead: TBeforeAfterReadEvent;
     FOnError: TErrorEvent;
     function Count: integer;
+    function DoubleTextSeparators(aText: string): string;
   protected
     { Protected declarations }
   public
@@ -128,6 +129,16 @@ begin
   result:=r;
 end;
 
+function TCsvParser.DoubleTextSeparators(aText: string): string;
+var
+  s: string;
+begin
+  setlength(s,2);
+  s[1]:=FTextSeparator;
+  s[2]:=FTextSeparator;
+  result:=StringReplace(aText,s,FTextSeparator,[rfReplaceAll]);
+end;
+
 constructor TCsvParser.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -151,6 +162,7 @@ var
   _MAX,zm_count,licznik,i,razem: integer;
 begin
   _MAX:=0;
+  SetTextSeparator(FTextSeparator);
   if Assigned(FOnBeforeRead) then FOnBeforeRead(Self);
   if Assigned(FOnProgress) then
   begin
@@ -203,10 +215,11 @@ begin
       b:=false;
       continue;
     end;
-    razem:=GetLineCount(s,FSeparator,FTextSeparator);
+    razem:=GetLineCount(s,FSeparator);
     if Assigned(FOnRead) then for i:=1 to razem do
     begin
-      FOnRead(self,licznik,i,GetLineToStr(zm_menu,i,FSeparator,FTextSeparator),GetLineToStr(s,i,FSeparator,FTextSeparator),zm_stop);
+      //writeln('DEBUG (',FSeparator,FTextSeparator,'): *',s,'*');
+      FOnRead(self,licznik,i,GetLineToStr(zm_menu,i,FSeparator),DoubleTextSeparators(GetLineToStr(s,i,FSeparator)),zm_stop);
       if zm_stop then break;
     end;
     if zm_stop then break;

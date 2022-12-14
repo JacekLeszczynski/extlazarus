@@ -7,6 +7,7 @@ interface
 uses
   Classes, SysUtils;
 
+procedure SetTextSeparator(aChar: char);
 function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
 function GetLineCount(s: string; separator:char):integer;
 function GetLineCount(s: string; separator,textseparator: char): integer;
@@ -40,8 +41,13 @@ procedure QSort(adr:pointer;size_elementu:longint;adres:pointer;ile,ilosc_elemen
 
 implementation
 
-const
-  textseparator = '"';
+var
+  textseparator: char = '"';
+
+procedure SetTextSeparator(aChar: char);
+begin
+  textseparator:=aChar;
+end;
 
 //Funkcja zwraca n-ty (l) ciag stringu (s), o wskazanym separatorze.
 function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;
