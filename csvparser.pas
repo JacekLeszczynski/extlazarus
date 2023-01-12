@@ -162,7 +162,7 @@ var
   _MAX,zm_count,licznik,i,razem: integer;
 begin
   _MAX:=0;
-  SetTextSeparator(FTextSeparator);
+  textseparator:=FTextSeparator;
   if Assigned(FOnBeforeRead) then FOnBeforeRead(Self);
   if Assigned(FOnProgress) then
   begin

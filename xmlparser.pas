@@ -382,11 +382,7 @@ var
   stream: TMemoryStream;
   b: boolean;
 begin
-  {$IFDEF LAZARUS}
-  plik:=ConvZapis(zm_filename);
-  {$ELSE}
   plik:=zm_filename;
-  {$ENDIF}
   if (plik='') or (not FileExists(plik)) then
   begin
     __ERROR:=2;
@@ -443,11 +439,7 @@ var
   ZipMaster: TZipMaster;
   {$ENDIF}
 begin
-  {$IFDEF LAZARUS}
-  plik:=ConvZapis(zm_filename);
-  {$ELSE}
   plik:=zm_filename;
-  {$ENDIF}
   if Assigned(FOnBeforeRead) then FOnBeforeRead(Self);
   b_przekodowanie:=false;
   zm_stop:=false;
@@ -670,11 +662,7 @@ end;
 
 function TXmlParser.EncodeXML: boolean;
 begin
-  {$IFDEF LAZARUS}
-  result:=EncodeXML(ConvZapis(zm_filename));
-  {$ELSE}
   result:=EncodeXML(zm_filename);
-  {$ENDIF}
 end;
 
 function TXmlParser.DecodeXML(DecodeFile: string; XMLFile: string): boolean;
@@ -716,11 +704,7 @@ end;
 
 function TXmlParser.DecodeXML: boolean;
 begin
-  {$IFDEF LAZARUS}
-  result:=DecodeXML(ConvZapis(zm_filename));
-  {$ELSE}
   result:=DecodeXML(zm_filename);
-  {$ENDIF}
 end;
 
 end.
