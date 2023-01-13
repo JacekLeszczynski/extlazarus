@@ -255,7 +255,6 @@ begin
   Des.Burn;
 end;
 
-
 procedure TXmlParser.ParseXML(level: integer; node: {$IFDEF LAZARUS} TDOMNode {$ELSE} IDOMNode {$ENDIF} );
 var
   cNode: {$IFDEF LAZARUS} TDOMNode {$ELSE} IDOMNode {$ENDIF};

@@ -313,14 +313,6 @@ begin
   //result:=((b>code_NUL) and (b<code_BS)) or ((b>code_CR) and (b<code_SUB));
 end;
 
-function CrcString(const mystring: string): longword;
-var
-  crcvalue: longword;
-begin
-  crcvalue:=crc32(0,nil,0);
-  result:=crc32(crcvalue,@mystring[1],length(mystring));
-end;
-
 function ElementAdd(aList: TList; aElement: TElement): integer;
 var
   p: PElement;
@@ -335,34 +327,6 @@ var
   i: integer;
 begin
   for i:=0 to aList.Count-1 do dispose(PElement(aList[i]));
-end;
-
-function StringToItemIndex(slist: TStrings; kod: string; aIndeksOd: integer = 0; aIndeksDo: integer = -1; wart_domyslna: integer = -1): integer;
-var
-  i,a,max: integer;
-begin
-   a:=wart_domyslna;
-   if aIndeksDo=-1 then max:=slist.Count-1 else max:=aIndeksDo;
-   for i:=aIndeksOd to max do if slist[i]=kod then
-   begin
-     a:=i;
-     break;
-   end;
-   result:=a;
-end;
-
-function StringToItemIndex(slist: TStringList; kod: string; aIndeksOd: integer = 0; aIndeksDo: integer = -1; wart_domyslna: integer = -1): integer;
-var
-  i,a,max: integer;
-begin
-   a:=wart_domyslna;
-   if aIndeksDo=-1 then max:=slist.Count-1 else max:=aIndeksDo;
-   for i:=aIndeksOd to max do if slist[i]=kod then
-   begin
-     a:=i;
-     break;
-   end;
-   result:=a;
 end;
 
 function pierwsza_nazwa(aFileName: string): string;

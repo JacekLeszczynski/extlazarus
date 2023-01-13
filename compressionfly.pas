@@ -55,29 +55,12 @@ procedure Register;
 implementation
 
 uses
-  RNL;
+  ecode_unit, RNL;
 
 procedure Register;
 begin
   {$I compressionfly_icon.lrs}
   RegisterComponents('System',[TCompressionFly]);
-end;
-
-function HexToDec(Str: string): Integer;
-var
-  i, M: Integer;
-begin
-  Result:=0;
-  M:=1;
-  Str:=AnsiUpperCase(Str);
-  for i:=Length(Str) downto 1 do
-  begin
-    case Str[i] of
-      '1'..'9': Result:=Result+(Ord(Str[i])-Ord('0'))*M;
-      'A'..'F': Result:=Result+(Ord(Str[i])-Ord('A')+10)*M;
-    end;
-    M:=M shl 4;
-  end;
 end;
 
 { TCompressionFly }

@@ -60,47 +60,12 @@ procedure Register;
 implementation
 
 uses
-  ZDbcIntfs, ZScriptParser;
+  ecode_unit, ZDbcIntfs, ZScriptParser;
 
 procedure Register;
 begin
   {$I dbschemasync_icon.lrs}
   RegisterComponents('System',[TDBSchemaSync]);
-end;
-
-procedure StrToListItems(s:string;list:TStrings);
-var
-  i: integer;
-  pom: string;
-begin
-  list.Clear;
-  pom:='';
-  for i:=1 to length(s) do
-  begin
-    if s[i]=#10 then
-    begin
-      list.Add(pom);
-      pom:='';
-      continue;
-    end;
-    if s[i]=#13 then continue;
-    pom:=pom+s[i];
-  end;
-  if pom<>'' then list.Add(pom);
-end;
-
-function StringToItemIndex(slist: TStrings; kod: string; wart_domyslna: integer
-  ): integer;
-var
-  i,a: integer;
-begin
-   a:=wart_domyslna;
-   for i:=0 to slist.Count-1 do if slist[i]=kod then
-   begin
-     a:=i;
-     break;
-   end;
-   result:=a;
 end;
 
 { TDBSchemaSync }

@@ -5,8 +5,7 @@ unit VideoConvert;
 interface
 
 uses
-  Classes, SysUtils, LResources, Forms, Controls, Graphics, Dialogs,
-  Process, AsyncProcess;
+  Classes, SysUtils, LResources, Process, AsyncProcess;
 
 type
 
