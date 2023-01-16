@@ -1442,7 +1442,8 @@ begin
   fs.DateSeparator:='-';
   fs.ShortDateFormat:='y/m/d';
   fs.TimeSeparator:=':';
-  aDT:=StrToDateTime(s3+' '+s4,fs);
+  //aDT:=StrToDateTime(s3+' '+s4,fs);
+  aDT:=StrToDate(s3,fs)+StrToTime(s4,fs);
 end;
 
 procedure TExtDiff.dane_pliku(aStr: string; var aStart, aCount, bStart, bCount: integer);
