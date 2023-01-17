@@ -226,10 +226,12 @@ type
 {$ENDIF}
 
 var
+  GlobalDecimalPoint: char;
   ConfigLocalDirectory: string = '';
   ConfigGlobalDirectory: string = '';
   MyDirectory: string = '';
 
+function fDecimalPoint: char; cdecl; external 'libecode.so' name 'fDecimalPoint';
 function GET_FF: char; cdecl; external 'libecode.so' name '_FF';
 function fGetLineToStr(aStr: Pchar; l: integer; separator,textseparator: char; wynik: pchar; var wartosc: pchar): integer; cdecl; external 'libecode_c' name 'fGetLineToStr';
 function fGetLineCount(aStr: Pchar; separator,textseparator: char): integer; cdecl; external 'libecode_c' name 'fGetLineCount';
@@ -461,9 +463,11 @@ end;
 
 function StrToD(s1: string; var s2: string): double;
 var
+  s: string;
   pom: pchar = nil;
 begin
-  result:=fStrToD(pchar(s1),&pom);
+  if GlobalDecimalPoint='.' then s:=StringReplace(s1,',','.',[rfReplaceAll]) else s:=StringReplace(s1,'.',',',[rfReplaceAll]);
+  result:=fStrToD(pchar(s),&pom);
   s2:=StrPas(pom);
 end;
 
@@ -607,6 +611,7 @@ end;
 
 initialization
   ppp:=nil;
+  GlobalDecimalPoint:=fDecimalPoint;
   _FF:=GET_FF;
 finalization
   if ppp<>nil then StrDispose(ppp);
