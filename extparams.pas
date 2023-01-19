@@ -109,16 +109,17 @@ begin
         w:=copy(s,a+1,length(s)-a);
         s:=copy(s,1,a-1);
         list1.Add(s);
-        if (FVP.Count=0) or (StringToItemIndexEx(FVP,s,-1)<>-1) then list2.Add(w);
+        if (FVP.Count=0) or (StringToItemIndex(FVP,s,-1)<>-1) then list2.Add(w);
       end else begin
         (* następny parametr jest wartością lub nie *)
         list1.Add(s);
-        //if (i+1<=ParamCount) and ((FVP.Count=0) or (StringToItemIndexEx(FVP,s,-1)<>-1)) then
-        if (StringToItemIndexEx(FVP,s,-1)<>-1) then
+        //if (i+1<=ParamCount) and ((FVP.Count=0) or (StringToItemIndex(FVP,s,-1)<>-1)) then
+        if (StringToItemIndex(FVP,s,-1)<>-1) then
         begin
           w:=ParamStr(i+1);
           if w[1]<>'-' then
           begin
+            writeln(4);
             list2.Add(w);
             inc(i);
           end else list2.Add('');

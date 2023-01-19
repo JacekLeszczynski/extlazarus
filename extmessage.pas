@@ -68,6 +68,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    function ECODE_ENGINE: string;
     function Execute: boolean; overload;
     function Execute(sMessage: string): boolean; overload;
     procedure ShowMessage(sMessage: string = ''); overload;
@@ -255,6 +256,11 @@ begin
   FStrReplace.Free;
   FStrDelete.Free;
   inherited Destroy;
+end;
+
+function TExtMessage.ECODE_ENGINE: string;
+begin
+  result:=ecode_unit.ECODE_ENGINE;
 end;
 
 function TExtMessage.Execute: boolean;

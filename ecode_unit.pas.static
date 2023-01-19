@@ -7,6 +7,9 @@ interface
 uses
   Classes, SysUtils;
 
+const
+  ECODE_ENGINE = 'STATIC';
+
 procedure SetTextSeparator(aChar: char);
 procedure StrToListItems(s:string;list:TStrings);
 function GetLineToStr(s:string;l:integer;separator:char;wynik:string=''):string;

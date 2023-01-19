@@ -71,6 +71,9 @@ uses
 type
   TComparisonFunc = function(const A, B: Pointer): Integer;
 
+const
+    ECODE_ENGINE = 'DYNAMIC';
+
 var
   _FF: string[1];
   textseparator: char = '"';
@@ -131,7 +134,7 @@ function CrcBlockToHex(const buf; len: cardinal) : string; cdecl; external 'libe
 function MyTempFileName(const APrefix: string): string; cdecl; external 'libecode.so' name 'MyTempFileName';
 function TrimDepth(s:string;c:char=' '):string; cdecl; external 'libecode.so' name 'TrimDepth';
 function kropka(str:string;b:boolean=false;usuwac_spacje:boolean=false):string; cdecl; external 'libecode.so' name 'kropka';
-function StringToDate(str:string):TDateTime; cdecl; external 'libecode.so' name 'StringToDate';
+function StringToDate(str:string):TDateTime;
 procedure BinaryToStrings(var vTab:TStrings; Tab:array of byte); cdecl; external 'libecode.so' name 'BinaryToStrings';
 function GetLineToStr(const S: string; N: Integer; const Delims: Char; const wynik: string = ''): string;
 function GetLineCount(aStr: string; separator: char): integer;
@@ -241,6 +244,7 @@ function fStrToL(aStr: Pchar; var reszta: Pchar; baza: integer): integer; cdecl;
 function fStrToD(aStr: Pchar; var reszta: Pchar): double; cdecl; external 'libecode_c' name 'fStrToD';
 function fAToI(aStr: pchar): integer; cdecl; external 'libecode_c' name 'fAToI';
 function fGToS(d: double; l: integer; var wynik: pchar): integer; cdecl; external 'libecode_c' name 'fGToS';
+function fStringToDate(str: pchar): double; cdecl; external 'libecode_c' name 'fStringToDate';
 //function fStringToItemIndex(var slist: pchar; kod: pchar; wart_domyslna: integer): integer; cdecl; external 'libecode_c' name 'fStringToItemIndex';
 
 function GetLocaleDefault(res_out: integer): string;
@@ -261,6 +265,11 @@ var
 function IntegerToTime(czas: longword; no_milisecond: boolean): TDateTime;
 begin
   if no_milisecond then result:=IntegerToTimeNoMs(czas) else result:=IntegerToTime(czas);
+end;
+
+function StringToDate(str: string): TDateTime;
+begin
+  result:=fStringToDate(pchar(str));
 end;
 
 //Funkcja zwraca n-ty (l) ciąg stringu (s), o wskazanym separatorze.
