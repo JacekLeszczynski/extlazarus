@@ -211,6 +211,7 @@ type
   private
     FAccel: string;
     FDeinterlace: boolean;
+    FOnBeforeReplay: TNotifyEvent;
     FOnCacheing: TMplayerCtrlOnCacheing;
     FPLAYF: boolean;
     FBostVolume: boolean;
@@ -316,6 +317,7 @@ type
     property OnPlay: TNotifyEvent read FOnPlay write FOnPlay;
     property OnStop: TNotifyEvent read FOnStop write FOnStop;
     property OnPause: TNotifyEvent read FOnPause write FOnPause;
+    property OnBeforeReplay: TNotifyEvent read FOnBeforeReplay write FOnBeforeReplay;
     property OnReplay: TNotifyEvent read FOnReplay write FOnReplay;
     property OnGrabImage: TMplayerCtrlOnGrabImage read FOnGrabImage write FOnGrabImage;
     property OnICYRadio: TMplayerCtrlOnICYRadio read FOnICYRadio write FOnICYRadio;
@@ -372,6 +374,7 @@ type
     property OnBeforeStop;
     property OnPlay;     // Sent after mplayer initialises the current video file
     property OnPause;
+    property OnBeforeReplay;
     property OnReplay;
     property OnStop;     // Sent sometime (up to approx 250ms) after mplayer finishes current video
     property OnGrabImage; // Fired when mplayer reports the filename of the image grab
@@ -1270,6 +1273,7 @@ procedure TCustomMPlayerControl.Replay;
 var
   s: string;
 begin
+  if Assigned(FOnBeforeReplay) then FOnBeforeReplay(self);
   if FEngine=meMplayer then
   begin
     if Running and FPaused then
