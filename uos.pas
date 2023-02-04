@@ -9650,56 +9650,45 @@ function Tuos_Init.InitLib(): cint32;
 begin
   Result := -1;
   {$IF DEFINED(mpg123)}
-  if (uosLoadResult.MPloadERROR = 0) then
-  if mpg123_init() = MPG123_OK then
+  if (uosLoadResult.MPloadERROR = 0) then if mpg123_init() = MPG123_OK then
   begin
-  mpversion := UTF8Decode(mpg123_decoders()^);
-  uosLoadResult.MPinitError := 0;
-  Result := 0;
-  end
-  else
-  begin
-  Result := -2;
-  uosLoadResult.MPinitError := 1;
+    mpversion := UTF8Decode(mpg123_decoders()^);
+    uosLoadResult.MPinitError := 0;
+    Result := 0;
+  end else begin
+    Result := -2;
+    uosLoadResult.MPinitError := 1;
   end;
   {$endif}
 
   {$IF DEFINED(portaudio)}
   if (uosLoadResult.PAloadERROR = 0) then
   begin
-  uosLoadResult.PAinitError := Pa_Initialize();
-  paversion := UTF8Decode(Pa_GetVersionText());
-  if uosLoadResult.PAinitError = 0 then
-  begin
-  Result := 0;
-  DefDevInInfo := nil ;
-  DefDevOutInfo := nil ;
+    uosLoadResult.PAinitError := Pa_Initialize(); //KOMUNIKATY
+    paversion := UTF8Decode(Pa_GetVersionText());
+    if uosLoadResult.PAinitError = 0 then
+    begin
+      Result := 0;
+      DefDevInInfo := nil ;
+      DefDevOutInfo := nil ;
 
-  DefDevOut := Pa_GetDefaultOutputDevice();
-  if DefDevOut >= 0  then
-  DefDevOutInfo := Pa_GetDeviceInfo(DefDevOut);
-  if DefDevOutInfo <> nil then
-  DefDevOutAPIInfo := Pa_GetHostApiInfo(DefDevOutInfo^.hostApi);
+      DefDevOut := Pa_GetDefaultOutputDevice();
+      if DefDevOut >= 0  then DefDevOutInfo := Pa_GetDeviceInfo(DefDevOut);
+      if DefDevOutInfo <> nil then DefDevOutAPIInfo := Pa_GetHostApiInfo(DefDevOutInfo^.hostApi);
 
-  DefDevIn := Pa_GetDefaultInputDevice();
-   if DefDevIn >= 0  then
-  DefDevInInfo := Pa_GetDeviceInfo(DefDevIn);
-   if DefDevInInfo <> nil then
-  DefDevInAPIInfo := Pa_GetHostApiInfo(DefDevInInfo^.hostApi);
-  end;
+      DefDevIn := Pa_GetDefaultInputDevice();
+      if DefDevIn >= 0  then DefDevInInfo := Pa_GetDeviceInfo(DefDevIn);
+      if DefDevInInfo <> nil then DefDevInAPIInfo := Pa_GetHostApiInfo(DefDevInInfo^.hostApi);
+    end;
 
   end;
   {$endif}
     
-   {$IF DEFINED(sndfile)}
+  {$IF DEFINED(sndfile)}
   if (uosLoadResult.SFloadERROR = 0) then sfversion := UTF8Decode(sf_version_string());
-   {$endif}
+  {$endif}
    
-   if (Result = -1) and (uosLoadResult.SFloadERROR = 0) then
-  begin
-  Result := 0;
-  end;
-  
+  if (Result = -1) and (uosLoadResult.SFloadERROR = 0) then Result := 0;
 end;
 
 function Tuos_Init.loadlib(): cint32;
@@ -9716,110 +9705,89 @@ begin
   {$IF DEFINED(portaudio)}
   if (PA_FileName <>  nil) and (PA_FileName <>  '') then
   begin
-  if PA_FileName =  'system' then PA_FileName :=  '' ;
-  if Pa_Load(PA_FileName) then
-  begin
-     //  {
-  Result := 0;
-  uosLoadResult.PAloadERROR := 0;
-  uosDefaultDeviceOut := Pa_GetDefaultOutPutDevice();
-  uosDefaultDeviceIn := Pa_GetDefaultInPutDevice();
-  uosDeviceCount := Pa_GetDeviceCount();
-// }
-  end
-  else
-  uosLoadResult.PAloadERROR := 2;
-  end
-  else
-  uosLoadResult.PAloadERROR := -1;
+    if PA_FileName =  'system' then PA_FileName :=  '' ;
+    if Pa_Load(PA_FileName) then
+    begin
+      //  {
+      Result := 0;
+      uosLoadResult.PAloadERROR := 0;
+      uosDefaultDeviceOut := Pa_GetDefaultOutPutDevice();
+      uosDefaultDeviceIn := Pa_GetDefaultInPutDevice();
+      uosDeviceCount := Pa_GetDeviceCount();
+      // }
+    end else uosLoadResult.PAloadERROR := 2;
+  end else uosLoadResult.PAloadERROR := -1;
   {$endif}
 
   {$IF DEFINED(sndfile)}
   if (SF_FileName <> nil) and (SF_FileName <>  '') then
   begin
-  if Sf_FileName =  'system' then sf_FileName :=  '' ;
-  if Sf_Load(SF_FileName) then
-  begin
-  uosLoadResult.SFloadERROR := 0;
-  if uosLoadResult.PAloadERROR = -1 then
-  Result := 0;
-  end
-  else
-  begin
-  uosLoadResult.SFloadERROR := 2;
-  Result := -1;
-  end;
-  end
-  else
-  uosLoadResult.SFloadERROR := -1;
+    if Sf_FileName =  'system' then sf_FileName :=  '' ;
+    if Sf_Load(SF_FileName) then
+    begin
+      uosLoadResult.SFloadERROR := 0;
+      if uosLoadResult.PAloadERROR = -1 then
+      Result := 0;
+    end else begin
+      uosLoadResult.SFloadERROR := 2;
+      Result := -1;
+    end;
+  end else uosLoadResult.SFloadERROR := -1;
   {$endif}
   
   {$IF DEFINED(mpg123)}
   if (MP_FileName <> nil) and (MP_FileName <>  '') then
   begin
-  if mp_FileName =  'system' then mp_FileName :=  '' ;
-  if mp_Load(Mp_FileName) then
-  begin
-  uosLoadResult.MPloadERROR := 0;
-  if (uosLoadResult.PAloadERROR = -1) and (uosLoadResult.SFloadERROR = -1) then
-  Result := 0;
-  end
-  else
-  begin
-  uosLoadResult.MPloadERROR := 2;
-  Result := -1;
-  end;
-  end
-  else
-  uosLoadResult.MPloadERROR := -1;
+    if mp_FileName =  'system' then mp_FileName :=  '' ;
+    if mp_Load(Mp_FileName) then
+    begin
+      uosLoadResult.MPloadERROR := 0;
+      if (uosLoadResult.PAloadERROR = -1) and (uosLoadResult.SFloadERROR = -1) then
+      Result := 0;
+    end else begin
+      uosLoadResult.MPloadERROR := 2;
+      Result := -1;
+    end;
+  end else uosLoadResult.MPloadERROR := -1;
   {$endif}
 
   {$IF DEFINED(neaac)}
   if (AA_FileName <> nil) and (AA_FileName <>  '') and (M4_FileName <> nil) and (M4_FileName <>  '') then
   begin
-  if m4_FileName =  'system' then m4_FileName :=  '' ;
-  if aa_FileName =  'system' then aa_FileName :=  '' ;
+    if m4_FileName =  'system' then m4_FileName :=  '' ;
+    if aa_FileName =  'system' then aa_FileName :=  '' ;
   
-  if aa_load(UTF8String(M4_FileName), UTF8String(AA_FileName)) then
-  begin
-  uosLoadResult.AAloadERROR := 0;
-  if (uosLoadResult.MPloadERROR = -1) and (uosLoadResult.PAloadERROR = -1) and
-  (uosLoadResult.SFloadERROR = -1)  then
-  Result := 0;
-  end
-  else
-  begin
-  uosLoadResult.AAloadERROR := 2;
-  Result := -1;
-  end;
-  end
-  else
-  uosLoadResult.AAloadERROR := -1;
+    if aa_load(UTF8String(M4_FileName), UTF8String(AA_FileName)) then
+    begin
+      uosLoadResult.AAloadERROR := 0;
+      if (uosLoadResult.MPloadERROR = -1) and (uosLoadResult.PAloadERROR = -1) and
+      (uosLoadResult.SFloadERROR = -1)  then
+      Result := 0;
+    end else begin
+      uosLoadResult.AAloadERROR := 2;
+      Result := -1;
+    end;
+  end else uosLoadResult.AAloadERROR := -1;
   {$endif}
   
   {$IF DEFINED(opus)}
   if (OF_FileName <> nil) and (OF_FileName <>  '') then
   begin
-  if of_FileName =  'system' then of_FileName :=  '' ;
-  if (of_load(UTF8String(OF_FileName)))  then
-  begin
-  uosLoadResult.OPloadERROR := 0;
-  if (uosLoadResult.MPloadERROR = -1) and (uosLoadResult.PAloadERROR = -1) and
-  (uosLoadResult.SFloadERROR = -1) And (uosLoadResult.AAloadERROR = -1)
-  then
-  Result := 0;
-  end
-  else
-  begin
-  uosLoadResult.OPloadERROR := 2;
-  Result := -1;
-  end;
-  end
-  else
-  uosLoadResult.OPloadERROR := -1;
+    if of_FileName =  'system' then of_FileName :=  '' ;
+    if (of_load(UTF8String(OF_FileName)))  then
+    begin
+      uosLoadResult.OPloadERROR := 0;
+      if (uosLoadResult.MPloadERROR = -1) and (uosLoadResult.PAloadERROR = -1) and
+      (uosLoadResult.SFloadERROR = -1) And (uosLoadResult.AAloadERROR = -1)
+      then Result := 0;
+    end else begin
+      uosLoadResult.OPloadERROR := 2;
+      Result := -1;
+    end;
+  end else uosLoadResult.OPloadERROR := -1;
   {$endif}
   
-   if Result = 0 then  Result := InitLib();
+  if Result = 0 then  Result := InitLib();
 end;
 
 
@@ -9911,7 +9879,7 @@ function uos_loadlib(PortAudioFileName, SndFileFileName, Mpg123FileName, Mp4ffFi
   uosInit.AA_FileName:= FaadFileName;
   uosInit.M4_FileName:= Mp4ffFileName;
   uosInit.OF_FileName:= opusfileFileName;
-  
+
   result := uosInit.loadlib ;
   end;
   
