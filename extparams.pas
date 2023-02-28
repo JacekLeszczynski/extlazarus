@@ -119,7 +119,6 @@ begin
           w:=ParamStr(i+1);
           if w[1]<>'-' then
           begin
-            writeln(4);
             list2.Add(w);
             inc(i);
           end else list2.Add('');

@@ -72,7 +72,7 @@ type
   TComparisonFunc = function(const A, B: Pointer): Integer;
 
 const
-    ECODE_ENGINE = 'DYNAMIC';
+  ECODE_ENGINE = 'DYNAMIC';
 
 var
   _FF: string[1];
@@ -202,6 +202,17 @@ function StrToDCurr(s1:string; var s2:string):double;
 function AToI(s:string):integer;
 function GToS(d:double;l:integer):string;
 procedure QSort(base: pointer; num, size: NativeUInt; compare_func: TComparisonFunc); cdecl; external 'libecode_c.so' name 'fQSort';
+{ ----------------------- KOD 03 ------------------------------- }
+procedure SetSizeData(aSize: integer);
+procedure ClearData;
+function CountData: integer;
+function GetErrorCode: integer;
+function GetErrorMessage: string;
+function GetLiveChatId(aVideoId,aApiKey: string; var aResult: string): integer;
+function GetLiveChatAll(aVideoId,aApiKey: string; var aResult: string): integer;
+function GetLiveChatText(aChatId,aApiKey: string; var aPollingIntervalMillis,aDataLen: integer): boolean;
+function GetDataLiveChatText(aIndex: integer; var aNick,aMessage: string; var aDateTime: TDateTime; var aImageUrl: string; var hasDisplayContent,isVerified,isChatOwner,isChatSponsor,isChatModerator: boolean): boolean;
+
 
 {$IFDEF UNIX}
 {$ELSE}
@@ -234,6 +245,7 @@ var
   ConfigGlobalDirectory: string = '';
   MyDirectory: string = '';
 
+function fSetSizeMem(var aResult: pchar; aSize: integer): integer; cdecl; external 'libecode_c' name 'fSetSizeMem';
 function fDecimalPoint: char; cdecl; external 'libecode.so' name 'fDecimalPoint';
 function GET_FF: char; cdecl; external 'libecode.so' name '_FF';
 function fGetLineToStr(aStr: Pchar; l: integer; separator,textseparator: char; wynik: pchar; var wartosc: pchar): integer; cdecl; external 'libecode_c' name 'fGetLineToStr';
@@ -245,6 +257,9 @@ function fStrToD(aStr: Pchar; var reszta: Pchar): double; cdecl; external 'libec
 function fAToI(aStr: pchar): integer; cdecl; external 'libecode_c' name 'fAToI';
 function fGToS(d: double; l: integer; var wynik: pchar): integer; cdecl; external 'libecode_c' name 'fGToS';
 function fStringToDate(str: pchar): double; cdecl; external 'libecode_c' name 'fStringToDate';
+function fGetLiveChatId(aVideoId,aApiKey: pchar; var wartosc: pchar; var len: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatId';
+function fGetLiveChatAll(aVideoId,aApiKey: pchar; var wartosc: pchar; var len: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatAll';
+function fGetLiveChatText(aChatId,aApiKey: pchar; var aPageToken: pchar; var aPageTokenLen: integer; var aDane: pchar; var aLen,aPollingIntervalMillis: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatText';
 //function fStringToItemIndex(var slist: pchar; kod: pchar; wart_domyslna: integer): integer; cdecl; external 'libecode_c' name 'fStringToItemIndex';
 
 function GetLocaleDefault(res_out: integer): string;
@@ -260,7 +275,12 @@ type
   PPBuffer256 = ^TTBuffer256;
 
 var
-  ppp: pchar;
+  wewn_output_data: TStrings;
+  ppp,wewn_page_token,wewn_data: pchar;
+  wewn_page_token_len: integer = 0;
+  wewn_data_len: integer = 0;
+  wewn_error_message: string;
+  wewn_error_code: integer;
 
 function IntegerToTime(czas: longword; no_milisecond: boolean): TDateTime;
 begin
@@ -501,6 +521,110 @@ begin
   SetString(result,ppp,len);
 end;
 
+{ ----------------------- KOD 03 ------------------------------- }
+
+procedure SetSizeData(aSize: integer);
+begin
+  wewn_data_len:=fSetSizeMem(&wewn_data,aSize);
+end;
+
+procedure ClearData;
+begin
+  wewn_output_data.Clear;
+end;
+
+function CountData: integer;
+begin
+  result:=wewn_output_data.Count;
+end;
+
+function GetErrorCode: integer;
+begin
+  result:=wewn_error_code;
+end;
+
+function GetErrorMessage: string;
+begin
+  result:=wewn_error_message;
+end;
+
+function GetLiveChatId(aVideoId, aApiKey: string; var aResult: string): integer;
+var
+  len: integer;
+begin
+  result:=fGetLiveChatId(pchar(aVideoId),pchar(aApiKey),&ppp,&len);
+  SetString(aResult,ppp,len);
+end;
+
+function GetLiveChatAll(aVideoId, aApiKey: string; var aResult: string
+  ): integer;
+var
+  len: integer;
+begin
+  result:=fGetLiveChatAll(pchar(aVideoId),pchar(aApiKey),&ppp,&len);
+  SetString(aResult,ppp,len);
+end;
+
+function GetLiveChatText(aChatId, aApiKey: string; var aPollingIntervalMillis,
+  aDataLen: integer): boolean;
+var
+  ile,i: integer;
+  ss,s: string;
+begin
+  ile:=fGetLiveChatText(pchar(aChatId),pchar(aApiKey),&wewn_page_token,&wewn_page_token_len,&wewn_data,&wewn_data_len,&aPollingIntervalMillis);
+  aDataLen:=wewn_data_len;
+  SetString(ss,wewn_data,wewn_data_len);
+  if ile<0 then
+  begin
+    wewn_error_code:=ile;
+    if wewn_error_code<0 then wewn_error_code:=wewn_error_code*(-1);
+    wewn_error_message:=ss;
+    result:=false;
+    exit;
+  end;
+  wewn_output_data.Clear;
+  for i:=1 to ile do
+  begin
+    s:=trim(GetLineToStr(ss,i,#2));
+    if s<>'' then wewn_output_data.Add(s);
+  end;
+  result:=true;
+end;
+
+//2023-02-27T17:36:32.100483+00:00 --> TDateTime
+function GmtStrToDateTime(aStr: string): TDateTime;
+begin
+  result:=StrToDateTime(aStr);
+end;
+
+function GetDataLiveChatText(aIndex: integer; var aNick, aMessage: string;
+  var aDateTime: TDateTime; var aImageUrl: string; var hasDisplayContent,
+  isVerified, isChatOwner, isChatSponsor, isChatModerator: boolean): boolean;
+var
+  s: string;
+begin
+  try
+    s:=wewn_output_data[aIndex];
+    aNick:=GetLineToStr(s,1,#1);
+    aMessage:=GetLineToStr(s,2,#1);
+    aDateTime:=GmtStrToDateTime(GetLineToStr(s,3,#1));
+    aImageUrl:=GetLineToStr(s,4,#1);
+    hasDisplayContent:=GetLineToStr(s,5,#1)='1';
+    isVerified:=GetLineToStr(s,6,#1)='1';
+    isChatOwner:=GetLineToStr(s,7,#1)='1';
+    isChatSponsor:=GetLineToStr(s,8,#1)='1';
+    isChatModerator:=GetLineToStr(s,9,#1)='1';
+    result:=true;
+  except
+    on E: Exception do
+    begin
+      wewn_error_message:=E.Message;
+      wewn_error_code:=999;
+      result:=false;
+    end;
+  end;
+end;
+
 {$IFDEF UNIX}
 {$ELSE}
 
@@ -619,9 +743,15 @@ begin
 end;
 
 initialization
+  wewn_output_data:=TStringList.Create;
   ppp:=nil;
+  wewn_page_token:=nil;
+  wewn_data:=nil;
   GlobalDecimalPoint:=fDecimalPoint;
   _FF:=GET_FF;
 finalization
+  wewn_output_data.Free;
   if ppp<>nil then StrDispose(ppp);
+  if wewn_page_token<>nil then StrDispose(wewn_page_token);
+  if wewn_data<>nil then StrDispose(wewn_data);
 end.

@@ -83,7 +83,7 @@ procedure Register;
 implementation
 
 uses
-  ssl_openssl, ssl_openssl_lib, lconvencoding;
+  ecode_unit, ssl_openssl, ssl_openssl_lib, lconvencoding, fpjson, jsonparser;
   //, synaicnv, synachar;
 
 procedure Register;
