@@ -15,7 +15,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="58">
+    <Files Count="59">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -301,6 +301,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="AboutScrolltextunit"/>
       </Item58>
+      <Item59>
+        <Filename Value="livechat.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="LiveChat"/>
+      </Item59>
     </Files>
     <i18n>
       <EnableI18N Value="True"/>

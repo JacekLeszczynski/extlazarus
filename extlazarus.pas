@@ -19,7 +19,7 @@ uses
   GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
   ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, 
   Upnp, YoutubeDownloader, StringsList, VideoConvert, ScrollingText, 
-  AboutScrolltextunit, LazarusPackageIntf;
+  AboutScrolltextunit, LiveChat, LazarusPackageIntf;
 
 implementation
 
@@ -77,6 +77,7 @@ begin
   RegisterUnit('VideoConvert', @VideoConvert.Register);
   RegisterUnit('ScrollingText', @ScrollingText.Register);
   RegisterUnit('AboutScrolltextunit', @AboutScrolltextunit.Register);
+  RegisterUnit('LiveChat', @LiveChat.Register);
 end;
 
 initialization
