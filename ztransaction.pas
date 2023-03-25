@@ -5,7 +5,7 @@ unit ZTransaction;
 interface
 
 uses
-  Classes, SysUtils, LResources, ZConnection, ZDbcIntfs, ZDataset;
+  Classes, SysUtils, ExtCtrls, LResources, ZConnection, ZDbcIntfs, ZDataset;
 
 type
 
@@ -14,8 +14,11 @@ type
   TZTransaction = class(TComponent)
   private
     ac: boolean;
+    FPing: integer;
+    timer: TTimer;
     FDatabase: TZConnection;
     FTransactIsolationLevel: TZTransactIsolationLevel;
+    procedure _ping(Sender: TObject);
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -28,9 +31,15 @@ type
     function SqlitePragmaForeignKeys: boolean;
     procedure SqlitePragmaForeignKeys(aOn: boolean);
     function GetLastId: integer;
+    function PingStart: boolean;
+    procedure PingStop;
   published
     property Database: TZConnection read FDatabase write FDatabase;
     property IsolationLevel: TZTransactIsolationLevel read FTransactIsolationLevel write FTransactIsolationLevel default tiReadCommitted;
+    //Podtrzymanie połączenia:
+    //Wysyłanie tzw. pinga co N minut.
+    //0 - Wyłączone.
+    property PingConnections: integer read FPing write FPing default 0;
   end;
 
 procedure Register;
@@ -51,14 +60,24 @@ end;
 
 { TZTransaction }
 
+procedure TZTransaction._ping(Sender: TObject);
+begin
+  if FDatabase.Connected then FDatabase.ExecuteDirect('select now()');
+end;
+
 constructor TZTransaction.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  timer:=TTimer.Create(self);
+  timer.Enabled:=false;
+  timer.OnTimer:=@_ping;
   FTransactIsolationLevel:=tiReadCommitted;
+  FPing:=0;
 end;
 
 destructor TZTransaction.Destroy;
 begin
+  timer.Free;
   inherited Destroy;
 end;
 
@@ -156,6 +175,21 @@ begin
     q1.Free;
   end;
   result:=a;
+end;
+
+function TZTransaction.PingStart: boolean;
+begin
+  if FPing>0 then
+  begin
+    timer.Interval:=FPing*60*1000;
+    timer.Enabled:=FDatabase.Connected;
+  end else timer.Enabled:=false;
+  result:=timer.Enabled;
+end;
+
+procedure TZTransaction.PingStop;
+begin
+  timer.Enabled:=false;
 end;
 
 { TZTransaction }

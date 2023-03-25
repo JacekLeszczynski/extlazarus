@@ -131,6 +131,7 @@ begin
     begin
       s:=trim(bufor[i]);
       if s='========== live ===========' then continue;
+      //writeln('BUFOR: ',s);
       if i mod 2 = 0 then
       begin
         //2023-03-01 12:47:23 Zeeshan hdjshdjsd

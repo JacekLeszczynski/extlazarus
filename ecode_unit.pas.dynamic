@@ -103,10 +103,20 @@ function BitIndexToNumber(aIndex: integer): integer; cdecl; external 'libecode.s
 function GetBit(aLiczba,aBitIndex: integer): boolean; cdecl; external 'libecode.so' name 'GetBit';
 procedure SetBit(var aLiczba: integer;aBitIndex: integer;aFlaga: boolean = true); cdecl; external 'libecode.so' name 'SetBit';
 { ----------------------- KOD CRYPTO ----------------------------- }
-function CalcBuffer(aStrLen: longword; aBase: integer): longword; cdecl; external 'libecode.so' name 'CalcBuffer';
+function CalcBuffer(aLen: integer): integer; cdecl; external 'libecode_c.so' name 'fCalcBuffer';
 function CreateString(c:char;l:integer):string; cdecl; external 'libecode.so' name 'CreateString';
-function EncryptString(s,token: string;force_length:integer=0): string; cdecl; external 'libecode.so' name 'EncryptString';
-function DecryptString(s,token: string; trim_spaces: boolean = false): string; cdecl; external 'libecode.so' name 'DecryptString';
+function Base64EncodeBin(const bufor: pointer; len: integer): string;
+function Base64DecodeBin(text: string; var bufor: pointer): integer;
+function Base64EncodeStr(const text: string): string;
+function Base64DecodeStr(const text: string): string;
+function EncryptString(var buf; len: integer; IV,key: string): integer;
+function DecryptString(var buf; len: integer; IV,key: string): integer;
+function EncryptString(var buf; len: integer; key: string): integer;
+function DecryptString(var buf; len: integer; key: string): integer;
+function EncryptStr(text,key: string): string;
+function DecryptStr(text,key: string): string;
+function EncryptBinary(var buf; len: integer; IV,key: string): integer;
+function DecryptBinary(var buf; len: integer; IV,key: string): integer;
 { ----------------------- KOD CZASU ----------------------------- }
 function SecToTime(aSec: longword): double; cdecl; external 'libecode_c.so' name 'fSecToTime';
 function SecToInteger(aSec: longword): longword; cdecl; external 'libecode_c.so' name 'fSecToInteger';
@@ -202,6 +212,10 @@ function StrToDCurr(s1:string; var s2:string):double;
 function AToI(s:string):integer;
 function GToS(d:double;l:integer):string;
 procedure QSort(base: pointer; num, size: NativeUInt; compare_func: TComparisonFunc); cdecl; external 'libecode_c.so' name 'fQSort';
+function ConfigFileOpen(aFileName: string; aSize: integer): boolean;
+function ConfigFileRaw: string;
+function ConfigFileRead(aVar: string; aDefault: string): string;
+procedure ConfigFileClose;
 { ----------------------- KOD 03 ------------------------------- }
 procedure SetSizeData(aSize: integer);
 procedure ClearData;
@@ -248,7 +262,7 @@ var
 function fSetSizeMem(var aResult: pchar; aSize: integer): integer; cdecl; external 'libecode_c' name 'fSetSizeMem';
 function fDecimalPoint: char; cdecl; external 'libecode.so' name 'fDecimalPoint';
 function GET_FF: char; cdecl; external 'libecode.so' name '_FF';
-function fGetLineToStr(aStr: Pchar; l: integer; separator,textseparator: char; wynik: pchar; var wartosc: pchar): integer; cdecl; external 'libecode_c' name 'fGetLineToStr';
+function fGetLineToStr(aStr: Pchar; l: integer; separator,textseparator: char; wynik: pchar; var wartosc: pchar; var wartosc_len: integer): integer; cdecl; external 'libecode_c' name 'fGetLineToStr';
 function fGetLineCount(aStr: Pchar; separator,textseparator: char): integer; cdecl; external 'libecode_c' name 'fGetLineCount';
 function fIsSpace(c: char): integer; cdecl; external 'libecode_c' name 'fIsSpace';
 function fIsDigit(c: char): integer; cdecl; external 'libecode_c' name 'fIsDigit';
@@ -260,6 +274,18 @@ function fStringToDate(str: pchar): double; cdecl; external 'libecode_c' name 'f
 function fGetLiveChatId(aVideoId,aApiKey: pchar; var wartosc: pchar; var len: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatId';
 function fGetLiveChatAll(aVideoId,aApiKey: pchar; var wartosc: pchar; var len: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatAll';
 function fGetLiveChatText(aChatId,aApiKey: pchar; var aPageToken: pchar; var aPageTokenLen: integer; var aDane: pchar; var aLen,aPollingIntervalMillis: integer): integer; cdecl; external 'libecode_c' name 'fGetLiveChatText';
+function fEncryptString(var buf: pchar; len: integer; IV,key: pchar): integer; cdecl; external 'libecode_c.so' name 'fEncryptString';
+function fDecryptString(var buf: pchar; len: integer; IV,key: pchar): integer; cdecl; external 'libecode_c.so' name 'fDecryptString';
+function fEncryptBinary(var buf: pchar; len: integer; IV,key: pchar): integer; cdecl; external 'libecode_c.so' name 'fEncryptBinary';
+function fDecryptBinary(var buf: pchar; len: integer; IV,key: pchar): integer; cdecl; external 'libecode_c.so' name 'fDecryptBinary';
+function fEncryptStringOnlyPassword(var buf: pchar; len: integer; key: pchar): integer; cdecl; external 'libecode_c.so' name 'fEncryptStringOnlyPassword';
+function fDecryptStringOnlyPassword(var buf: pchar; len: integer; key: pchar): integer; cdecl; external 'libecode_c.so' name 'fDecryptStringOnlyPassword';
+function fBase64EncodeBin(const bufor: pchar; len: integer): pchar; cdecl; external 'libecode_c.so' name 'fBase64EncodeBin';
+function fBase64DecodeBin(const text: pchar; var bufor: pchar): integer; cdecl; external 'libecode_c.so' name 'fBase64DecodeBin';
+function fEncryptStr(text,key: pchar): pchar; cdecl; external 'libecode_c.so' name 'fEncryptStr';
+function fDecryptStr(text,key: pchar): pchar; cdecl; external 'libecode_c.so' name 'fDecryptStr';
+function fReadConfigFile(const filename: pchar; buffer: pchar; buffer_size: integer): integer; cdecl; external 'libecode_c.so' name 'fReadConfigFile';
+function fReadConfigFileString(elementy, element: pchar): pchar; cdecl; external 'libecode_c.so' name 'fReadConfigFileString';
 //function fStringToItemIndex(var slist: pchar; kod: pchar; wart_domyslna: integer): integer; cdecl; external 'libecode_c' name 'fStringToItemIndex';
 
 function GetLocaleDefault(res_out: integer): string;
@@ -276,11 +302,129 @@ type
 
 var
   wewn_output_data: TStrings;
-  ppp,wewn_page_token,wewn_data: pchar;
+  ppp,wewn_page_token,wewn_data,wewn_config_file: pchar;
+  ppp_len: integer = 0;
   wewn_page_token_len: integer = 0;
   wewn_data_len: integer = 0;
   wewn_error_message: string;
   wewn_error_code: integer;
+  wewn_config_file_len: integer = 0;
+
+function Base64EncodeBin(const bufor: pointer; len: integer): string;
+var
+  pout: pchar;
+begin
+  pout:=fBase64EncodeBin(bufor,len);
+  try
+    result:=StrPas(pout);
+  finally
+    StrDispose(pout);
+  end;
+end;
+
+function Base64DecodeBin(text: string; var bufor: pointer): integer;
+begin
+  result:=fBase64DecodeBin(pchar(text),&bufor);
+end;
+
+function Base64EncodeStr(const text: string): string;
+var
+  pout: pchar;
+begin
+  pout:=fBase64EncodeBin(pchar(text),length(text));
+  try
+    result:=StrPas(pout);
+  finally
+    StrDispose(pout);
+  end;
+end;
+
+function Base64DecodeStr(const text: string): string;
+var
+  p: pchar = nil;
+  l: integer;
+begin
+  l:=fBase64DecodeBin(pchar(text),&p);
+  try
+    result:=StrPas(p);
+  finally
+    StrDispose(p);
+  end;
+end;
+
+function EncryptString(var buf; len: integer; IV, key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fEncryptString(p,len,pchar(IV),pchar(key));
+end;
+
+function DecryptString(var buf; len: integer; IV, key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fDecryptString(p,len,pchar(IV),pchar(key));
+end;
+
+function EncryptString(var buf; len: integer; key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fEncryptStringOnlyPassword(p,len,pchar(key));
+end;
+
+function DecryptString(var buf; len: integer; key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fDecryptStringOnlyPassword(p,len,pchar(key));
+end;
+
+function EncryptStr(text, key: string): string;
+var
+  s: string;
+  p: pchar;
+begin
+  p:=fEncryptStr(pchar(text),pchar(key));
+  try
+    result:=StrPas(p);
+  finally
+    StrDispose(p);
+  end;
+end;
+
+function DecryptStr(text, key: string): string;
+var
+  s: string;
+  p: pchar;
+begin
+  p:=fDecryptStr(pchar(text),pchar(key));
+  try
+    result:=StrPas(p);
+  finally
+    StrDispose(p);
+  end;
+end;
+
+function EncryptBinary(var buf; len: integer; IV, key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fEncryptBinary(p,len,pchar(IV),pchar(key));
+end;
+
+function DecryptBinary(var buf; len: integer; IV, key: string): integer;
+var
+  p: ^char;
+begin
+  p:=@buf;
+  result:=fDecryptBinary(p,len,pchar(IV),pchar(key));
+end;
 
 function IntegerToTime(czas: longword; no_milisecond: boolean): TDateTime;
 begin
@@ -301,7 +445,7 @@ function GetLineToStr(const S: string; N: Integer; const Delims: Char;
 var
   len: SizeInt;
 begin
-  len:=fGetLineToStr(pchar(S),N,Delims,textseparator,pchar(wynik),&ppp);
+  len:=fGetLineToStr(pchar(S),N,Delims,textseparator,pchar(wynik),&ppp,&ppp_len);
   SetString(result,ppp,len);
 end;
 
@@ -522,6 +666,51 @@ begin
 end;
 
 { ----------------------- KOD 03 ------------------------------- }
+
+function ConfigFileOpen(aFileName: string; aSize: integer): boolean;
+var
+  size: integer;
+begin
+  if wewn_config_file<>nil then
+  begin
+    result:=false;
+    exit;
+  end;
+  wewn_config_file:=StrAlloc(aSize);
+  wewn_config_file_len:=aSize;
+  size:=fReadConfigFile(pchar(aFileName),&wewn_config_file,&wewn_config_file_len);
+  result:=true;
+end;
+
+function ConfigFileRaw: string;
+var
+  s: string;
+begin
+  s:=StrPas(wewn_config_file);
+  result:=s;
+end;
+
+function ConfigFileRead(aVar: string; aDefault: string): string;
+var
+  p: pchar = nil;
+begin
+  p:=fReadConfigFileString(wewn_config_file,pchar(aVar));
+  if p=nil then
+  begin
+    result:=aDefault;
+  end else begin
+    result:=StrPas(p);
+    StrDispose(p);
+  end;
+end;
+
+procedure ConfigFileClose;
+begin
+  if wewn_config_file=nil then exit;
+  StrDispose(wewn_config_file);
+  wewn_config_file:=nil;
+  wewn_config_file_len:=0;
+end;
 
 procedure SetSizeData(aSize: integer);
 begin
@@ -745,13 +934,35 @@ end;
 initialization
   wewn_output_data:=TStringList.Create;
   ppp:=nil;
+  ppp_len:=0;
   wewn_page_token:=nil;
   wewn_data:=nil;
   GlobalDecimalPoint:=fDecimalPoint;
   _FF:=GET_FF;
+  wewn_config_file:=nil;
+  wewn_config_file_len:=0;
 finalization
   wewn_output_data.Free;
-  if ppp<>nil then StrDispose(ppp);
-  if wewn_page_token<>nil then StrDispose(wewn_page_token);
-  if wewn_data<>nil then StrDispose(wewn_data);
+  if ppp<>nil then
+  begin
+    StrDispose(ppp);
+    ppp:=nil;
+    ppp_len:=0;
+  end;
+  if wewn_config_file<>nil then
+  begin
+    StrDispose(wewn_config_file);
+    wewn_config_file:=nil;
+    wewn_config_file_len:=0;
+  end;
+  if wewn_page_token<>nil then
+  begin
+    StrDispose(wewn_page_token);
+    wewn_page_token:=nil;
+  end;
+  if wewn_data<>nil then
+  begin
+    StrDispose(wewn_data);
+    wewn_data:=nil;
+  end;
 end.

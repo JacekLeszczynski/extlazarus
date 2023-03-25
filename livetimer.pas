@@ -20,8 +20,8 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     //destructor Destroy; override;
-    procedure Start(time_index_start: integer = 0);
-    procedure Stop;
+    function Start(time_index_start: integer = 0): integer;
+    function Stop: integer;
     function GetIndexTime: integer;
     function GetIndexStartTime: integer;
     procedure SetIndexStartTime(aTimeIndexStart: integer);
@@ -52,18 +52,20 @@ begin
   FCorrection:=0;
 end;
 
-procedure TLiveTimer.Start(time_index_start: integer);
+function TLiveTimer.Start(time_index_start: integer): integer;
 begin
   if FActive then exit;
   if time_index_start=0 then czas_start:=TimeToInteger else czas_start:=time_index_start;
   FActive:=true;
+  result:=czas_start;
 end;
 
-procedure TLiveTimer.Stop;
+function TLiveTimer.Stop: integer;
 begin
   if not FActive then exit;
   czas_start:=0;
   FActive:=false;
+  result:=czas_start;
 end;
 
 function TLiveTimer.GetIndexTime: integer;
