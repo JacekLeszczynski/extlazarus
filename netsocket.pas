@@ -93,7 +93,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function Connect: boolean;
-    procedure Disconnect(aForce: boolean = false);
+    procedure Disconnect;
     {Wysyłanie danych tekstowych, oraz danych binarnych w trybie Mixed}
     function SendString(const aMessage: string; aBlock: pointer = nil; aBlockSize: integer = 0; aSocket: TLSocket = nil): integer;
     function SendString(const aMessage: string; aSocket: TLSocket): integer;
@@ -494,7 +494,7 @@ begin
   FReuseAddress:=false;
   FUDPBroadcast:=false;
   FMaxBuffer:=65535;
-  FSSLMethod:=msSSLv2or3;
+  FSSLMethod:=msTLS; //msSSLv2or3;
   FTimeout:=4;
   buffer_client:=TMemoryStream.Create;
   CreatePipeStreams(pipein,pipeout);
@@ -502,13 +502,13 @@ end;
 
 destructor TNetSocket.Destroy;
 begin
+  if FActive then Disconnect;
   pipein.Free;
   pipeout.Free;
   buffer_client.Free;
   TabKeys.Free;
   TabSocket.Free;
   TabSocketKeys.Free;
-  if FActive then Disconnect(true);
   inherited Destroy;
 end;
 
@@ -532,7 +532,7 @@ begin
   end else begin
     udp:=TLUDPComponent.Create(nil);
     udp.Timeout:=0;
-    udp.ReuseAddress:=FReuseAddress;
+    //udp.ReuseAddress:=FReuseAddress;
     if Assigned(FOnCanSend) then udp.OnCanSend:=@_OnCanSend;
     udp.OnDisconnect:=@_OnDisconnect;
     udp.OnError:=@_OnError;
@@ -591,10 +591,10 @@ begin
   result:=FActive;
 end;
 
-procedure TNetSocket.Disconnect(aForce: boolean);
+procedure TNetSocket.Disconnect;
 begin
   if not FActive then exit;
-  if FProto=spTCP then tcp.Disconnect(aForce) else udp.Disconnect(aForce);
+  if FProto=spTCP then tcp.Disconnect(true) else udp.Disconnect(true);
   sleep(250);
   if FSecurity=ssSSL then ssl.Free;
   if FProto=spTCP then tcp.Free else udp.Free;

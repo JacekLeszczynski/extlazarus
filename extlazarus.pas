@@ -17,9 +17,9 @@ uses
   UOSPlayer, SoundPlayer, ConsMixer, ExtShutdown, NetSynHTTP, LiveTimer, 
   MPlayerCtrl, ArchitectureOSInfo, NetSocket, NetSynWebSocket, Polfan, 
   GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
-  ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, ecode_unit, list_unit, 
-  Upnp, YoutubeDownloader, StringsList, VideoConvert, ScrollingText, 
-  AboutScrolltextunit, LiveChat, LazarusPackageIntf;
+  ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, list_unit, Upnp, 
+  YoutubeDownloader, StringsList, VideoConvert, ScrollingText, 
+  AboutScrolltextunit, LiveChat, ChatGPT, LazarusPackageIntf;
 
 implementation
 
@@ -78,6 +78,7 @@ begin
   RegisterUnit('ScrollingText', @ScrollingText.Register);
   RegisterUnit('AboutScrolltextunit', @AboutScrolltextunit.Register);
   RegisterUnit('LiveChat', @LiveChat.Register);
+  RegisterUnit('ChatGPT', @ChatGPT.Register);
 end;
 
 initialization

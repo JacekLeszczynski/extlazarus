@@ -11,6 +11,7 @@ type
 
   { TLiveChat }
 
+  TLiveChatService = (svYoutube, svRumble);
   TLiveOnReceive = procedure(aTime: TDateTime; aNick,aMessage: string) of object;
   TLiveOnIsActive = procedure(aIsActive: boolean) of object;
   TLiveOnOpenIsError = procedure(IsError: boolean; aClassNameError,aMessageError: string) of object;
@@ -31,6 +32,7 @@ type
     FOnStart: TNotifyEvent;
     FOnStop: TNotifyEvent;
     FReStarting: boolean;
+    FService: TLiveChatService;
     FVideoID: string;
     czas: TDateTime;
     nick,message: string;
@@ -53,6 +55,8 @@ type
   published
     //Działanie komponentu.
     property Running: boolean read FRunning default false;
+    //Wybór serwisu.
+    property Service: TLiveChatService read FService write FService default svYoutube;
     //W razie błędu nastąpi automatyczna reaktywacja.
     property ReStarting: boolean read FReStarting write FReStarting default false;
     //VideoID wklejany z paska adresu filmu.
@@ -194,6 +198,7 @@ constructor TLiveChat.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FRunning:=false;
+  FService:=svYoutube;
   FReStarting:=false;
   FVideoID:='';
   FPipeBufferSize:=1024;

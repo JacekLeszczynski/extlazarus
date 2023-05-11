@@ -16,6 +16,7 @@ type
     { Private declarations }
     dbsql: string;
     FDB,sdb: TZConnection;
+    FDictTables: TStrings;
     FZnacznikCzasu: boolean;
     q1,q2,qq: TZQuery;
     sq1,sq2: TZQuery;
@@ -23,13 +24,20 @@ type
     procedure StartTransaction;
     procedure Commit;
     procedure Rollback;
+    //procedure SetAutoincrement;
     function odczytaj_znacznik_czasu(s: string; var czas: TDateTime): boolean;
     function sync_delete:boolean;
+    function sync_delete_sqlite:boolean;
+    function sync_delete_sqlite_2:boolean;
     function sync_table:boolean;
     function test_ref(nazwa:string;cialo:TStrings):boolean;
     function test_table(indeks:integer;nazwa:string;cialo:TStrings):boolean;
     function akt_table(nazwa:string;s1,s2:TStrings):boolean;
     function sync_event:boolean;
+    function sync_slow:boolean;
+    (* do sqlite *)
+    function PragmaForeignKeys: boolean;
+    procedure PragmaForeignKeys(aOn: boolean);
   protected
     { Protected declarations }
   public
@@ -37,15 +45,21 @@ type
     err: integer;
     error: string;
     log: TStringList;
+    sqlite: boolean;
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure init;
     procedure ShowTables(tables: TStrings);
+    procedure ShowTablesSqlite(aBody: TStrings);
+    procedure ShowViewsSqlite(aBody: TStrings);
+    procedure ShowIndexesSqlite(aBody: TStrings);
     procedure ShowTriggers(nazwa,cialo: TStrings);
     procedure ShowFunctions(nazwa,cialo: TStrings);
     procedure ShowProcedures(nazwa,cialo: TStrings);
     procedure ShowCreateTable(table: string; schema: TStrings);
     procedure ShowCreateTable(table: string; var schema: string);
+    procedure ShowCreateViewSqlite(aView: string; var aWektor: string; aBody: TStrings);
+    procedure ShowCreateViewSqlite(aView: string; aBody: TStrings);
     procedure SaveSchema;
     function SyncSchema:boolean;
   published
@@ -53,6 +67,9 @@ type
     property DB_Connection: TZConnection read FDB write FDB;
     property StructFileName: string read dbsql write dbsql;
     property ZnacznikCzasu: boolean read FZnacznikCzasu write FZnacznikCzasu default false;
+    //Podajemy nazwy tabel słownikowych w formacie:
+    //tabela[:indeks]
+    property DictionaryTables: TStrings read FDictTables write FDictTables;
   end;
 
 procedure Register;
@@ -60,7 +77,7 @@ procedure Register;
 implementation
 
 uses
-  ecode_unit, ZDbcIntfs, ZScriptParser;
+  ecode_unit, ZDbcIntfs, ZScriptParser, ZCompatibility;
 
 procedure Register;
 begin
@@ -87,6 +104,26 @@ begin
   sdb.Rollback;
   sdb.TransactIsolationLevel:=tiNone;
 end;
+
+{procedure TDBSchemaSync.SetAutoincrement;
+var
+  q: TZQuery;
+begin
+  q:=TZQuery.Create(self);
+  q.Connection:=qdata.Connection;
+  q.SQL.Add('ALTER TABLE '+io_tablename+' AUTO_INCREMENT=:ai');
+  q.ParamByName('ai').AsLargeInt:=SpinEdit1.Value;
+  try
+    try
+      q.ExecSQL;
+    except
+      mess.ShowInformation('Ustawienie odrzucone z powodu błędu.');
+      GetAutoIncrement;
+    end;
+  finally
+    q.Free;
+  end;
+end;}
 
 function TDBSchemaSync.odczytaj_znacznik_czasu(s: string; var czas: TDateTime
   ): boolean;
@@ -258,6 +295,133 @@ begin
   finally
     v1.Clear;
     v2.Clear;
+  end;
+  result:=true;
+end;
+
+function TDBSchemaSync.sync_delete_sqlite: boolean;
+var
+  i: integer;
+  v1: TStringList;
+  s: string;
+begin
+  (* usuwamy ze struktury objekty nie istniejące w bazie wzorcowej *)
+  v1:=TStringList.Create;
+  try
+    (* widoki *)
+    ShowViewsSqlite(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select count(id) from tabele where nazwa=:nazwa and typ=3');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsInteger=0 then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop view '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania podglądu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* indeksy *)
+    ShowIndexesSqlite(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select count(id) from tabele where nazwa=:nazwa and typ=2');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsInteger=0 then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop index '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania indeksu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* tabele *)
+    ShowTables(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select count(id) from tabele where nazwa=:nazwa and typ=1');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsInteger=0 then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop table '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania tabeli: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* WSZYSTKO *)
+  finally
+    v1.Free;
+  end;
+  result:=true;
+end;
+
+function TDBSchemaSync.sync_delete_sqlite_2: boolean;
+var
+  i: integer;
+  v1,v2: TStringList;
+  s: string;
+begin
+  (* usuwamy ze struktury objekty nie istniejące w bazie wzorcowej *)
+  v1:=TStringList.Create;
+  v2:=TStringList.Create;
+  try
+    (* widoki *)
+    ShowViewsSqlite(v1);
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select definicja from tabele where nazwa=:nazwa and typ=3');
+    sq1.Prepare;
+    for i:=0 to v1.Count-1 do
+    begin
+      ShowCreateViewSqlite(v1[i],v2);
+      sq1.ParamByName('nazwa').AsString:=v1[i];
+      sq1.Open;
+      if sq1.Fields[0].AsString<>v2.Text then
+      begin
+        qq.SQL.Clear;
+        qq.SQL.Add('drop view '+v1[i]);
+        try
+          qq.ExecSQL;
+        except
+          log.Add('SYNC-DELETE: Błąd podczas usuwania podglądu: ['+v1[i]+']:'+#10#13+qq.SQL.Text);
+          result:=false;
+          exit;
+        end;
+      end;
+      sq1.Close;
+    end;
+    (* WSZYSTKO *)
+  finally
+    v1.Free;
+    v2.Free;
   end;
   result:=true;
 end;
@@ -750,9 +914,174 @@ begin
   result:=b;
 end;
 
+function _StrToDate(s: string): TDate;
+var
+  fs: TFormatSettings;
+begin
+  fs.ShortDateFormat:='y/m/d';
+  fs.DateSeparator:='-';
+  result:=StrToDate(s,fs);
+end;
+
+function _StrToTime(str: string): TDate;
+var
+  h,m,s,ms: word;
+begin
+  str:=trim(str);
+  h:=StrToInt(copy(str,1,2));
+  m:=StrToInt(copy(str,4,2));
+  s:=StrToInt(copy(str,7,2));
+  ms:=0;
+  result:=EncodeTime(h,m,s,ms);
+end;
+
+function _StrToDateTime(str: string): TDate;
+var
+  yy,mm,dd: word;
+  h,m,s,ms: word;
+begin
+  str:=trim(str);
+  yy:=StrToInt(copy(str,1,4));
+  mm:=StrToInt(copy(str,6,2));
+  dd:=StrToInt(copy(str,9,2));
+  h:=StrToInt(copy(str,12,2));
+  m:=StrToInt(copy(str,15,2));
+  s:=StrToInt(copy(str,18,2));
+  ms:=0;
+  result:=EncodeDate(yy,mm,dd)+EncodeTime(h,m,s,ms);
+end;
+
+function TDBSchemaSync.sync_slow: boolean;
+var
+  nazwa,indeks,definicja,wartosc: string;
+  indeksy: TStringList;
+  i,max,j: integer;
+  s,w: string;
+  b: boolean;
+begin
+  indeksy:=TStringList.Create;
+  try
+    (* dodanie/aktualizacja istniejących rekordów *)
+    sq1.SQL.Clear;
+    sq1.SQL.Add('select nazwa,indeks,definicja from slowniki');
+    sq1.SQL.Add('order by id');
+    sq1.Open;
+    while not sq1.EOF do
+    begin
+      indeksy.Clear;
+      nazwa:=sq1.FieldByName('nazwa').AsString;
+      indeks:=sq1.FieldByName('indeks').AsString;
+      definicja:=trim(sq1.FieldByName('definicja').AsString);
+      (* BEGIN *)
+      q1.SQL.Clear;
+      q1.SQL.Add('select count(*) from '+nazwa);
+      q1.Open;
+      b:=q1.Fields[0].AsInteger=0;
+      q1.Close;
+      if b then
+      begin
+        q1.SQL.Clear;
+        q1.SQL.Add('select * from '+nazwa);
+        //if indeks<>'' then q1.SQL.Add('order by '+indeks);
+        q1.Open;
+        max:=GetLineCount(definicja,';');
+
+        q2.SQL.Clear;
+        q2.SQL.Add('insert into '+nazwa);
+        q2.SQL.Add('(');
+        for i:=0 to q1.Fields.Count-1 do
+        begin
+          if i>0 then q2.SQL.Add(',');
+          q2.SQL.Add(q1.Fields[i].FieldName);
+        end;
+        q2.SQL.Add(')');
+        q2.SQL.Add('values');
+        q2.SQL.Add('(');
+        for i:=0 to q1.Fields.Count-1 do
+        begin
+          if i>0 then q2.SQL.Add(',');
+          q2.SQL.Add(':'+q1.Fields[i].FieldName);
+        end;
+        q2.SQL.Add(')');
+        q2.Prepare;
+        q1.Close;
+
+        for i:=1 to max do
+        begin
+          s:=GetLineToStr(definicja,i,';');
+          if s='' then continue;
+
+          for j:=0 to q2.Params.Count-1 do
+          begin
+            w:=GetLineToStr(s,j+1,',');
+            if w='' then continue;
+            w:=StringReplace(w,'{$1}',',',[rfReplaceAll]);
+            w:=StringReplace(w,'{$2}',';',[rfReplaceAll]);
+            //if q1.Params[j].Name=indeks then wartosc:=w;
+            try
+              if q2.Params[j].DataType=ftDate then q2.Params[j].AsDate:=_StrToDate(w) else
+              if q2.Params[j].DataType=ftTime then q2.Params[j].AsTime:=_StrToTime(w) else
+              if q2.Params[j].DataType=ftDateTime then q2.Params[j].AsDateTime:=_StrToDateTime(w) else
+              if q2.Params[j].DataType=ftTimeStamp then q2.Params[j].AsDateTime:=_StrToDateTime(w) else
+              q2.Params[j].AsString:=w;
+            except
+              on E: Exception do log.Add('j = '+IntToStr(j)+' w = '+w+' Error = '+E.Message);
+            end;
+          end;
+          try
+            q2.ExecSQL;
+          except
+            on E: Exception do log.Add('ExecSQL Error = '+E.Message);
+          end;
+
+          {if q1.FieldByName(indeks).AsString<>wartosc then
+          begin
+            q1.Edit;
+            q1.FieldByName(indeks).AsString:=wartosc;
+            q1.Post;
+            q2.SQL.Clear;
+            q2.SQL.Add('ALTER TABLE '+nazwa+' AUTO_INCREMENT=:ai');
+            q2.ParamByName('ai').AsLargeInt:=StrToInt(wartosc)+1;
+            q2.ExecSQL;
+          end;}
+        end;
+        //q1.Close;
+      end;
+      (* END *)
+      sq1.Next;
+    end;
+    sq1.Close;
+    (* usunięcie rekordów usuniętych *)
+  finally
+    indeksy.Free;
+  end;
+  result:=true;
+end;
+
+function TDBSchemaSync.PragmaForeignKeys: boolean;
+var
+  a: integer;
+begin
+  q1.SQL.Clear;
+  q1.SQL.Add('PRAGMA foreign_keys');
+  q1.Open;
+  a:=q1.Fields[0].AsInteger;
+  q1.Close;
+  result:=a=1;
+end;
+
+procedure TDBSchemaSync.PragmaForeignKeys(aOn: boolean);
+begin
+  q1.SQL.Clear;
+  if aOn then q1.SQL.Add('PRAGMA foreign_keys = on')
+         else q1.SQL.Add('PRAGMA foreign_keys = off');
+  q1.ExecSQL;
+end;
+
 constructor TDBSchemaSync.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FDictTables:=TStringList.Create;
   list:=TStringList.Create;
   log:=TStringList.Create;
   sdb:=TZConnection.Create(nil);
@@ -764,10 +1093,12 @@ begin
   sq1.Connection:=sdb;
   sq2.Connection:=sdb;
   FZnacznikCzasu:=false;
+  sqlite:=false;
 end;
 
 destructor TDBSchemaSync.Destroy;
 begin
+  FDictTables.Free;
   list.Free;
   log.Free;
   q1.Free;
@@ -781,12 +1112,15 @@ end;
 
 procedure TDBSchemaSync.init;
 begin
+  sqlite:=(FDB.Protocol='sqlite-3') or (FDB.Protocol='sqlite');
   q1.Connection:=FDB;
   q2.Connection:=FDB;
   qq.Connection:=FDB;
 end;
 
 procedure TDBSchemaSync.ShowTables(tables: TStrings);
+var
+  s: string;
 begin
   tables.Clear;
   q1.SQL.Clear;
@@ -794,7 +1128,54 @@ begin
   q1.Open;
   while not q1.EOF do
   begin
-    tables.Add(q1.Fields[0].AsString);
+    s:=q1.Fields[0].AsString;
+    tables.Add(s);
+    q1.Next;
+  end;
+  q1.Close;
+end;
+
+procedure TDBSchemaSync.ShowTablesSqlite(aBody: TStrings);
+begin
+  aBody.Clear;
+  q1.SQL.Clear;
+  q1.SQL.Add('SHOW FULL TABLES WHERE table_type = :typ');
+  q1.ParamByName('typ').AsString:='BASE TABLE';
+  q1.Open;
+  while not q1.EOF do
+  begin
+    aBody.Add(q1.Fields[0].AsString);
+    q1.Next;
+  end;
+  q1.Close;
+end;
+
+procedure TDBSchemaSync.ShowViewsSqlite(aBody: TStrings);
+begin
+  aBody.Clear;
+  q1.SQL.Clear;
+  q1.SQL.Add('SHOW FULL TABLES WHERE table_type = :typ');
+  q1.ParamByName('typ').AsString:='VIEW';
+  q1.Open;
+  while not q1.EOF do
+  begin
+    aBody.Add(q1.Fields[0].AsString);
+    q1.Next;
+  end;
+  q1.Close;
+end;
+
+procedure TDBSchemaSync.ShowIndexesSqlite(aBody: TStrings);
+begin
+  aBody.Clear;
+  q1.SQL.Clear;
+  q1.SQL.Add('select name from sqlite_master where type=:typ and sql is not null and sql<>:pusty');
+  q1.ParamByName('typ').AsString:='index';
+  q1.ParamByName('pusty').AsString:='';
+  q1.Open;
+  while not q1.EOF do
+  begin
+    aBody.Add(q1.Fields[0].AsString);
     q1.Next;
   end;
   q1.Close;
@@ -975,12 +1356,39 @@ begin
   schema:=s;
 end;
 
+procedure TDBSchemaSync.ShowCreateViewSqlite(aView: string;
+  var aWektor: string; aBody: TStrings);
+begin
+  aBody.Clear;
+  q1.SQL.Clear;
+  q1.SQL.Add('select tbl_name,sql from sqlite_master where type=:typ and name=:name');
+  q1.ParamByName('typ').AsString:='view';
+  q1.ParamByName('name').AsString:=aView;
+  q1.Open;
+  aWektor:=q1.FieldByName('tbl_name').AsString;
+  while not q1.EOF do
+  begin
+    aBody.Add(q1.FieldByName('sql').AsString);
+    q1.Next;
+  end;
+  q1.Close;
+end;
+
+procedure TDBSchemaSync.ShowCreateViewSqlite(aView: string; aBody: TStrings);
+var
+  wektor: string;
+begin
+  ShowCreateViewSqlite(aView,wektor,aBody);
+end;
+
 procedure TDBSchemaSync.SaveSchema;
 var
-  i: integer;
+  i,j,max: integer;
   pom,vv,v1,v2: TStringList;
   czas: TDateTime;
+  s,s1,spom,s2,s3: string;
 begin
+  if sqlite then exit;
   pom:=TStringList.Create;
   vv:=TStringList.Create;
   v1:=TStringList.Create;
@@ -988,11 +1396,16 @@ begin
   try
     if FileExists(dbsql) then DeleteFile(dbsql);
     sdb.Protocol:='sqlite-3';
+    sdb.ClientCodepage:='UTF-8';
+    sdb.ControlsCodePage:=cCP_UTF8;
     sdb.Database:=dbsql;
     sdb.Connect;
     (* tabele i widoki *)
     sq1.SQL.Clear;
     sq1.SQL.Add('create table tabele (id integer primary key autoincrement,nazwa text,typ integer,znacznik_czasu datetime,definicja blob)');
+    sq1.ExecSQL;
+    sq1.SQL.Clear;
+    sq1.SQL.Add('create table slowniki (id integer primary key autoincrement,nazwa text,indeks text,definicja blob)');
     sq1.ExecSQL;
     sq1.SQL.Clear;
     sq1.SQL.Add('insert into tabele (nazwa,typ,znacznik_czasu,definicja) values (:nazwa,:typ,:z_czasu,:definicja)');
@@ -1058,6 +1471,48 @@ begin
       sq1.ParamByName('definicja').AsString:=v2[i];
       sq1.ExecSQL;
     end;
+    (* Dictionary Tables - Tabele Słownikowe *)
+    sq1.SQL.Clear;
+    sq1.SQL.Add('insert into slowniki (nazwa,indeks,definicja) values (:nazwa,:indeks,:definicja)');
+    sq1.Prepare;
+    for i:=0 to FDictTables.Count-1 do
+    begin
+      s:=FDictTables[i];
+      s1:=trim(GetLineToStr(s,1,':'));
+      spom:=trim(GetLineToStr(s,2,':'));
+      s2:=trim(GetLineToStr(spom,1,'='));
+      s3:=trim(GetLineToStr(spom,2,'='));
+      //writeln('TABELA = ',s1,' INDEX = ',s2);
+      sq1.ParamByName('nazwa').AsString:=s1;
+      sq1.ParamByName('indeks').AsString:=s2;
+      q1.SQL.Clear;
+      q1.SQL.Add('select * from '+s1);
+      if s3<>'' then q1.SQL.Add('where '+s2+'=:wartosc');
+      if s2<>'' then q1.SQL.Add('order by '+s2);
+      if s3<>'' then q1.ParamByName('wartosc').AsString:=s3;
+      s:='';
+      q1.Open;
+      while not q1.EOF do
+      begin
+        max:=q1.Fields.Count-1;
+        for j:=0 to max do
+        begin
+          if q1.Fields[j].DataType=ftDate then s1:=FormatDateTime('yyyy-mm-dd',q1.Fields[j].AsDateTime) else
+          if q1.Fields[j].DataType=ftTime then s1:=FormatDateTime('hh:nn:ss',q1.Fields[j].AsDateTime) else
+          if q1.Fields[j].DataType=ftDateTime then s1:=FormatDateTime('yyyy-mm-dd hh:nn:ss',q1.Fields[j].AsDateTime) else
+          if q1.Fields[j].DataType=ftTimeStamp then s1:=FormatDateTime('yyyy-mm-dd hh:nn:ss',q1.Fields[j].AsDateTime) else
+          s1:=q1.Fields[j].AsString;
+          s1:=StringReplace(s1,',','{$1}',[rfReplaceAll]);
+          s1:=StringReplace(s1,';','{$2}',[rfReplaceAll]);
+          if j=max then s:=s+s1 else s:=s+s1+',';
+        end;
+        s:=s+';';
+        q1.Next;
+      end;
+      sq1.ParamByName('definicja').AsString:=s;
+      sq1.ExecSQL;
+      q1.Close;
+    end;
     Commit;
     sdb.Disconnect;
   finally
@@ -1070,7 +1525,7 @@ end;
 
 function TDBSchemaSync.SyncSchema: boolean;
 var
-  b: boolean;
+  b,pragma_fk: boolean;
   ee: integer;
 begin
   if not FileExists(dbsql) then
@@ -1084,15 +1539,40 @@ begin
   sdb.Database:=dbsql;
   sdb.Connect;
   try
-    ee:=101;
-    b:=sync_delete;
-    ee:=102;
-    if b then b:=sync_table;
-    ee:=103;
-    if b then b:=sync_event;
+
+    try
+      if sqlite then
+      begin
+        pragma_fk:=PragmaForeignKeys;
+        if pragma_fk then PragmaForeignKeys(false);
+      end else pragma_fk:=false;
+      if sqlite then
+      begin
+        ee:=101;
+        b:=sync_delete_sqlite;
+        ee:=102;
+        b:=sync_delete_sqlite_2;
+      end else begin
+        ee:=103;
+        b:=sync_delete;
+      end;
+      ee:=104;
+      if b then b:=sync_table;
+      ee:=105;
+      if b then b:=sync_event;
+      ee:=106;
+      if b then b:=sync_slow;
+    finally
+      if pragma_fk then PragmaForeignKeys(true);
+    end;
+
   except
-    err:=ee;
-    b:=false;
+    on E: Exception do
+    begin
+      if error='' then error:=E.Message;
+      err:=ee;
+      b:=false;
+    end;
   end;
   sdb.Disconnect;
   if b then

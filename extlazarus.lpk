@@ -6,9 +6,15 @@
     <CompilerOptions>
       <Version Value="11"/>
       <SearchPaths>
-        <OtherUnitFiles Value="../mouseandkeyinput"/>
+        <OtherUnitFiles Value="$(TargetOS);../mouseandkeyinput"/>
         <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
+      <CodeGeneration>
+        <SmartLinkUnit Value="True"/>
+        <Optimizations>
+          <OptimizationLevel Value="3"/>
+        </Optimizations>
+      </CodeGeneration>
       <Other>
         <OtherDefines Count="1">
           <Define0 Value="UseCThreads"/>
@@ -264,47 +270,48 @@
         <UnitName Value="ZQueryPlus"/>
       </Item50>
       <Item51>
-        <Filename Value="ecode_unit.pas"/>
-        <UnitName Value="ecode_unit"/>
-      </Item51>
-      <Item52>
         <Filename Value="list_unit.pas"/>
         <UnitName Value="list_unit"/>
-      </Item52>
-      <Item53>
+      </Item51>
+      <Item52>
         <Filename Value="upnp.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="Upnp"/>
-      </Item53>
-      <Item54>
+      </Item52>
+      <Item53>
         <Filename Value="youtubedownloader.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="YoutubeDownloader"/>
-      </Item54>
-      <Item55>
+      </Item53>
+      <Item54>
         <Filename Value="stringslist.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="StringsList"/>
-      </Item55>
-      <Item56>
+      </Item54>
+      <Item55>
         <Filename Value="videoconvert.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="VideoConvert"/>
-      </Item56>
-      <Item57>
+      </Item55>
+      <Item56>
         <Filename Value="scrollingtext.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="ScrollingText"/>
-      </Item57>
-      <Item58>
+      </Item56>
+      <Item57>
         <Filename Value="aboutscrolltextunit.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="AboutScrolltextunit"/>
-      </Item58>
-      <Item59>
+      </Item57>
+      <Item58>
         <Filename Value="livechat.pas"/>
         <HasRegisterProc Value="True"/>
         <UnitName Value="LiveChat"/>
+      </Item58>
+      <Item59>
+        <Filename Value="chatgpt.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="ChatGPT"/>
       </Item59>
     </Files>
     <i18n>

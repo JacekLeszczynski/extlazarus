@@ -1632,6 +1632,7 @@ begin
     NewWidget:=gtk_event_box_new;
 
     WidgetInfo := GetWidgetInfo(NewWidget,true); // destroyed in MPLayerWidgetDestroyCB
+    //WidgetInfo := GetWidgetInfo(NewWidget); // destroyed in MPLayerWidgetDestroyCB
     WidgetInfo^.LCLObject := AWinControl;
     WidgetInfo^.Style := AParams.Style;
     WidgetInfo^.ExStyle := AParams.ExStyle;
