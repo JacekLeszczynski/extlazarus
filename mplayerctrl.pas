@@ -260,6 +260,8 @@ type
     function TimeToSingleMp(AValue: TTime): single;
     function IntegerToSingleMp(AValue: integer): single;
     procedure SetPositionEx(aPosition,aMax: integer);
+    procedure RecordStart(aFilename: string);
+    procedure RecordStop;
   public
     function FindMPlayerPath : Boolean;
     function FindMPVPath : Boolean;
@@ -1404,6 +1406,17 @@ end;
 procedure TCustomMPlayerControl.SetPositionEx(aPosition, aMax: integer);
 begin
   SetPosition(round(FDuration*aPosition/aMax));
+end;
+
+procedure TCustomMPlayerControl.RecordStart(aFilename: string);
+begin
+  ExecuteSockProcess('{ "command": ["record-start", "'+aFilename+'"] }');
+  //ExecuteSockProcess('{ "command": ["record-file", "'+aFilename+'"] }');
+end;
+
+procedure TCustomMPlayerControl.RecordStop;
+begin
+  ExecuteSockProcess('{ "command": ["record-stop"] }');
 end;
 
 procedure TCustomMPlayerControl.InitialiseInfo;
