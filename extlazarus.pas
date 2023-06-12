@@ -19,7 +19,7 @@ uses
   GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
   ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, list_unit, Upnp, 
   YoutubeDownloader, StringsList, VideoConvert, ScrollingText, 
-  AboutScrolltextunit, LiveChat, ChatGPT, LazarusPackageIntf;
+  AboutScrolltextunit, LiveChat, ChatGPT, LuksCrypter, LazarusPackageIntf;
 
 implementation
 
@@ -79,6 +79,7 @@ begin
   RegisterUnit('AboutScrolltextunit', @AboutScrolltextunit.Register);
   RegisterUnit('LiveChat', @LiveChat.Register);
   RegisterUnit('ChatGPT', @ChatGPT.Register);
+  RegisterUnit('LuksCrypter', @LuksCrypter.Register);
 end;
 
 initialization

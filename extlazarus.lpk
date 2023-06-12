@@ -21,7 +21,7 @@
         </OtherDefines>
       </Other>
     </CompilerOptions>
-    <Files Count="59">
+    <Files Count="60">
       <Item1>
         <Filename Value="xmlparser.pas"/>
         <HasRegisterProc Value="True"/>
@@ -313,6 +313,11 @@
         <HasRegisterProc Value="True"/>
         <UnitName Value="ChatGPT"/>
       </Item59>
+      <Item60>
+        <Filename Value="lukscrypter.pas"/>
+        <HasRegisterProc Value="True"/>
+        <UnitName Value="LuksCrypter"/>
+      </Item60>
     </Files>
     <i18n>
       <EnableI18N Value="True"/>
