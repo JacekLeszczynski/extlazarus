@@ -12,11 +12,16 @@ type
   { TLuksCrypter }
 
   TLuksCrypterUnits = (ucBajt,ucKiloBajt,ucMegaBajt,ucGigaBajt,ucTeraBajt);
+  TLuksCrypterOperations = (ocOpen,ocClose,ocMount,ocUmount,ocOpenMount,ocUmountClose);
+  TLuksCrypterOnBeforeAfterExec = procedure(aSender: TObject; aOperation: TLuksCrypterOperations) of object;
   TLuksCrypter = class(TComponent)
   private
+    FOnBeforeExec,FOnAfterExec: TLuksCrypterOnBeforeAfterExec;
+    licznik: integer;
     nazwy,opisy,pliki,katalogi: TStrings;
     keyfile: string;
     function ImageToIndex(aName: string): integer;
+    function AddImage(aName,aOpis,aFileName: string): integer;
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -28,7 +33,6 @@ type
     function DirectoryToImage(aDirectory: string): string;
     procedure PassOpen(const aPassword: string);
     procedure PassClose;
-    function AddImage(aName,aOpis,aFileName: string): integer;
     function AddDirectory(aName,aDirectory: string): boolean;
     function AddDirectory(aIndex: integer; aDirectory: string): boolean;
     function DelDirectory(aName: string): boolean;
@@ -47,6 +51,8 @@ type
     function AddVirtualIndex(aName,aFileName,aDirectory: string): integer;
     function AddVirtualIndex(aName,aOpis,aFileName,aDirectory: string): integer;
   published
+    property OnBeforeExec: TLuksCrypterOnBeforeAfterExec read FOnBeforeExec write FOnBeforeExec;
+    property OnAfterExec: TLuksCrypterOnBeforeAfterExec read FOnAfterExec write FOnAfterExec;
   end;
 
 procedure Register;
@@ -79,6 +85,7 @@ end;
 constructor TLuksCrypter.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  licznik:=0;
   keyfile:='';
   nazwy:=TStringList.Create;
   opisy:=TStringList.Create;
@@ -367,24 +374,31 @@ var
   p: TProcess;
   b: boolean;
 begin
-  result:=false;
-  if keyfile='' then exit;
-  wpis:=aName+','+aFileName;
-  if IsImage(aName,aFileName) then exit;
-  p:=TProcess.Create(nil);
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocOpen);
+  inc(licznik);
   try
-    p.Options:=[poWaitOnExit];
-    p.Executable:='/bin/sh';
-    p.Parameters.Add('-c');
-    p.Parameters.Add('echo '+aSudoPassword+' | sudo -S cryptsetup luksOpen '+aFileName+' '+aName+' --key-file '+keyfile);
-    p.Execute;
-    b:=p.ExitStatus=0;
+    result:=false;
+    if keyfile='' then exit;
+    wpis:=aName+','+aFileName;
+    if IsImage(aName,aFileName) then exit;
+    p:=TProcess.Create(nil);
+    try
+      p.Options:=[poWaitOnExit];
+      p.Executable:='/bin/sh';
+      p.Parameters.Add('-c');
+      p.Parameters.Add('echo '+aSudoPassword+' | sudo -S cryptsetup luksOpen '+aFileName+' '+aName+' --key-file '+keyfile);
+      p.Execute;
+      b:=p.ExitStatus=0;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
+    if b then AddImage(aName,aOpis,aFileName);
+    result:=b;
   finally
-    p.Terminate(0);
-    p.Free;
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocOpen);
   end;
-  if b then AddImage(aName,aOpis,aFileName);
-  result:=b;
 end;
 
 function TLuksCrypter.Close(aName: string; const aSudoPassword: string
@@ -393,20 +407,27 @@ var
   p: TProcess;
   b: boolean;
 begin
-  p:=TProcess.Create(nil);
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocClose);
+  inc(licznik);
   try
-    p.Options:=[poWaitOnExit];
-    p.Executable:='/bin/sh';
-    p.Parameters.Add('-c');
-    p.Parameters.Add('echo '+aSudoPassword+' | sudo -S cryptsetup luksClose '+aName);
-    p.Execute;
-    b:=p.ExitStatus=0;
+    p:=TProcess.Create(nil);
+    try
+      p.Options:=[poWaitOnExit];
+      p.Executable:='/bin/sh';
+      p.Parameters.Add('-c');
+      p.Parameters.Add('echo '+aSudoPassword+' | sudo -S cryptsetup luksClose '+aName);
+      p.Execute;
+      b:=p.ExitStatus=0;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
+    if b then DeleteImage(aName);
+    result:=b;
   finally
-    p.Terminate(0);
-    p.Free;
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocClose);
   end;
-  if b then DeleteImage(aName);
-  result:=b;
 end;
 
 function TLuksCrypter.Mount(aName, aDirectory: string;
@@ -416,22 +437,29 @@ var
   index: integer;
   b: boolean;
 begin
-  index:=ImageToIndex(aName);
-  if index=-1 then exit;
-  p:=TProcess.Create(nil);
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocMount);
+  inc(licznik);
   try
-    p.Options:=[poWaitOnExit];
-    p.Executable:='/bin/sh';
-    p.Parameters.Add('-c');
-    p.Parameters.Add('echo '+aSudoPassword+' | sudo -S mount /dev/mapper/'+aName+' '+aDirectory);
-    p.Execute;
-    b:=p.ExitStatus=0;
+    index:=ImageToIndex(aName);
+    if index=-1 then exit;
+    p:=TProcess.Create(nil);
+    try
+      p.Options:=[poWaitOnExit];
+      p.Executable:='/bin/sh';
+      p.Parameters.Add('-c');
+      p.Parameters.Add('echo '+aSudoPassword+' | sudo -S mount /dev/mapper/'+aName+' '+aDirectory);
+      p.Execute;
+      b:=p.ExitStatus=0;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
+    if b then AddDirectory(index,aDirectory);
+    result:=b;
   finally
-    p.Terminate(0);
-    p.Free;
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocMount);
   end;
-  if b then AddDirectory(index,aDirectory);
-  result:=b;
 end;
 
 function TLuksCrypter.Umount(aName: string; const aSudoPassword: string
@@ -442,36 +470,43 @@ var
   index: integer;
   katalog: string;
 begin
-  result:=false;
-  index:=ImageToIndex(aName);
-  if index=-1 then exit;
-  katalog:=katalogi[index];
-
-  p:=TProcess.Create(nil);
-  ss:=TStringList.Create;
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocUmount);
+  inc(licznik);
   try
-    p.Options:=[poWaitOnExit,poUsePipes];
-    p.Executable:='/bin/sh';
-    p.Parameters.Add('-c');
-    p.Parameters.Add('echo '+aSudoPassword+' | sudo -S umount '+katalog);
-    p.Execute;
-    if not p.ExitStatus=0 then exit;
-    if p.Stderr.NumBytesAvailable>0 then
-    begin
-      ss.LoadFromStream(p.Stderr);
-      if pos('cel jest zajęty',ss.Text)>0 then
+    result:=false;
+    index:=ImageToIndex(aName);
+    if index=-1 then exit;
+    katalog:=katalogi[index];
+    (* exec tools *)
+    p:=TProcess.Create(nil);
+    ss:=TStringList.Create;
+    try
+      p.Options:=[poWaitOnExit,poUsePipes];
+      p.Executable:='/bin/sh';
+      p.Parameters.Add('-c');
+      p.Parameters.Add('echo '+aSudoPassword+' | sudo -S umount '+katalog);
+      p.Execute;
+      if not p.ExitStatus=0 then exit;
+      if p.Stderr.NumBytesAvailable>0 then
       begin
-        result:=false;
-        exit;
+        ss.LoadFromStream(p.Stderr);
+        if pos('cel jest zajęty',ss.Text)>0 then
+        begin
+          result:=false;
+          exit;
+        end;
+      end else begin
+        DelDirectory(index);
+        result:=true;
       end;
-    end else begin
-      DelDirectory(index);
-      result:=true;
+    finally
+      ss.Free;
+      p.Terminate(0);
+      p.Free;
     end;
   finally
-    ss.Free;
-    p.Terminate(0);
-    p.Free;
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocUmount);
   end;
 end;
 
@@ -480,9 +515,16 @@ function TLuksCrypter.OpenAndMount(aName, aOpis, aFileName, aDirectory: string;
 var
   b: boolean;
 begin
-  b:=Open(aName,aOpis,aFileName,aSudoPassword);
-  if b then b:=Mount(aName,aDirectory,aSudoPassword);
-  result:=b;
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocOpenMount);
+  inc(licznik);
+  try
+    b:=Open(aName,aOpis,aFileName,aSudoPassword);
+    if b then b:=Mount(aName,aDirectory,aSudoPassword);
+    result:=b;
+  finally
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocOpenMount);
+  end;
 end;
 
 function TLuksCrypter.UmountAndClose(aName: string; const aSudoPassword: string
@@ -490,9 +532,16 @@ function TLuksCrypter.UmountAndClose(aName: string; const aSudoPassword: string
 var
   b: boolean;
 begin
-  Umount(aName,aSudoPassword);
-  b:=Close(aName,aSudoPassword);
-  result:=b;
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocUmountClose);
+  inc(licznik);
+  try
+    Umount(aName,aSudoPassword);
+    b:=Close(aName,aSudoPassword);
+    result:=b;
+  finally
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocUmountClose);
+  end;
 end;
 
 function TLuksCrypter.AddVirtualIndex(aName, aFileName, aDirectory: string
