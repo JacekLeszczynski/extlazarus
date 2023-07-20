@@ -20,10 +20,12 @@ type
     FHeaders: TStrings;
     FMethod: TSynHttpMethode;
     FMimetype: string;
+    FPassword: string;
     FReferrer: string;
     FSesja: boolean;
     //FTimeout: integer;
     FUrlData: string;
+    FUser: string;
     FUserAgent: string;
     procedure SetFilter(AValue: TStrings);
     procedure SetHeaders(AValue: TStrings);
@@ -76,6 +78,8 @@ type
     property Filter: TStrings read FFilter write SetFilter;
     property Headers: TStrings read FHeaders write SetHeaders;
     property Referrer: string read FReferrer write FReferrer;
+    property User: string read FUser write FUser;
+    property Password: string read FPassword write FPassword;
   end;
 
 procedure Register;
@@ -83,7 +87,7 @@ procedure Register;
 implementation
 
 uses
-  ecode_unit, ssl_openssl, ssl_openssl_lib, lconvencoding, fpjson, jsonparser;
+  ecode_unit, synacode, ssl_openssl, ssl_openssl_lib, lconvencoding, fpjson, jsonparser;
   //, synaicnv, synachar;
 
 procedure Register;
@@ -200,16 +204,20 @@ var
   i: integer;
 begin
   if FMethod=meGet then v_method:='GET' else v_method:='POST';
+
   if FSesja then
   begin
     v_http:=http;
-    v_http.Headers.Clear;
   end else begin
     v_http:=THttpSend.Create;
+  end;
+
+  try
+    v_http.Headers.Clear;
+    if FUser<>'' then v_http.Headers.Insert(0, 'Authorization: Basic ' + EncodeBase64(FUser+':'+FPassword));
     if FReferrer<>'' then v_http.Headers.Add('Referer: '+FReferrer);
     for i:=0 to FHeaders.Count-1 do v_http.Headers.Add(FHeaders[i]);
-  end;
-  try
+
     v_http.UserAgent:=GetUserAgent;
     v_http.MimeType:=GetMimetype;
     if FUrlData<>'' then v_http.Document.Write(Pointer(FUrlData)^,length(FUrlData));
@@ -219,6 +227,7 @@ begin
   finally
     if not FSesja then v_http.Free;
   end;
+
   result:=result_code;
 end;
 
