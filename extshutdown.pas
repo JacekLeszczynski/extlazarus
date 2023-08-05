@@ -11,7 +11,7 @@ type
 
   { TExtShutdown }
 
-  TExtShutdownOnShutdownMode = (smNone,smQDbusKDE,smGnome,smShutdownP1,smShutdownP2,smWindows,smCustom);
+  TExtShutdownOnShutdownMode = (smNone,smQDbusKDE,smGnome,smShutdownP1,smShutdownP2,smWindows,smWinPS,smCustom);
   TExtShutdownOnMonitorMode = (mmGetMode, mmOn, mmOff, mmStandby, mmSuspend);
   TExtShutdown = class(TComponent)
   private
@@ -28,11 +28,13 @@ type
     function monitor: boolean;
   published
     {Mode:}
-    { KDE    - shutdown KDE mode}
-    { Gnome  - gnome-session-quit --power-off --force}
-    { P1     - execute: "shutdown -p now"}
-    { P2     - execute: "shutdown -P now"}
-    { Custom - execute custom command}
+    { KDE     - shutdown KDE mode}
+    { Gnome   - gnome-session-quit --power-off --force}
+    { P1      - execute: "shutdown -p now"}
+    { P2      - execute: "shutdown -P now"}
+    { Windows - LazarusExitWindows(EWX_FORCE or EWX_POWEROFF)}
+    { WinPS   - execute: "shutdown /s /t 0"}
+    { Custom  - execute custom command}
     property Mode: TExtShutdownOnShutdownMode read FMode write FMode;
     {Execute command is Mode = Custom}
     property CustomCommand: string read FCustomCommand write FCustomCommand;
@@ -143,7 +145,16 @@ begin
     {$ENDIF}
     {$IFDEF MSWINDOWS}
     if FMode=smWindows then LazarusExitWindows(EWX_FORCE or EWX_POWEROFF) else
+    if FMode=smWinPS then
     begin
+      proc:=TProcess.Create(self);
+      try
+        proc.CommandLine:='shutdown /s /t 0';
+        proc.Execute;
+      finally
+        proc.Free;
+      end;
+    end else begin
       proc:=TProcess.Create(self);
       try
         proc.CommandLine:=FCustomCommand;
