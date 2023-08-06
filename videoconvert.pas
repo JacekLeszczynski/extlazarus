@@ -14,10 +14,16 @@ type
   TVideoConvertThreadsRefreshCountEvent = procedure of object;
   TVideoConvertThreadsFileOutEvent = procedure(aId: integer; aSourceFileName,aDestinationFileName: string) of object;
   TVideoConvertThreadsCount = procedure(aCount: integer) of object;
+  TVideoConvertTagEngineMp3 = (teMp3_none,teMp3_lltag,teMp3_id3v2,teMp3_id3tool);
+  TVideoConvertTagEngineOgg = (teOgg_none,teOgg_lltag,teOgg_vorbiscomment);
+  TVideoConvertTagEngineFlac = (teFlac_none,teFlac_lltag,teFlac_vorbiscomment);
   TVideoConvert = class(TComponent)
   private
     FOnFileRendered: TVideoConvertThreadsFileOutEvent;
     FOnThreadsCount: TVideoConvertThreadsCount;
+    FTagFlacEngine: TVideoConvertTagEngineFlac;
+    FTagMp3Engine: TVideoConvertTagEngineMp3;
+    FTagOggEngine: TVideoConvertTagEngineOgg;
     FThreadCount,licznik: integer;
     FThreads: boolean;
     proc: TAsyncProcess;
@@ -31,11 +37,17 @@ type
     procedure RenderWav(aSourceFileName: string; aChannels: integer = 0);
     procedure RenderOgg(aId: integer; aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
     procedure RenderOgg(aSourceFileName: string; aChannels: integer = 0; aQuality: integer = -2);
+    function GetOGGFileInfo(const filename: string; var title, artist, album: string): Boolean;
+    function SetOGGFileInfo(const filename, title, artist, album: string): Boolean;
   published
     property ThreadsCount: integer read FThreadCount default 0;
     property ThreadsOn: boolean read FThreads write FThreads default false;
     property OnThreadsCount: TVideoConvertThreadsCount read FOnThreadsCount write FOnThreadsCount;
     property OnFileRendered: TVideoConvertThreadsFileOutEvent read FOnFileRendered write FOnFileRendered;
+  published
+    property TagMp3Engine: TVideoConvertTagEngineMp3 read FTagMp3Engine write FTagMp3Engine default teMp3_none;
+    property TagOggEngine: TVideoConvertTagEngineOgg read FTagOggEngine write FTagOggEngine default teOgg_none;
+    property TagFlacEngine: TVideoConvertTagEngineFlac read FTagFlacEngine write FTagFlacEngine default teFlac_none;
   end;
 
   { TVideoConvertRenderFile }
@@ -75,6 +87,9 @@ type
 procedure Register;
 
 implementation
+
+uses
+  ecode_unit;
 
 procedure Register;
 begin
@@ -280,6 +295,9 @@ begin
   licznik:=0;
   FThreadCount:=0;
   FThreads:=false;
+  FTagMp3Engine:=teMp3_none;
+  FTagOggEngine:=teOgg_none;
+  FTagFlacEngine:=teFlac_none;
 end;
 
 destructor TVideoConvert.Destroy;
@@ -324,6 +342,99 @@ procedure TVideoConvert.RenderOgg(aSourceFileName: string; aChannels: integer;
   aQuality: integer);
 begin
   RenderOgg(0,aSourceFileName,aChannels,aQuality);
+end;
+
+function TVideoConvert.GetOGGFileInfo(const filename: string; var title,
+  artist, album: string): Boolean;
+var
+  p: TAsyncProcess;
+  ss: TStringList;
+  i: integer;
+  s,s1,s2: string;
+begin
+  title:='';
+  artist:='';
+  album:='';
+  if FTagOggEngine=teOgg_lltag then
+  begin
+    p:=TAsyncProcess.Create(nil);
+    p.CurrentDirectory:=ExtractFilePath(filename);
+    p.Executable:='lltag';
+    p.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+    p.Priority:=ppNormal;
+    p.ShowWindow:=swoNone;
+    //-S nazwa_pliku.ogg
+    p.Parameters.Add('-S');
+    p.Parameters.Add(ExtractFileName(filename));
+    try
+      p.Execute;
+      if p.NumBytesAvailable>0 then
+      begin
+        ss:=TStringList.Create;
+        try
+          ss.LoadFromStream(p.Output);
+          for i:=0 to ss.Count-1 do
+          begin
+            s:=trim(ss[i]);
+            if s='' then continue;
+            if s[length(s)]=':' then continue;
+            s1:=GetLineToStr(s,1,'=');
+            s2:=GetLineToStr(s,2,'=');
+{
+-a, --ARTIST  <val>    Add explicit value <val> for ARTIST
+-t, --TITLE   <val>    Add explicit value <val> for TITLE
+-A, --ALBUM   <val>    Add explicit value <val> for ALBUM
+-n, --NUMBER  <val>    Add explicit value <val> for NUMBER
+-g, --GENRE   <val>    Add explicit value <val> for GENRE
+-d, --DATE    <val>    Add explicit value <val> for DATE
+-c, --COMMENT <val>    Add explicit value <val> for COMMENT
+}
+            if s1='TITLE' then title:=s2 else
+            if s1='ARTIST' then artist:=s2 else
+            if s1='ALBUM' then album:=s2;
+          end;
+        finally
+          ss.Free;
+        end;
+      end;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
+  end;
+  result:=(title<>'') or (artist<>'') or (album<>'');
+end;
+
+function TVideoConvert.SetOGGFileInfo(const filename, title, artist,
+  album: string): Boolean;
+var
+  p: TAsyncProcess;
+begin
+  if FTagOggEngine=teOgg_lltag then
+  begin
+    p:=TAsyncProcess.Create(nil);
+    p.CurrentDirectory:=ExtractFilePath(filename);
+    p.Executable:='lltag';
+    p.Options:=[poWaitOnExit,poUsePipes,poNoConsole];
+    p.Priority:=ppNormal;
+    p.ShowWindow:=swoNone;
+    //--yes -t title -a artist -A album nazwa_pliku.ogg
+    p.Parameters.Add('--yes');
+    p.Parameters.Add('-t');
+    p.Parameters.Add(trim(title));
+    p.Parameters.Add('-a');
+    p.Parameters.Add(trim(artist));
+    p.Parameters.Add('-A');
+    p.Parameters.Add(trim(album));
+    p.Parameters.Add(ExtractFileName(filename));
+    try
+      p.Execute;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
+    result:=true;
+  end else result:=false;
 end;
 
 end.
