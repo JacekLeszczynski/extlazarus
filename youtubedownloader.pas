@@ -520,13 +520,18 @@ begin
     output.Clear;
     for i:=0 to ss.Count-1 do
     begin
+      //writeln(1);
       s:=local_VideoIntoFilter(ss[i],vType,vDash);
       if (pos('[youtube]',s)=1) or (pos('[info]',s)=1) or (pos('format',s)=1) or (pos('ID',s)=1) or (pos('--------',s)=1) then continue;
       if pos('mhtml',s)>0 then continue;
+      if pos('m3u8 , audio_only unknown Default',s)>0 then continue;
+      //writeln('s = ',s);
+      //writeln(3);
       case aEngine of
         enDefault,enDefBoost: s:=local_FormatDefault(vType,vDash,s);
         enDefPlus:            s:=local_FormatDefPlus(vType,vDash,s);
       end;
+      //writeln(4);
       output.Add(s);
     end;
     TStringList(output).Sort;
