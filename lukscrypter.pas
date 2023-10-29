@@ -44,6 +44,7 @@ type
     function FormatFile(aFileName: string; const aSudoPassword: string): boolean;
     function Open(aName,aOpis,aFileName: string; const aSudoPassword: string): boolean;
     function Close(aName: string; const aSudoPassword: string): boolean;
+    function FormatImage(aName,aFsType: string; const aSudoPassword: string): boolean;
     function Mount(aName,aDirectory: string; const aSudoPassword: string): boolean;
     function Umount(aName: string; const aSudoPassword: string): boolean;
     function OpenAndMount(aName,aOpis,aFileName,aDirectory: string; const aSudoPassword: string): boolean;
@@ -423,6 +424,34 @@ begin
       p.Free;
     end;
     if b then DeleteImage(aName);
+    result:=b;
+  finally
+    dec(licznik);
+    if licznik=0 then if assigned(FOnAfterExec) then FOnAfterExec(self,ocClose);
+  end;
+end;
+
+function TLuksCrypter.FormatImage(aName, aFsType: string;
+  const aSudoPassword: string): boolean;
+var
+  p: TProcess;
+  b: boolean;
+begin
+  if licznik=0 then if assigned(FOnBeforeExec) then FOnBeforeExec(self,ocClose);
+  inc(licznik);
+  try
+    p:=TProcess.Create(nil);
+    try
+      p.Options:=[poWaitOnExit];
+      p.Executable:='/bin/sh';
+      p.Parameters.Add('-c');
+      p.Parameters.Add('echo '+aSudoPassword+' | sudo -S mkfs.'+aFsType+' /dev/mapper/'+aName);
+      p.Execute;
+      b:=p.ExitStatus=0;
+    finally
+      p.Terminate(0);
+      p.Free;
+    end;
     result:=b;
   finally
     dec(licznik);
