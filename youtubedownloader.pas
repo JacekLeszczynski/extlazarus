@@ -19,12 +19,14 @@ type
   TYoutubeDownloaderDlGetFileName = procedure(aFileName,aDir: string; aTag: integer) of object;
   TYoutubeDownloaderDlGetPosition = procedure(aPosition: integer; aSpeed: int64; aTag: integer) of object;
   TYoutubeDownloaderDlFinish = procedure(aLink,aFileName,aDir: string; aTag: integer) of object;
+  TYoutubeDownloaderError = procedure(aErrorMessage: string; aTag: integer) of object;
 
   { TYoutubeDownloader }
 
   TYoutubeDownloader = class(TComponent)
   private
     FDebug: boolean;
+    FOnError: TYoutubeDownloaderError;
     mem_yt_cookie: string;
     http: TNetSynHTTP;
     FAutoSelect: boolean;
@@ -49,7 +51,8 @@ type
     itag,itag2,itag22: integer;
     pozycja: integer;
     predkosc_str: string;
-    kod: array [0..9] of boolean;
+    kod: array [0..10] of boolean;
+    blad: string;
     function GetDirAria: string;
     function GetDirYtDlp: string;
     function GetDirYtDl: string;
@@ -150,6 +153,7 @@ type
     property OnDlPosition: TYoutubeDownloaderDlGetPosition read FDlPosition write FDlPosition;
     {Plik został pobrany}
     property OnDlFinish: TYoutubeDownloaderDlFinish read FDlFinish write FDlFinish;
+    property OnError: TYoutubeDownloaderError read FOnError write FOnError;
   end;
 
   { TYoutubeDownloaderWatekYoutube }
@@ -174,6 +178,7 @@ type
     predkosc_str: string;
     sciagam: boolean;
     czas_reakcji: integer;
+    blad: string;
 
     //film: integer;
     fs: TFormatSettings;
@@ -692,6 +697,12 @@ begin
     end;
     kod[9]:=false;
   end;
+  if kod[10] then
+  begin
+    (* przekazanie komunikatu błędu *)
+    if assigned(FOnError) then FOnError(blad,itag2);
+    kod[10]:=false;
+  end;
 end;
 
 procedure TYoutubeDownloader.TerminateAria;
@@ -1164,7 +1175,8 @@ begin
     sender.nazwa_linku2:=link2;
     sender.nazwa_pliku2:=nazwa_pliku2;
     sender.nazwa_katalogu2:=directory2;
-  end;
+  end else
+  if kod_verbose=10 then sender.blad:=blad;
   sender.AddCode(kod_verbose);
 end;
 
@@ -1215,9 +1227,10 @@ begin
   YTData.CurrentDirectory:=directory;
   YTData.Execute;
 
-  czas_reakcji:=TimeToInteger;
-  while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
-  //while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not self.Terminated) do sleep(500);
+  //czas_reakcji:=TimeToInteger;
+  //while (czas_reakcji+10000>TimeToInteger) and (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
+  while (YTData.ExitStatus<>0) and YTData.Running and (not zrobione) and (not self.Terminated) do sleep(500);
+
   if YTData.Running then
   begin
     sleep(1000);
@@ -1336,6 +1349,9 @@ begin
           if pos('--------',s)>0 then continue;
           if pos('NOTICE',s)>0 then continue;
         end;
+        //writeln('s = ',s);
+        if pos('The read operation timed out. Retrying',s)>0 then continue;
+        if pos('The handshake operation timed out. Retrying',s)>0 then continue;
         pom:=s;
         try
           if pos('already been downloaded and merged',s)>0 then
@@ -1426,15 +1442,17 @@ begin
         except
           on E: Exception do
           begin
-            writeln('Wątek pobierania pliku z youtube wywalił się błędem!');
-            writeln('Błąd wynikł w sekcji nr ',err);
-            writeln('Oto komunikat błędu:');
-            writeln(E.Message);
-            writeln('A to zawartość przetwarzanego wiersza:');
-            writeln('"',pom,'"');
-            writeln('I to co zostało z niego wyciagnięte:');
-            writeln('"',s,'"');
-            writeln('Wątek został przerwany.');
+            blad:='Wątek pobierania pliku z youtube wywalił się błędem!';
+            blad:=blad+#10+'Błąd wynikł w sekcji nr '+IntToStr(err);
+            blad:=blad+#10+'Oto komunikat błędu:';
+            blad:=blad+#10+E.Message;
+            blad:=blad+#10+'A to zawartość przetwarzanego wiersza:';
+            blad:=blad+#10+'"'+pom+'"';
+            blad:=blad+#10+'I to co zostało z niego wyciagnięte:';
+            blad:=blad+#10+'"'+s+'"';
+            blad:=blad+#10+'Wątek został przerwany.';
+            kod_verbose:=10;
+            synchronize(@verbose);
             self.Terminate;
           end;
         end;
@@ -1463,7 +1481,7 @@ begin
     enDefault,enDefBoost: YTData.Executable:='youtube-dl';
     enDefPlus:            YTData.Executable:='yt-dlp';
   end;
-  YTData.Options:=[poUsePipes,poNoConsole];
+  YTData.Options:=[poUsePipes,poNoConsole,poStderrToOutPut];
   YTData.Priority:=ppNormal;
   YTData.ShowWindow:=swoNone;
   YTData.OnReadData:=@YTReadData;
