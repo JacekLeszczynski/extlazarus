@@ -16,6 +16,8 @@ type
     FActive: boolean;
     czas_start: integer;
     FCorrection: integer;
+    FOnStart: TNotifyEvent;
+    FOnStop: TNotifyEvent;
   protected
   public
     constructor Create(AOwner: TComponent); override;
@@ -28,6 +30,8 @@ type
   published
     property Active: boolean read FActive default false;
     property Correction: integer read FCorrection write FCorrection default 0;
+    property OnStart: TNotifyEvent read FOnStart write FOnStart;
+    property OnStop: TNotifyEvent read FOnStop write FOnStop;
   end;
 
 procedure Register;
@@ -57,6 +61,7 @@ begin
   if FActive then exit;
   if time_index_start=0 then czas_start:=TimeToInteger else czas_start:=time_index_start;
   FActive:=true;
+  if assigned(FOnStart) then FOnStart(self);
   result:=czas_start;
 end;
 
@@ -65,6 +70,7 @@ begin
   if not FActive then exit;
   czas_start:=0;
   FActive:=false;
+  if assigned(FOnStop) then FOnStop(self);
   result:=czas_start;
 end;
 
