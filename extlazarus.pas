@@ -19,7 +19,8 @@ uses
   GoogleTranslator, DirectoryPack, Presentation, DSMaster, FullscreenMenu, 
   ExtDiff, compressionfly, RNL, DBGridPlus, ZQueryPlus, list_unit, Upnp, 
   YoutubeDownloader, StringsList, VideoConvert, ScrollingText, 
-  AboutScrolltextunit, LiveChat, ChatGPT, LuksCrypter, LazarusPackageIntf;
+  AboutScrolltextunit, LiveChat, ChatGPT, LuksCrypter, YearCalendar, 
+  LazarusPackageIntf;
 
 implementation
 
@@ -80,6 +81,7 @@ begin
   RegisterUnit('LiveChat', @LiveChat.Register);
   RegisterUnit('ChatGPT', @ChatGPT.Register);
   RegisterUnit('LuksCrypter', @LuksCrypter.Register);
+  RegisterUnit('YearCalendar', @YearCalendar.Register);
 end;
 
 initialization

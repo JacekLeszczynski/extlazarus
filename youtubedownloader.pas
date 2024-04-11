@@ -1207,6 +1207,8 @@ begin
     YTData.Parameters.Add('--cookies');
     YTData.Parameters.Add(cookiesfile);
   end;
+  YTData.Parameters.Add('-R');
+  YTData.Parameters.Add('infinite');
   YTData.Parameters.Add(link);
   if engine=enDefBoost then
   begin
@@ -1352,6 +1354,7 @@ begin
         //writeln('s = ',s);
         if pos('The read operation timed out. Retrying',s)>0 then continue;
         if pos('The handshake operation timed out. Retrying',s)>0 then continue;
+        if (pos('Got error:',s)>0) and (pos('Retrying',s)>0) then continue;
         pom:=s;
         try
           if pos('already been downloaded and merged',s)>0 then

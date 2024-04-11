@@ -206,11 +206,7 @@ end;
 
 procedure TPresentation.ExecuteEx(aPilotKey: Word);
 begin
-  if aPilotKey=1 then przycisk_szybki(1) else
-  if aPilotKey=2 then przycisk_szybki(2) else
-  if aPilotKey=3 then przycisk_szybki(3) else
-  if aPilotKey=4 then przycisk_szybki(4) else
-  if aPilotKey=5 then przycisk_szybki(5);
+  przycisk_szybki(aPilotKey);
 end;
 
 procedure TPresentation.SendKey(vkey: word);
