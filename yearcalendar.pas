@@ -11,7 +11,7 @@ uses
   {$IFDEF FPC}
   LResources,
   {$ENDIF}
-  ExtCtrls, Controls, Graphics;
+  ExtCtrls, Controls, Graphics, Menus;
 
 type
 
@@ -30,9 +30,12 @@ type
     FNotDrawLines: boolean;
     FOnClick: TNotifyEvent;
     FOnDblClick: TNotifyEvent;
+    FOnMouseDown: TMouseEvent;
+    FOnMouseUp: TMouseEvent;
     FOnSelectCell: TYearCalendarOnSelectCell;
     FOnSelectDate: TYearCalendarOnSelectDate;
     FOnYearChanged: TYearCalendarOnYearChanged;
+    FPopupMenu: TPopupmenu;
     v_zaznaczenie_x,v_zaznaczenie_y: integer;
     FOnDrawClick: TYearCalendarOnDrawClick;
     FOnDrawColor: TYearCalendarOnDrawColor;
@@ -52,6 +55,7 @@ type
     procedure _OnDblClick(Sender: TObject);
     procedure _OnPaint(Sender: TObject);
     procedure _OnMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure _OnMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     {$IFDEF MSWINDOWS}
     procedure wLine(StartX,StartY,StopX,StopY: integer);
     {$ENDIF}
@@ -69,6 +73,7 @@ type
     procedure SetColor(aX,aY: integer; aColor: TColor); overload;
     procedure SetColor(aDate: TDate; aColor: TColor); overload;
     procedure SetYear(aDate: TDate);
+    procedure SetYear(aYear: Word);
   published
     property Panel: TPanel read FPanel write FPanel;
     property Year: word read FRok write SetRok;
@@ -76,6 +81,7 @@ type
     property BKColorHeaders: TColor read FBKColorHeaders write FBKColorHeaders default clCream;
     property FontColorDaysOff: TColor read FFontColorDaysOff write FFontColorDaysOff default clRed;
     property NotDrawLines: boolean read FNotDrawLines write FNotDrawLines default false;
+    property PopupMenu: TPopupmenu read FPopupMenu write FPopupMenu;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnDblClick: TNotifyEvent read FOnDblClick write FOnDblClick;
     property OnDrawClick: TYearCalendarOnDrawClick read FOnDrawClick write FOnDrawClick;
@@ -83,6 +89,8 @@ type
     property OnSelectCell: TYearCalendarOnSelectCell read FOnSelectCell write FOnSelectCell;
     property OnSelectDate: TYearCalendarOnSelectDate read FOnSelectDate write FOnSelectDate;
     property OnYearChanged: TYearCalendarOnYearChanged read FOnYearChanged write FOnYearChanged;
+    property OnMouseDown: TMouseEvent read FOnMouseDown write FOnMouseDown;
+    property OnMouseUp: TMouseEvent read FOnMouseUp write FOnMouseUp;
   end;
 
 procedure Register;
@@ -135,8 +143,8 @@ var
   i: integer;
 begin
   ClearCanvas;
-  xWidth:=(cal.Width-C_COL_WIDTH)/(C_COLS);
-  yHeight:=(cal.Height-C_ROW_HEIGHT)/(C_ROWS);
+  xWidth:=(cal.Width-C_COL_WIDTH-1)/(C_COLS);
+  yHeight:=(cal.Height-C_ROW_HEIGHT-1)/(C_ROWS);
   rec_cols[0]:=0;
   rec_rows[0]:=0;
   for i:=0 to C_COLS do rec_cols[i+1]:=round(i*xWidth)+C_COL_WIDTH;
@@ -244,6 +252,11 @@ var
 begin
   DecodeDate(aDate,r,m,d);
   SetRok(r);
+end;
+
+procedure TYearCalendar.SetYear(aYear: Word);
+begin
+  SetRok(aYear);
 end;
 
 {$IFDEF MSWINDOWS}
@@ -397,6 +410,13 @@ begin
     if assigned(FOnSelectCell) then FOnSelectCell(self,vx,vy);
     if assigned(FOnDrawClick) then FOnDrawClick(self,vx,vy,b,dt,rec[vx,vy].text,rec[vx,vy].color_background);
   end;
+  if assigned(FOnMouseDown) then FOnMouseDown(self,Button,Shift,X,Y);
+end;
+
+procedure TYearCalendar._OnMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if assigned(FOnMouseUp) then FOnMouseUp(self,Button,Shift,X,Y);
 end;
 
 procedure TYearCalendar.CreateObjects;
@@ -410,12 +430,15 @@ begin
   cal.OnDblClick:=@_OnDblClick;
   cal.OnPaint:=@_OnPaint;
   cal.OnMouseDown:=@_OnMouseDown;
+  cal.OnMouseUp:=@_OnMouseUp;
   {$ELSE}
   cal.OnClick:=_OnClick;
   cal.OnDblClick:=_OnDblClick;
   cal.OnPaint:=_OnPaint;
   cal.OnMouseDown:=_OnMouseDown;
+  cal.OnMouseUp:=_OnMouseUp;
   {$ENDIF}
+  if FPopupMenu<>nil then cal.PopupMenu:=FPopupMenu;
 end;
 
 procedure TYearCalendar.DestroyObjects;
@@ -436,6 +459,7 @@ begin
   FBKColorHeaders:=clCream;
   FFontColorDaysOff:=clRed;
   FNotDrawLines:=false;
+  FPopupMenu:=nil;
   v_zaznaczenie_x:=-1;
   v_zaznaczenie_y:=-1;
 end;

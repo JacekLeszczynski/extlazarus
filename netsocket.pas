@@ -300,9 +300,9 @@ end;
 
 procedure TNetSocket._OnReceive(aSocket: TLSocket);
 var
-  ss,s: string;
+  ss,s,sbufor: string;
   bin,bout: array [0..65535] of char;
-  l,ll,lb,i: integer;
+  a,l,ll,lb,i: integer;
   bsize,bsize2,blok: longword;
   tab: array [0..1] of char;
   odczyt_bin: boolean;
@@ -324,6 +324,24 @@ begin
         inc(ll);
       end;
     end;
+
+    (* STRING *)
+    {if aSocket.GetMessage(ss)>0 then
+    begin
+      sbufor:=sbufor+ss;
+      if pos(znak_konca_linii,sbufor)=0 then exit;
+      if assigned(FOnMonRecvData) then FOnMonRecvData(0,sbufor,length(sbufor));
+      while true do
+      begin
+        a:=pos(znak_konca_linii,sbufor);
+        if a=0 then break;
+        s:=GetLineToStr(sbufor,1,znak_konca_linii);
+        delete(sbufor,1,a);
+        if s='' then continue;
+        if (FSecurity=ssCrypt) and assigned(FOnDecryptString) then FOnDecryptString(s);
+        GetStringReceive(s,aSocket,0,odczyt_bin);
+      end;
+    end;}
 
   end else
   if FCommunication=cmBinary then
