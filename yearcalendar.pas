@@ -36,6 +36,7 @@ type
     FOnSelectDate: TYearCalendarOnSelectDate;
     FOnYearChanged: TYearCalendarOnYearChanged;
     FPopupMenu: TPopupmenu;
+    FShowToday: boolean;
     v_zaznaczenie_x,v_zaznaczenie_y: integer;
     FOnDrawClick: TYearCalendarOnDrawClick;
     FOnDrawColor: TYearCalendarOnDrawColor;
@@ -82,6 +83,7 @@ type
     property FontColorDaysOff: TColor read FFontColorDaysOff write FFontColorDaysOff default clRed;
     property NotDrawLines: boolean read FNotDrawLines write FNotDrawLines default false;
     property PopupMenu: TPopupmenu read FPopupMenu write FPopupMenu;
+    property ShowToday: boolean read FShowToday write FShowToday default false;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnDblClick: TNotifyEvent read FOnDblClick write FOnDblClick;
     property OnDrawClick: TYearCalendarOnDrawClick read FOnDrawClick write FOnDrawClick;
@@ -322,13 +324,35 @@ procedure TYearCalendar.Pisz(aX, aY: integer; aStr: string; aVecX: integer;
   aVecY: integer; aColor: TColor);
 var
   c: TColor;
-  a,b: integer;
+  a,b,d: integer;
+  dzis: boolean;
 begin
+  if FShowToday and (aX>0) and (aY>0) then
+  begin
+    try
+      d:=rec[ax,ay].dzien;
+      dzis:=EncodeDate(FRok,ay,d)=date;
+    except
+      dzis:=false;
+    end;
+  end else dzis:=false;
+
   rec[aX,aY].text:=aStr;
-  a:=rec_cols[aX]+aVecX+2;
+  a:=rec_cols[aX]+aVecX+3;
   b:=rec_rows[aY]+aVecY+2;
   c:=cal.Canvas.Font.Color;
+  if (aX<>0) and (aY<>0) and (Length(aStr)>1) then a:=a-4;
   cal.Canvas.Font.Color:=aColor;
+  if dzis then
+  begin
+    //cal.Canvas.Font.Style:=[fsBold,fsUnderLine];
+    cal.Canvas.Font.Style:=[fsBold,fsItalic,fsUnderLine];
+    cal.Canvas.Font.Size:=12;
+    dec(a);
+  end else begin
+    cal.Canvas.Font.Style:=[];
+    cal.Canvas.Font.Size:=0;
+  end;
   cal.Canvas.TextOut(a,b,aStr);
   cal.Canvas.Font.Color:=c;
 end;
@@ -460,6 +484,7 @@ begin
   FFontColorDaysOff:=clRed;
   FNotDrawLines:=false;
   FPopupMenu:=nil;
+  FShowToday:=false;
   v_zaznaczenie_x:=-1;
   v_zaznaczenie_y:=-1;
 end;
