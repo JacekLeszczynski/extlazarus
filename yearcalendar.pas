@@ -24,6 +24,7 @@ type
   TYearCalendarOnYearChanged = procedure(aSender: TObject; aYear: word) of object;
   TYearCalendar = class(TComponent)
   private
+    FAutoClickToday: boolean;
     FBKColor: TColor;
     FBKColorHeaders: TColor;
     FFontColorDaysOff: TColor;
@@ -43,6 +44,7 @@ type
     FPanel: TPanel;
     cal: TPaintBox;
     FRok: word;
+    dzisX,dzisY: integer;
     procedure ClearCanvas;
     procedure InicjujWartosci;
     procedure RysujSiatke;
@@ -84,6 +86,7 @@ type
     property NotDrawLines: boolean read FNotDrawLines write FNotDrawLines default false;
     property PopupMenu: TPopupmenu read FPopupMenu write FPopupMenu;
     property ShowToday: boolean read FShowToday write FShowToday default false;
+    property AutoClickToday: boolean read FAutoClickToday write FAutoClickToday default false;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnDblClick: TNotifyEvent read FOnDblClick write FOnDblClick;
     property OnDrawClick: TYearCalendarOnDrawClick read FOnDrawClick write FOnDrawClick;
@@ -246,6 +249,7 @@ begin
   FRok:=AValue;
   if cal<>nil then Init;
   if assigned(FOnYearChanged) then FOnYearChanged(self,FRok);
+  if FAutoClickToday then zaznacz(dzisX,dzisY);
 end;
 
 procedure TYearCalendar.SetYear(aDate: TDate);
@@ -325,12 +329,14 @@ procedure TYearCalendar.Pisz(aX, aY: integer; aStr: string; aVecX: integer;
 var
   c: TColor;
   a,b,d: integer;
-  dzis: boolean;
+  pierwszy,dzis: boolean;
 begin
+  if aStr='-1' then exit;
   if FShowToday and (aX>0) and (aY>0) then
   begin
     try
       d:=rec[ax,ay].dzien;
+      pierwszy:=(ay=1) and (d=1);
       dzis:=EncodeDate(FRok,ay,d)=date;
     except
       dzis:=false;
@@ -346,10 +352,17 @@ begin
   if dzis then
   begin
     //cal.Canvas.Font.Style:=[fsBold,fsUnderLine];
+    dzisX:=aX;
+    dzisY:=aY;
     cal.Canvas.Font.Style:=[fsBold,fsItalic,fsUnderLine];
     cal.Canvas.Font.Size:=12;
     dec(a);
   end else begin
+    if pierwszy then
+    begin
+      dzisX:=aX;
+      dzisY:=aY;
+    end;
     cal.Canvas.Font.Style:=[];
     cal.Canvas.Font.Size:=0;
   end;
@@ -398,6 +411,7 @@ procedure TYearCalendar._OnPaint(Sender: TObject);
 begin
   InicjujWartosci;
   RysujSiatke;
+  if FAutoClickToday then zaznacz(dzisX,dzisY);
 end;
 
 procedure TYearCalendar._OnMouseDown(Sender: TObject; Button: TMouseButton;
@@ -467,6 +481,7 @@ end;
 
 procedure TYearCalendar.DestroyObjects;
 begin
+  if cal=nil then exit;
   cal.Free;
   cal:=nil;
 end;
@@ -485,14 +500,15 @@ begin
   FNotDrawLines:=false;
   FPopupMenu:=nil;
   FShowToday:=false;
+  FAutoClickToday:=false;
   v_zaznaczenie_x:=-1;
   v_zaznaczenie_y:=-1;
 end;
 
 destructor TYearCalendar.Destroy;
 begin
-  inherited Destroy;
   if cal<>nil then DestroyObjects;
+  inherited Destroy;
 end;
 
 procedure TYearCalendar.Init;
